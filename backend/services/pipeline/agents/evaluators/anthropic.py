@@ -1,0 +1,37 @@
+from __future__ import annotations
+from .base import BaseEvaluatorAgent
+from ...prompts.anthropic import anthropic_evaluator_messages
+from ...utils import parse_json_response
+from config import settings
+
+
+class AnthropicEvaluatorAgent(BaseEvaluatorAgent):
+    """Evaluator backed by the Anthropic API.
+
+    Scoring criteria and evaluation lens are profession-specific — passed in
+    via profession_config so the same evaluator can serve any role.
+    Swap the model by setting ANTHROPIC_EVALUATOR_MODEL in .env — no code changes.
+    """
+
+    name = "anthropic"
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(settings.anthropic_api_key)
+
+    def _model(self):
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(
+            model=settings.anthropic_evaluator_model,
+            api_key=settings.anthropic_api_key,
+            max_tokens=1024,
+        )
+
+    async def run(self, resume_json: dict, job_description: str, profession_config: dict) -> dict:
+        try:
+            messages = anthropic_evaluator_messages(resume_json, job_description, profession_config)
+            response = await self._model().ainvoke(messages)
+            result = parse_json_response(response.content)
+            return {"model": self.name, "score": int(result["score"]), "suggestions": result.get("suggestions", [])}
+        except Exception as exc:
+            return {"model": self.name, "score": 0, "suggestions": [f"Evaluator error: {exc}"]}

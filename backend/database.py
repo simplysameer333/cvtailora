@@ -1,0 +1,56 @@
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
+from pymongo import IndexModel, ASCENDING
+from config import settings
+
+client: AsyncIOMotorClient = None
+db = None
+fs: AsyncIOMotorGridFSBucket = None
+
+
+async def connect_db():
+    global client, db, fs
+    client = AsyncIOMotorClient(settings.mongodb_uri)
+    db = client.tailormycv
+    fs = AsyncIOMotorGridFSBucket(db)
+    await _ensure_indexes()
+
+
+async def disconnect_db():
+    if client:
+        client.close()
+
+
+async def _ensure_indexes():
+    # TTL index: auto-delete session docs after 24 hours of inactivity
+    await db.sessions.create_index(
+        "created_at", expireAfterSeconds=86400
+    )
+    # TTL index on GridFS files metadata
+    await db["fs.files"].create_index(
+        "uploadDate", expireAfterSeconds=86400
+    )
+    await db.templates.create_index("type")
+    # Users — unique email + google_id lookups
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("google_id", sparse=True)
+    # Saved jobs — compound index for fast per-user lookup + duplicate check
+    await db.saved_jobs.create_index([("user_id", 1), ("job_id", 1)], unique=True)
+    # User profiles — one profile per user
+    await db.user_profiles.create_index("user_id", unique=True)
+    # Catalog — roles and skills autocomplete
+    await db.catalog.create_index([("type", 1), ("name", 1)])
+    # Job search cache — TTL 1 hour
+    await db.search_cache.create_index("cached_at", expireAfterSeconds=3600)
+    await db.search_cache.create_index("key", unique=True)
+    # API quota tracking
+    await db.api_quota.create_index([("provider", 1), ("month", 1)], unique=True)
+    # Resume library
+    await db.saved_resumes.create_index([("user_id", 1), ("created_at", -1)])
+
+
+def get_db():
+    return db
+
+
+def get_fs():
+    return fs

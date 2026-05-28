@@ -1,0 +1,29 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+venv/
+
+# ── Node ──────────────────────────────────────────────────────────────────────
+node_modules/
+.next/
+*.log
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Secrets — never commit any .env file ──────────────────────────────────────
+.env
+.env.*
+# Allow example/template files (no real secrets in these)
+!.env.example
+!.env.*.example
+
+# ── Uploaded user files ───────────────────────────────────────────────────────
+backend/uploads/
+!backend/uploads/.gitkeep
+backend/templates/uploads/*
+!backend/templates/uploads/.gitkeep

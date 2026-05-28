@@ -1,0 +1,74 @@
+"use client";
+import { createContext, useContext, useEffect, useState } from "react";
+import { setApiToken } from "@/lib/api";
+
+export type Tier = "free" | "plus" | "pro";
+
+interface DevSession {
+  data: {
+    user: { id: string; name: string; email: string; tier: Tier };
+    accessToken: string;
+    expires: string;
+  };
+  status: "authenticated";
+}
+
+const DEV_USERS: Record<Tier, DevSession["data"]["user"]> = {
+  free: { id: "dev-free", name: "Dev User (Free)", email: "dev-free@tailormycv.dev", tier: "free" },
+  plus: { id: "dev-plus", name: "Dev User (Plus)", email: "dev-plus@tailormycv.dev", tier: "plus" },
+  pro:  { id: "dev-pro",  name: "Dev User (Pro)",  email: "dev-pro@tailormycv.dev",  tier: "pro"  },
+};
+
+const STORAGE_KEY = "tailormycv_dev_tier";
+
+interface DevContextValue {
+  session: DevSession;
+  tier: Tier;
+  setTier: (t: Tier) => void;
+}
+
+export const DevSessionContext = createContext<DevContextValue>({
+  session: { data: { user: DEV_USERS.pro, accessToken: "dev-pro", expires: "" }, status: "authenticated" },
+  tier: "pro",
+  setTier: () => {},
+});
+
+export function useDevSession() {
+  return useContext(DevSessionContext).session;
+}
+
+export function useDevContext() {
+  return useContext(DevSessionContext);
+}
+
+export default function DevProvider({ children }: { children: React.ReactNode }) {
+  // Always start with "pro" on both server and client to avoid hydration mismatch.
+  // localStorage is read in useEffect (client-only) after hydration.
+  const [tier, setTierState] = useState<Tier>("pro");
+
+  function setTier(t: Tier) {
+    setTierState(t);
+    localStorage.setItem(STORAGE_KEY, t);
+  }
+
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY) as Tier | null;
+    if (saved && saved !== tier) setTierState(saved);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    setApiToken(`dev-${tier}`);
+  }, [tier]);
+
+  const session: DevSession = {
+    data: { user: DEV_USERS[tier], accessToken: `dev-${tier}`, expires: "" },
+    status: "authenticated",
+  };
+
+  return (
+    <DevSessionContext.Provider value={{ session, tier, setTier }}>
+      {children}
+    </DevSessionContext.Provider>
+  );
+}
