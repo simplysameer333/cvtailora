@@ -55,6 +55,7 @@ async def create_user(
     name: str,
     hashed_password: Optional[str] = None,
     google_id: Optional[str] = None,
+    tier: str = "free",
 ) -> dict:
     db = get_db()
     now = datetime.utcnow()
@@ -63,7 +64,7 @@ async def create_user(
         "name": name,
         "hashed_password": hashed_password,
         "google_id": google_id,
-        "tier": "free",
+        "tier": tier,
         "is_active": True,
         "created_at": now,
         "updated_at": now,

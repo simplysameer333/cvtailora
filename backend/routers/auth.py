@@ -31,6 +31,7 @@ class RegisterBody(BaseModel):
     email: EmailStr
     name: str
     password: str
+    tier: str = "free"
 
 
 class LoginBody(BaseModel):
@@ -53,8 +54,9 @@ async def register(body: RegisterBody):
         raise HTTPException(400, "Password must be at least 8 characters.")
     if await get_user_by_email(body.email):
         raise HTTPException(409, "An account with this email already exists.")
+    tier = body.tier if body.tier in ("free", "plus", "pro") else "free"
     user = await create_user(
-        body.email, body.name.strip(), hashed_password=hash_password(body.password)
+        body.email, body.name.strip(), hashed_password=hash_password(body.password), tier=tier
     )
     token = create_access_token(str(user["_id"]), user["email"], user["tier"])
     return {"access_token": token, "user": serialize_user(user)}

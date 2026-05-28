@@ -2,15 +2,69 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
 import toast from "react-hot-toast";
-import { FiUser, FiMail, FiLock } from "react-icons/fi";
+import { FiUser, FiMail, FiLock, FiCheck } from "react-icons/fi";
 import api from "@/lib/api";
+import { signIn } from "next-auth/react";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
 
+type Tier = "free" | "plus" | "pro";
+
+const TIERS: {
+  id: Tier;
+  name: string;
+  price: string;
+  highlight?: boolean;
+  features: string[];
+}[] = [
+  {
+    id: "free",
+    name: "Free",
+    price: "$0 / mo",
+    features: [
+      "6-step AI resume builder",
+      "DOCX + PDF export",
+      "3 templates (Clean / Modern / Executive)",
+      "1 AI evaluator (Claude)",
+      "3 key skills extracted from JD",
+    ],
+  },
+  {
+    id: "plus",
+    name: "Plus",
+    price: "$9 / mo",
+    highlight: true,
+    features: [
+      "Everything in Free",
+      "2 AI evaluators (Claude + Gemini)",
+      "5 key skills extracted",
+      "Job search (Indeed / LinkedIn / Glassdoor)",
+      "Save up to 25 jobs",
+      "Resume Library (5 resumes)",
+      "One-click Tailor from job listings",
+    ],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: "$19 / mo",
+    features: [
+      "Everything in Plus",
+      "All 3 AI evaluators (+ GPT-4o)",
+      "10 key skills extracted",
+      "Section-level regeneration",
+      "Locked Facts panel",
+      "Sample CV formatting reference",
+      "Unlimited Resume Library",
+      "Unlimited saved jobs",
+    ],
+  },
+];
+
 export default function RegisterPage() {
   const router = useRouter();
+  const [tier, setTier] = useState<Tier>("free");
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
 
@@ -34,8 +88,8 @@ export default function RegisterPage() {
         email: form.email,
         name: form.name.trim(),
         password: form.password,
+        tier,
       });
-      // Sign in via NextAuth credentials to establish session
       const res = await signIn("credentials", {
         email: form.email,
         password: form.password,
@@ -51,105 +105,150 @@ export default function RegisterPage() {
     }
   }
 
-  async function handleGoogle() {
+  function handleGoogle() {
     toast("Google sign-in coming soon. Please use email and password for now.", { icon: "ℹ️" });
   }
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="card gap-6 flex flex-col">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Create account</h1>
-          <p className="text-sm text-slate-500 mt-1">Start tailoring your resume with AI</p>
+    <div className="w-full max-w-2xl">
+      <div className="flex flex-col gap-6">
+
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-slate-900">Create your account</h1>
+          <p className="text-sm text-slate-500 mt-1">Choose a plan — you can change it later</p>
         </div>
 
-        <button
-          onClick={handleGoogle}
-          className="btn-secondary w-full justify-center gap-2"
-        >
-          <GoogleIcon />
-          Continue with Google
-        </button>
-
-        <div className="flex items-center gap-3">
-          <div className="flex-1 border-t border-slate-200" />
-          <span className="text-xs text-slate-400">or</span>
-          <div className="flex-1 border-t border-slate-200" />
+        {/* Tier cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {TIERS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTier(t.id)}
+              className={`relative text-left rounded-2xl border-2 p-4 transition-all ${
+                tier === t.id
+                  ? "border-brand-500 bg-brand-50 shadow-sm"
+                  : "border-slate-200 bg-white hover:border-brand-300"
+              }`}
+            >
+              {t.highlight && (
+                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-xs font-semibold bg-brand-600 text-white px-2.5 py-0.5 rounded-full">
+                  Most popular
+                </span>
+              )}
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold text-slate-900">{t.name}</span>
+                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  tier === t.id ? "border-brand-500 bg-brand-500" : "border-slate-300"
+                }`}>
+                  {tier === t.id && <FiCheck className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                </span>
+              </div>
+              <p className="text-sm font-bold text-brand-600 mb-3">{t.price}</p>
+              <ul className="flex flex-col gap-1.5">
+                {t.features.map((f) => (
+                  <li key={f} className="flex items-start gap-1.5 text-xs text-slate-600">
+                    <FiCheck className="w-3 h-3 text-teal-500 mt-0.5 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </button>
+          ))}
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="label">Full name</label>
-            <div className="relative">
-              <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="input pl-9"
-                placeholder="Jane Smith"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="label">Email</label>
-            <div className="relative">
-              <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="input pl-9"
-                placeholder="you@example.com"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="label">Password</label>
-            <div className="relative">
-              <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="input pl-9"
-                placeholder="Min. 8 characters"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="label">Confirm password</label>
-            <div className="relative">
-              <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="password"
-                required
-                value={form.confirm}
-                onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-                className="input pl-9"
-                placeholder="••••••••"
-              />
-            </div>
-          </div>
-
-          <button type="submit" disabled={loading} className="btn-primary w-full justify-center">
-            {loading ? "Creating account…" : "Create account"}
+        {/* Registration form */}
+        <div className="card flex flex-col gap-5">
+          <button
+            type="button"
+            onClick={handleGoogle}
+            className="btn-secondary w-full justify-center gap-2"
+          >
+            <GoogleIcon />
+            Continue with Google
           </button>
-        </form>
 
-        <p className="text-center text-sm text-slate-500">
-          Already have an account?{" "}
-          <Link href="/auth/login" className="font-semibold text-brand-600 hover:underline">
-            Sign in
-          </Link>
-        </p>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t border-slate-200" />
+            <span className="text-xs text-slate-400">or</span>
+            <div className="flex-1 border-t border-slate-200" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="label">Full name</label>
+                <div className="relative">
+                  <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="input pl-9"
+                    placeholder="Jane Smith"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="label">Email</label>
+                <div className="relative">
+                  <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="input pl-9"
+                    placeholder="you@example.com"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="label">Password</label>
+                <div className="relative">
+                  <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    className="input pl-9"
+                    placeholder="Min. 8 characters"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="label">Confirm password</label>
+                <div className="relative">
+                  <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    value={form.confirm}
+                    onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+                    className="input pl-9"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" disabled={loading} className="btn-primary w-full justify-center mt-1">
+              {loading ? "Creating account…" : `Create ${tier.charAt(0).toUpperCase() + tier.slice(1)} account`}
+            </button>
+          </form>
+
+          <p className="text-center text-sm text-slate-500">
+            Already have an account?{" "}
+            <Link href="/auth/login" className="font-semibold text-brand-600 hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
+
       </div>
     </div>
   );
