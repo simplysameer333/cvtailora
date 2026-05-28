@@ -1,10 +1,12 @@
 import Navbar from "@/components/Navbar";
 import StepBar from "@/components/StepBar";
 import SessionGuard from "./SessionGuard";
+import AuthGuard from "@/components/AuthGuard";
 
 export default function BuilderLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
+      <AuthGuard />
       <SessionGuard />
       <Navbar />
       <StepBar />
