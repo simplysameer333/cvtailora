@@ -222,26 +222,54 @@ function UserRow({
 
       {open && (
         <tr className="bg-slate-50 border-b border-slate-100">
-          <td colSpan={6} className="px-6 py-3">
-            {loadingStats ? (
-              <span className="text-xs text-slate-400">Loading activity…</span>
-            ) : stats ? (
-              <div className="flex gap-6 text-sm">
-                {[
-                  ["Sessions",   stats.session_count],
-                  ["Resumes",    stats.resume_count],
-                  ["Alerts",     stats.alert_count],
-                  ["Saved Jobs", stats.saved_job_count],
-                ].map(([label, val]) => (
-                  <div key={String(label)}>
-                    <span className="text-slate-500 text-xs">{label}</span>
-                    <p className="font-semibold text-slate-800">{val}</p>
-                  </div>
-                ))}
+          <td colSpan={6} className="px-6 py-4">
+            <div className="flex items-start gap-10 flex-wrap">
+              {/* Activity stats */}
+              {loadingStats ? (
+                <span className="text-xs text-slate-400">Loading activity…</span>
+              ) : stats ? (
+                <div className="flex gap-6 text-sm">
+                  {[
+                    ["Sessions",   stats.session_count],
+                    ["Resumes",    stats.resume_count],
+                    ["Alerts",     stats.alert_count],
+                    ["Saved Jobs", stats.saved_job_count],
+                  ].map(([label, val]) => (
+                    <div key={String(label)}>
+                      <span className="text-slate-500 text-xs">{label}</span>
+                      <p className="font-semibold text-slate-800">{val}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-xs text-slate-400">No stats available.</span>
+              )}
+
+              {/* Superadmin checkbox — separated by a vertical divider */}
+              <div className="flex items-center gap-2 pl-6 border-l border-slate-200" onClick={e => e.stopPropagation()}>
+                <input
+                  id={`superadmin-${user.id}`}
+                  type="checkbox"
+                  checked={user.is_superadmin}
+                  disabled={actioning}
+                  onChange={async () => {
+                    if (user.is_superadmin && !confirm(`Remove superadmin from ${user.email}?`)) return;
+                    if (!user.is_superadmin && !confirm(`Grant superadmin to ${user.email}? They will have full admin access.`)) return;
+                    setActioning(true);
+                    try {
+                      await adminUpdateUser(user.id, { is_superadmin: !user.is_superadmin });
+                      flash(user.is_superadmin ? "Admin removed" : "Admin granted");
+                      onRefresh();
+                    } catch { flash("Failed"); }
+                    finally { setActioning(false); }
+                  }}
+                  className="w-4 h-4 accent-brand-600 cursor-pointer disabled:opacity-40"
+                />
+                <label htmlFor={`superadmin-${user.id}`} className="text-xs font-medium text-slate-600 cursor-pointer select-none">
+                  Superadmin
+                </label>
               </div>
-            ) : (
-              <span className="text-xs text-slate-400">No stats available.</span>
-            )}
+            </div>
           </td>
         </tr>
       )}
