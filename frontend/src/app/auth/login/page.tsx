@@ -12,7 +12,7 @@ const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
 function LoginContent() {
   const router = useRouter();
   const params = useSearchParams();
-  const callbackUrl = params.get("callbackUrl") ?? "/profile";
+  const callbackUrl = params.get("callbackUrl") ?? "/";
 
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
