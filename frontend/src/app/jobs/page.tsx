@@ -139,23 +139,6 @@ function UpgradeWall() {
   );
 }
 
-function AlertsUpgradeWall() {
-  return (
-    <div className="card text-center py-14 flex flex-col items-center gap-4">
-      <div className="w-14 h-14 rounded-full bg-brand-100 flex items-center justify-center">
-        <FiBell className="w-7 h-7 text-brand-600" />
-      </div>
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">Job Alerts is a Plus feature</h2>
-        <p className="text-slate-500 mt-2 max-w-sm mx-auto text-sm">
-          Get daily email digests when new jobs match your saved searches.
-        </p>
-      </div>
-      <span className="text-xs text-slate-400">Upgrade to Plus or Pro to unlock</span>
-    </div>
-  );
-}
-
 // ── Job card ──────────────────────────────────────────────────────────────────
 
 const EMPLOYMENT_LABEL: Record<string, string> = {
@@ -835,11 +818,8 @@ export default function JobsPage() {
           {/* ── My Alerts tab ─────────────────────────────────────────────────── */}
           {activeTab === "alerts" && (
             <div className="flex flex-col gap-4">
-              {tier === "free" ? (
-                <AlertsUpgradeWall />
-              ) : (
-                <>
-                  {/* Header row */}
+              <>
+                {/* Header row */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-slate-700">
@@ -917,8 +897,7 @@ export default function JobsPage() {
                       ))}
                     </div>
                   )}
-                </>
-              )}
+              </>
             </div>
           )}
         </>
