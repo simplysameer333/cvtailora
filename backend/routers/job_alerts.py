@@ -151,7 +151,7 @@ async def delete_alert(alert_id: str, user: dict = Depends(require_tier("plus"))
         raise HTTPException(404, "Alert not found.")
 
 
-_SAMPLE_JOBS = [
+_MOCK_JOBS = [
     {
         "job_title": "Senior Python Engineer",
         "employer_name": "Stripe",
@@ -184,8 +184,6 @@ _SAMPLE_JOBS = [
 
 class SendTestEmailBody(BaseModel):
     email: str
-    name: str = "there"
-    alert_name: str = "Python jobs in London"
 
 
 @router.post("/jobs/alerts/send-test")
@@ -193,21 +191,67 @@ async def send_test_alert_email(
     body: SendTestEmailBody,
     _user: dict = Depends(get_current_user),
 ):
-    """Send a sample job alert digest to any email for format preview."""
-    from services.email_service import send_job_alert_email
+    """On-demand alert email for testing.
 
+    Looks up the target email in MongoDB:
+    - User found with alerts → runs a live JSearch for their first active alert,
+      sends real results (falls back to mock if JSearch returns nothing).
+    - User not found or no alerts → sends mock email so the format can be reviewed.
+    """
+    from services.email_service import send_job_alert_email
+    from services.alert_scheduler import _search_jobs
+
+    db = get_db()
+
+    # ── Resolve user + their alerts ───────────────────────────────────────────
+    target_user = await db.users.find_one({"email": body.email})
+    alert_doc = None
+    if target_user:
+        alert_doc = await db.job_alerts.find_one(
+            {"user_id": target_user["_id"], "is_active": True},
+            sort=[("created_at", 1)],
+        )
+
+    # ── Build email payload ───────────────────────────────────────────────────
+    if alert_doc:
+        # Real alert found — run live search
+        query = " ".join(alert_doc.get("query_tags", []))
+        if alert_doc.get("company"):
+            query = f"{query} {alert_doc['company']}".strip()
+        location = " OR ".join(alert_doc.get("location_tags", []))
+
+        jobs = await _search_jobs(query, location)
+        jobs = jobs[:10] or _MOCK_JOBS   # fall back to mock if JSearch empty
+
+        alert_name = alert_doc["name"]
+        user_name = target_user.get("name", "there")
+        source = "real"
+    else:
+        # No user / no alerts — use mock data
+        jobs = _MOCK_JOBS
+        alert_name = "Python jobs in London"
+        user_name = body.email.split("@")[0]
+        source = "mock"
+
+    # ── Send ──────────────────────────────────────────────────────────────────
     sent = await send_job_alert_email(
         user_email=body.email,
-        user_name=body.name,
-        alert_name=body.alert_name,
-        jobs=_SAMPLE_JOBS,
+        user_name=user_name,
+        alert_name=alert_name,
+        jobs=jobs,
     )
     if not sent:
         raise HTTPException(
             502,
             "Email could not be sent. Check SMTP_HOST / SMTP_USER / SMTP_PASSWORD in .env.",
         )
-    return {"sent": True, "to": body.email, "jobs": len(_SAMPLE_JOBS)}
+    return {
+        "sent": True,
+        "to": body.email,
+        "alert": alert_name,
+        "jobs": len(jobs),
+        "source": source,   # "real" | "mock"
+    }
 
 
 @router.patch("/jobs/alerts/{alert_id}/toggle")
