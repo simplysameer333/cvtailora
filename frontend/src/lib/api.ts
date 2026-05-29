@@ -594,6 +594,18 @@ export async function adminGetUserStats(userId: string): Promise<UserStats> {
   return data;
 }
 
+export async function adminUpdateUser(
+  userId: string,
+  body: { is_active?: boolean; is_superadmin?: boolean },
+): Promise<{ id: string; email: string; is_active: boolean; is_superadmin: boolean }> {
+  const { data } = await api.patch(`/api/admin/users/${userId}`, body);
+  return data;
+}
+
+export async function adminDeleteUser(userId: string): Promise<void> {
+  await api.delete(`/api/admin/users/${userId}`);
+}
+
 export async function adminListAudit(page = 1, pageSize = 50): Promise<AuditPage> {
   const { data } = await api.get(`/api/admin/audit?page=${page}&page_size=${pageSize}`);
   return data;

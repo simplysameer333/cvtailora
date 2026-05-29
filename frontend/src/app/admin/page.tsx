@@ -3,7 +3,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
 import {
-  adminListUsers, adminGetUserStats, adminListAudit, adminListPrompts,
+  adminListUsers, adminGetUserStats, adminUpdateUser, adminDeleteUser,
+  adminListAudit, adminListPrompts,
   adminUpdatePrompt, adminResetPrompt,
   adminListProfessions, adminCreateProfession, adminUpdateProfession, adminDeleteProfession,
   adminListTemplates, adminUploadTemplate, adminUpdateTemplate, adminDeleteTemplate,
@@ -116,14 +117,20 @@ function UserRow({
   user,
   statsCache,
   fetchStats,
+  onRefresh,
 }: {
   user: AdminUser;
   statsCache: Map<string, UserStats>;
   fetchStats: (id: string) => Promise<void>;
+  onRefresh: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [actioning, setActioning] = useState(false);
+  const [msg, setMsg] = useState("");
   const stats = statsCache.get(user.id);
+
+  function flash(t: string) { setMsg(t); setTimeout(() => setMsg(""), 3000); }
 
   async function handleExpand() {
     const next = !open;
@@ -135,12 +142,34 @@ function UserRow({
     }
   }
 
+  async function handleToggleActive(e: React.MouseEvent) {
+    e.stopPropagation();
+    setActioning(true);
+    try {
+      await adminUpdateUser(user.id, { is_active: !user.is_active });
+      flash(user.is_active ? "Disabled" : "Enabled");
+      onRefresh();
+    } catch { flash("Failed"); }
+    finally { setActioning(false); }
+  }
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm(`Permanently delete ${user.email} and all their data? This cannot be undone.`)) return;
+    setActioning(true);
+    try {
+      await adminDeleteUser(user.id);
+      onRefresh();
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      flash(detail || "Delete failed");
+    }
+    finally { setActioning(false); }
+  }
+
   return (
     <>
-      <tr
-        className="hover:bg-slate-50 transition cursor-pointer"
-        onClick={handleExpand}
-      >
+      <tr className="hover:bg-slate-50 transition cursor-pointer" onClick={handleExpand}>
         <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">
           <span className="flex items-center gap-1.5">
             {open ? <FiChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <FiChevronDown className="w-3.5 h-3.5 text-slate-400" />}
@@ -162,11 +191,38 @@ function UserRow({
             {user.is_active ? "Active" : "Disabled"}
           </span>
         </td>
+        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-2">
+            {msg && <span className={`text-xs font-medium ${msg === "Failed" || msg === "Delete failed" ? "text-red-600" : "text-green-600"}`}>{msg}</span>}
+            {!user.is_superadmin && (
+              <>
+                <button
+                  onClick={handleToggleActive}
+                  disabled={actioning}
+                  title={user.is_active ? "Disable account" : "Enable account"}
+                  className="text-slate-400 hover:text-slate-700 disabled:opacity-40"
+                >
+                  {user.is_active
+                    ? <FiToggleRight className="w-5 h-5 text-teal-600" />
+                    : <FiToggleLeft className="w-5 h-5" />}
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={actioning}
+                  title="Delete user and all data"
+                  className="text-slate-400 hover:text-red-500 disabled:opacity-40"
+                >
+                  <FiTrash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+        </td>
       </tr>
 
       {open && (
         <tr className="bg-slate-50 border-b border-slate-100">
-          <td colSpan={5} className="px-6 py-3">
+          <td colSpan={6} className="px-6 py-3">
             {loadingStats ? (
               <span className="text-xs text-slate-400">Loading activity…</span>
             ) : stats ? (
@@ -211,23 +267,23 @@ function UsersTab({
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {["Name", "Email", "Tier", "Joined", "Status"].map(h => (
+                {["Name", "Email", "Tier", "Joined", "Status", "Actions"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.map(u => (
-                <UserRow key={u.id} user={u} statsCache={statsCache} fetchStats={fetchStats} />
+                <UserRow key={u.id} user={u} statsCache={statsCache} fetchStats={fetchStats} onRefresh={onRefresh} />
               ))}
               {!users.length && (
-                <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">No users found.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No users found.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       )}
-      <p className="text-xs text-slate-400 mt-2">Click a row to expand activity counts.</p>
+      <p className="text-xs text-slate-400 mt-2">Click a row to expand activity counts. Superadmin accounts cannot be disabled or deleted.</p>
     </div>
   );
 }

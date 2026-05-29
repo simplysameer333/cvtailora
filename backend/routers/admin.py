@@ -63,6 +63,64 @@ async def list_users(_: dict = Depends(require_superadmin)):
     ]
 
 
+class UserPatchBody(BaseModel):
+    is_active: bool | None = None
+    is_superadmin: bool | None = None
+
+
+@router.patch("/admin/users/{user_id}")
+async def admin_update_user(user_id: str, body: UserPatchBody, admin: dict = Depends(require_superadmin)):
+    from datetime import datetime
+    db = get_db()
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(400, "Invalid user ID.")
+    if str(oid) == str(admin["_id"]):
+        raise HTTPException(400, "You cannot modify your own account.")
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(400, "No fields to update.")
+    updates["updated_at"] = datetime.utcnow()
+    result = await db.users.find_one_and_update(
+        {"_id": oid}, {"$set": updates}, return_document=True
+    )
+    if not result:
+        raise HTTPException(404, "User not found.")
+    return {
+        "id": str(result["_id"]),
+        "email": result.get("email"),
+        "is_active": result.get("is_active", True),
+        "is_superadmin": result.get("is_superadmin", False),
+    }
+
+
+@router.delete("/admin/users/{user_id}", status_code=204)
+async def admin_delete_user(user_id: str, admin: dict = Depends(require_superadmin)):
+    db = get_db()
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(400, "Invalid user ID.")
+    if str(oid) == str(admin["_id"]):
+        raise HTTPException(400, "You cannot delete your own account.")
+    doc = await db.users.find_one({"_id": oid})
+    if not doc:
+        raise HTTPException(404, "User not found.")
+    if doc.get("is_superadmin"):
+        raise HTTPException(400, "Cannot delete another superadmin account.")
+    # Hard delete user + their associated data
+    import asyncio
+    await asyncio.gather(
+        db.users.delete_one({"_id": oid}),
+        db.user_profiles.delete_one({"user_id": oid}),
+        db.job_alerts.delete_many({"user_id": oid}),
+        db.saved_jobs.delete_many({"user_id": str(oid)}),
+        db.saved_resumes.delete_many({"user_id": oid}),
+        db.audit_log.delete_many({"user_id": str(oid)}),
+    )
+
+
 @router.get("/admin/users/{user_id}/stats")
 async def get_user_stats(user_id: str, _: dict = Depends(require_superadmin)):
     """Fetch activity counts for a single user — called lazily when a user row is expanded."""
