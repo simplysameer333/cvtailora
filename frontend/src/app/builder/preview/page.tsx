@@ -43,6 +43,11 @@ export default function PreviewPage() {
   const [customSections, setCustomSections] = useState<CustomSection[]>([]);
   const [addingSection, setAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
+  const [boldKeywords, setBoldKeywords] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const saved = localStorage.getItem("tailormycv_bold_keywords");
+    return saved === null ? true : saved === "true";
+  });
 
   useEffect(() => {
     const storedResume = localStorage.getItem(LS_RESUME);
@@ -502,6 +507,28 @@ export default function PreviewPage() {
           <FiPlus className="w-4 h-4" /> Add Section
         </button>
       )}
+
+      {/* Bold keywords option */}
+      <div className="card p-4 flex items-start gap-3">
+        <input
+          id="bold-keywords"
+          type="checkbox"
+          checked={boldKeywords}
+          onChange={e => {
+            setBoldKeywords(e.target.checked);
+            localStorage.setItem("tailormycv_bold_keywords", String(e.target.checked));
+          }}
+          className="mt-0.5 w-4 h-4 accent-brand-600 cursor-pointer shrink-0"
+        />
+        <div>
+          <label htmlFor="bold-keywords" className="text-sm font-semibold text-slate-800 cursor-pointer">
+            Bold key skills in the exported document
+          </label>
+          <p className="text-xs text-slate-500 mt-0.5">
+            When checked, skills and keywords matched from the job description are highlighted bold in the generated DOCX and PDF — making them stand out to recruiters.
+          </p>
+        </div>
+      </div>
 
       <div className="flex justify-between pt-2">
         <button onClick={() => router.back()} className="btn-secondary">

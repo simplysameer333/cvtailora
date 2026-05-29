@@ -16,11 +16,35 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, HRFlowable, ListFlowable, ListItem,
+    Table, TableStyle,
 )
 from reportlab.platypus import KeepTogether
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
+
+def _kw_pattern(keywords: list[str]):
+    """Compile a case-insensitive regex that matches any keyword (longest first)."""
+    if not keywords:
+        return None
+    terms = sorted(set(k.strip() for k in keywords if k.strip()), key=len, reverse=True)
+    return re.compile("|".join(re.escape(t) for t in terms), re.IGNORECASE)
+
+
+def _bold_pdf(text: str, kw_re) -> str:
+    """Wrap keyword matches in <b> tags for ReportLab XML markup.
+
+    Escapes the full text first so XML special chars are safe, then inserts
+    <b> tags (which must NOT be escaped) around matched keywords.
+    """
+    import html as _html_mod
+    escaped = _html_mod.escape(str(text or ""))
+    if kw_re is None:
+        return escaped
+    def _wrap(m):
+        return f"<b>{_html_mod.escape(m.group(0))}</b>"
+    return kw_re.sub(_wrap, escaped)
+
 
 def _is_url(text: str) -> bool:
     return bool(text and re.match(r'https?://', text.strip()))
@@ -77,14 +101,32 @@ def _add_plain_run(paragraph, text: str, font_size_pt: int = 10, bold: bool = Fa
         run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
 
 
-def _docx_bullet(doc: Document, text: str, font_size_pt: int = 10):
-    """Add a properly indented bullet paragraph — does not rely on List Bullet style."""
+def _docx_bullet(doc: Document, text: str, font_size_pt: int = 10, kw_re=None):
+    """Add a properly hanging-indented bullet paragraph with optional keyword bolding."""
     p = doc.add_paragraph()
-    p.paragraph_format.left_indent = Inches(0.3)
-    p.paragraph_format.first_line_indent = Inches(-0.2)
+    p.paragraph_format.left_indent = Inches(0.25)
+    p.paragraph_format.first_line_indent = Inches(-0.18)
     p.paragraph_format.space_after = Pt(2)
-    run = p.add_run(f'•  {text}')
-    run.font.size = Pt(font_size_pt)
+    # Bullet marker
+    bullet_run = p.add_run("•  ")
+    bullet_run.font.size = Pt(font_size_pt)
+    # Body text — split around keyword matches for bold highlighting
+    if kw_re is None:
+        r = p.add_run(text)
+        r.font.size = Pt(font_size_pt)
+    else:
+        last = 0
+        for m in kw_re.finditer(text):
+            if m.start() > last:
+                r = p.add_run(text[last:m.start()])
+                r.font.size = Pt(font_size_pt)
+            br = p.add_run(m.group(0))
+            br.bold = True
+            br.font.size = Pt(font_size_pt)
+            last = m.end()
+        if last < len(text):
+            r = p.add_run(text[last:])
+            r.font.size = Pt(font_size_pt)
     return p
 
 
@@ -106,10 +148,11 @@ def _docx_section_heading(doc: Document, title: str):
 
 # ── DOCX generation ────────────────────────────────────────────────────────────
 
-def generate_docx(resume_data: dict, template_path: str) -> bytes:
+def generate_docx(resume_data: dict, template_path: str, bold_keywords: list[str] | None = None) -> bytes:
+    kw_re = _kw_pattern(bold_keywords or [])
     if os.path.exists(template_path):
         return _apply_to_template(resume_data, template_path)
-    return _generate_clean_docx(resume_data)
+    return _generate_clean_docx(resume_data, kw_re=kw_re)
 
 
 def _apply_to_template(resume_data: dict, template_path: str) -> bytes:
@@ -197,7 +240,7 @@ def _build_replacements(r: dict) -> dict:
     return replacements
 
 
-def _generate_clean_docx(r: dict) -> bytes:
+def _generate_clean_docx(r: dict, kw_re=None) -> bytes:
     doc = Document()
     contact = r.get("contact", {})
 
@@ -267,9 +310,9 @@ def _generate_clean_docx(r: dict) -> bytes:
                 run.italic = True
 
             for bullet in job.get("bullets", []):
-                _docx_bullet(doc, bullet)
+                _docx_bullet(doc, bullet, kw_re=kw_re)
 
-            doc.add_paragraph().paragraph_format.space_after = Pt(4)
+            doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
     # ── Education ──────────────────────────────────────────────────────────────
     if r.get("education"):
@@ -284,7 +327,7 @@ def _generate_clean_docx(r: dict) -> bytes:
             ed_para.runs[-1].font.size = Pt(10.5)
 
             dates_para = doc.add_paragraph(ed.get("dates", ""))
-            dates_para.paragraph_format.space_after = Pt(6)
+            dates_para.paragraph_format.space_after = Pt(4)
             for run in dates_para.runs:
                 run.font.size = Pt(9)
                 run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
@@ -299,17 +342,17 @@ def _generate_clean_docx(r: dict) -> bytes:
                 continue
             _docx_section_heading(doc, title)
             for item in items:
-                _docx_bullet(doc, item)
+                _docx_bullet(doc, item, kw_re=kw_re)
     else:
         # Backward compat: old-format resumes stored before dynamic sections
         if r.get("skills"):
             _docx_section_heading(doc, "Skills")
             for skill in r["skills"]:
-                _docx_bullet(doc, skill)
+                _docx_bullet(doc, skill, kw_re=kw_re)
         if r.get("certifications"):
             _docx_section_heading(doc, "Certifications")
             for cert in r["certifications"]:
-                _docx_bullet(doc, cert)
+                _docx_bullet(doc, cert, kw_re=kw_re)
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -336,13 +379,14 @@ def _pdf_link(url: str, display: str) -> str:
     return f'<a href="{_e(url)}" color="#0563C1"><u>{_e(display)}</u></a>'
 
 
-def generate_pdf(resume_data: dict) -> bytes:
+def generate_pdf(resume_data: dict, bold_keywords: list[str] | None = None) -> bytes:
+    kw_re = _kw_pattern(bold_keywords or [])
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf,
         pagesize=A4,
         leftMargin=18*mm, rightMargin=18*mm,
-        topMargin=16*mm, bottomMargin=16*mm,
+        topMargin=14*mm, bottomMargin=14*mm,
     )
 
     base = getSampleStyleSheet()
@@ -354,42 +398,67 @@ def generate_pdf(resume_data: dict) -> bytes:
     )
     contact_style = ParagraphStyle(
         "Contact", parent=base["Normal"],
-        fontSize=9, leading=13, textColor=_MUTED,
-        fontName="Helvetica", alignment=TA_CENTER, spaceAfter=8,
+        fontSize=9, leading=12, textColor=_MUTED,
+        fontName="Helvetica", alignment=TA_CENTER, spaceAfter=6,
     )
     section_style = ParagraphStyle(
         "Section", parent=base["Normal"],
-        fontSize=10, leading=13, textColor=_BRAND,
-        fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=2,
+        fontSize=10, leading=12, textColor=_BRAND,
+        fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=2,
     )
     job_title_style = ParagraphStyle(
         "JobTitle", parent=base["Normal"],
-        fontSize=10, leading=13, textColor=_TEXT,
+        fontSize=10, leading=12, textColor=_TEXT,
         fontName="Helvetica-Bold", spaceAfter=1,
     )
     job_meta_style = ParagraphStyle(
         "JobMeta", parent=base["Normal"],
-        fontSize=9, leading=12, textColor=_MUTED,
-        fontName="Helvetica-Oblique", spaceAfter=3,
+        fontSize=9, leading=11, textColor=_MUTED,
+        fontName="Helvetica-Oblique", spaceAfter=2,
     )
     body_style = ParagraphStyle(
         "Body", parent=base["Normal"],
-        fontSize=9.5, leading=14, textColor=_TEXT,
+        fontSize=9.5, leading=13, textColor=_TEXT,
         fontName="Helvetica", spaceAfter=4,
     )
-    bullet_style = ParagraphStyle(
-        "Bullet", parent=base["Normal"],
+    # Bullet text style — no indent here; alignment is handled by the Table column
+    bullet_text_style = ParagraphStyle(
+        "BulletText", parent=base["Normal"],
         fontSize=9.5, leading=13, textColor=_TEXT,
-        fontName="Helvetica",
-        leftIndent=14, firstLineIndent=-14,
-        spaceAfter=2,
+        fontName="Helvetica", spaceAfter=0,
     )
 
     def hr():
-        return HRFlowable(width="100%", thickness=0.5, color=_BRAND, spaceAfter=4)
+        return HRFlowable(width="100%", thickness=0.5, color=_BRAND, spaceAfter=3)
 
     def section_heading(title: str):
         return [Paragraph(title.upper(), section_style), hr()]
+
+    def _pdf_bullet_table(bullets: list[str]) -> Table:
+        """Render bullets as a 2-column table: marker | text.
+        This guarantees wrapped lines align with the start of text, not the bullet marker.
+        """
+        marker_style = ParagraphStyle(
+            "BulletMarker", parent=base["Normal"],
+            fontSize=9.5, leading=13, textColor=_TEXT,
+            fontName="Helvetica",
+        )
+        rows = [
+            [
+                Paragraph("•", marker_style),
+                Paragraph(_bold_pdf(b, kw_re), bullet_text_style),
+            ]
+            for b in bullets
+        ]
+        tbl = Table(rows, colWidths=[10, None])
+        tbl.setStyle(TableStyle([
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+            ("TOPPADDING",    (0, 0), (-1, -1), 1),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+        ]))
+        return tbl
 
     story = []
     r = resume_data
@@ -419,12 +488,12 @@ def generate_pdf(resume_data: dict) -> bytes:
     if contact_parts:
         story.append(Paragraph("  ·  ".join(contact_parts), contact_style))
 
-    story.append(HRFlowable(width="100%", thickness=1, color=_BRAND, spaceAfter=6))
+    story.append(HRFlowable(width="100%", thickness=1, color=_BRAND, spaceAfter=5))
 
     # ── Summary ────────────────────────────────────────────────────────────────
     if r.get("summary"):
         story += section_heading("Professional Summary")
-        story.append(Paragraph(_e(r["summary"]), body_style))
+        story.append(Paragraph(_bold_pdf(r["summary"], kw_re), body_style))
 
     # ── Experience ─────────────────────────────────────────────────────────────
     if r.get("experience"):
@@ -434,9 +503,10 @@ def generate_pdf(resume_data: dict) -> bytes:
                 Paragraph(f"<b>{_e(job['role'])}</b>  ·  {_e(job['company'])}", job_title_style),
                 Paragraph(_e(job.get("dates", "")), job_meta_style),
             ]
-            for bullet in job.get("bullets", []):
-                block.append(Paragraph(f"•  {_e(bullet)}", bullet_style))
-            block.append(Spacer(1, 4))
+            bullets = job.get("bullets", [])
+            if bullets:
+                block.append(_pdf_bullet_table(bullets))
+            block.append(Spacer(1, 3))
             story.append(KeepTogether(block))
 
     # ── Education ──────────────────────────────────────────────────────────────
@@ -457,18 +527,15 @@ def generate_pdf(resume_data: dict) -> bytes:
             if not title or not items:
                 continue
             story += section_heading(title)
-            for item in items:
-                story.append(Paragraph(f"•  {_e(item)}", bullet_style))
+            story.append(_pdf_bullet_table(items))
     else:
         # Backward compat: old-format resumes stored before dynamic sections
         if r.get("skills"):
             story += section_heading("Skills")
-            for skill in r["skills"]:
-                story.append(Paragraph(f"•  {_e(skill)}", bullet_style))
+            story.append(_pdf_bullet_table(r["skills"]))
         if r.get("certifications"):
             story += section_heading("Certifications")
-            for cert in r["certifications"]:
-                story.append(Paragraph(f"•  {_e(cert)}", bullet_style))
+            story.append(_pdf_bullet_table(r["certifications"]))
 
     doc.build(story)
     return buf.getvalue()

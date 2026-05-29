@@ -15,6 +15,7 @@ router = APIRouter()
 class ExportBody(BaseModel):
     include_pdf: bool = False
     resume_data: dict | None = None  # fallback when session lacks generated_resume
+    bold_keywords: bool = True        # bold key skills extracted from JD in the output
 
 
 @router.post("/export")
@@ -41,10 +42,15 @@ async def export_resume(session_id: str, body: ExportBody = ExportBody()):
         if tmpl:
             template_path = get_template_path(tmpl["file_path"])
 
+    # Resolve key_skills for bold-keyword rendering
+    bold_keywords: list[str] = []
+    if body.bold_keywords:
+        bold_keywords = session.get("key_skills") or []
+
     output_files = {}
 
     # DOCX is always generated — it is the primary output.
-    docx_bytes = generate_docx(resume_data, template_path)
+    docx_bytes = generate_docx(resume_data, template_path, bold_keywords=bold_keywords)
     docx_id = await fs.upload_from_stream(
         f"resume_{session_id}.docx",
         io.BytesIO(docx_bytes),
@@ -55,7 +61,7 @@ async def export_resume(session_id: str, body: ExportBody = ExportBody()):
     # PDF is optional — generated directly from resume data (no LibreOffice needed).
     if body.include_pdf:
         try:
-            pdf_bytes = generate_pdf(resume_data)
+            pdf_bytes = generate_pdf(resume_data, bold_keywords=bold_keywords)
             pdf_id = await fs.upload_from_stream(
                 f"resume_{session_id}.pdf",
                 io.BytesIO(pdf_bytes),

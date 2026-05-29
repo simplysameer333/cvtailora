@@ -99,7 +99,7 @@ export async function generateResume(
   return data as PipelineResult | GeneratedResume;
 }
 
-export async function exportResume(sessionId: string, includePdf = false) {
+export async function exportResume(sessionId: string, includePdf = false, boldKeywords = true) {
   let resumeData: unknown = null;
   try {
     const stored = localStorage.getItem("tailormycv_generated");
@@ -108,6 +108,7 @@ export async function exportResume(sessionId: string, includePdf = false) {
   const { data } = await api.post(`/api/export?session_id=${sessionId}`, {
     include_pdf: includePdf,
     resume_data: resumeData,
+    bold_keywords: boldKeywords,
   });
   return data as { docx_file_id?: string; pdf_file_id?: string; pdf_error?: string };
 }

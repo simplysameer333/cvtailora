@@ -142,8 +142,22 @@ function UserRow({
     }
   }
 
+  async function handleToggleSuperadmin(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (user.is_superadmin && !confirm(`Remove superadmin from ${user.email}?`)) return;
+    if (!user.is_superadmin && !confirm(`Grant superadmin to ${user.email}? They will have full admin access.`)) return;
+    setActioning(true);
+    try {
+      await adminUpdateUser(user.id, { is_superadmin: !user.is_superadmin });
+      flash(user.is_superadmin ? "Admin removed" : "Admin granted");
+      onRefresh();
+    } catch { flash("Failed"); }
+    finally { setActioning(false); }
+  }
+
   async function handleToggleActive(e: React.MouseEvent) {
     e.stopPropagation();
+    if (user.is_superadmin) { flash("Revoke superadmin first"); return; }
     setActioning(true);
     try {
       await adminUpdateUser(user.id, { is_active: !user.is_active });
@@ -155,6 +169,7 @@ function UserRow({
 
   async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
+    if (user.is_superadmin) { flash("Revoke superadmin first"); return; }
     if (!confirm(`Permanently delete ${user.email} and all their data? This cannot be undone.`)) return;
     setActioning(true);
     try {
@@ -174,9 +189,6 @@ function UserRow({
           <span className="flex items-center gap-1.5">
             {open ? <FiChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <FiChevronDown className="w-3.5 h-3.5 text-slate-400" />}
             {user.name}
-            {user.is_superadmin && (
-              <span className="ml-1 text-xs bg-brand-100 text-brand-700 rounded px-1.5 py-0.5 font-semibold">Admin</span>
-            )}
           </span>
         </td>
         <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{user.email}</td>
@@ -192,84 +204,79 @@ function UserRow({
           </span>
         </td>
         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center gap-2">
-            {msg && <span className={`text-xs font-medium ${msg === "Failed" || msg === "Delete failed" ? "text-red-600" : "text-green-600"}`}>{msg}</span>}
-            {!user.is_superadmin && (
-              <>
-                <button
-                  onClick={handleToggleActive}
-                  disabled={actioning}
-                  title={user.is_active ? "Disable account" : "Enable account"}
-                  className="text-slate-400 hover:text-slate-700 disabled:opacity-40"
-                >
-                  {user.is_active
-                    ? <FiToggleRight className="w-5 h-5 text-teal-600" />
-                    : <FiToggleLeft className="w-5 h-5" />}
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={actioning}
-                  title="Delete user and all data"
-                  className="text-slate-400 hover:text-red-500 disabled:opacity-40"
-                >
-                  <FiTrash2 className="w-4 h-4" />
-                </button>
-              </>
+          <div className="flex items-center justify-end gap-3">
+            {msg && (
+              <span className={`text-xs font-medium whitespace-nowrap ${msg.includes("Revoke") || msg === "Failed" || msg.includes("failed") ? "text-red-600" : "text-green-600"}`}>
+                {msg}
+              </span>
             )}
+
+            {/* Superadmin checkbox — always visible */}
+            <label
+              className="flex items-center gap-1.5 cursor-pointer"
+              onClick={e => e.stopPropagation()}
+              title={user.is_superadmin ? "Revoke superadmin" : "Grant superadmin"}
+            >
+              <input
+                type="checkbox"
+                checked={user.is_superadmin}
+                disabled={actioning}
+                onChange={() => {}}
+                onClick={handleToggleSuperadmin}
+                className="w-3.5 h-3.5 accent-brand-600 cursor-pointer disabled:opacity-40"
+              />
+              <span className="text-xs text-slate-500 select-none">Admin</span>
+            </label>
+
+            <div className="w-px h-4 bg-slate-200" />
+
+            {/* Enable/Disable toggle */}
+            <button
+              onClick={handleToggleActive}
+              disabled={actioning}
+              title={user.is_superadmin ? "Revoke superadmin first" : user.is_active ? "Disable account" : "Enable account"}
+              className="text-slate-400 hover:text-slate-700 disabled:opacity-40"
+            >
+              {user.is_active
+                ? <FiToggleRight className={`w-5 h-5 ${user.is_superadmin ? "opacity-30" : "text-teal-600"}`} />
+                : <FiToggleLeft className="w-5 h-5" />}
+            </button>
+
+            {/* Delete */}
+            <button
+              onClick={handleDelete}
+              disabled={actioning}
+              title={user.is_superadmin ? "Revoke superadmin first" : "Delete user and all data"}
+              className="text-slate-400 hover:text-red-500 disabled:opacity-40"
+            >
+              <FiTrash2 className={`w-4 h-4 ${user.is_superadmin ? "opacity-30" : ""}`} />
+            </button>
           </div>
         </td>
       </tr>
 
       {open && (
         <tr className="bg-slate-50 border-b border-slate-100">
-          <td colSpan={6} className="px-6 py-4">
-            <div className="flex items-start gap-10 flex-wrap">
-              {/* Activity stats */}
-              {loadingStats ? (
-                <span className="text-xs text-slate-400">Loading activity…</span>
-              ) : stats ? (
-                <div className="flex gap-6 text-sm">
-                  {[
-                    ["Sessions",   stats.session_count],
-                    ["Resumes",    stats.resume_count],
-                    ["Alerts",     stats.alert_count],
-                    ["Saved Jobs", stats.saved_job_count],
-                  ].map(([label, val]) => (
-                    <div key={String(label)}>
-                      <span className="text-slate-500 text-xs">{label}</span>
-                      <p className="font-semibold text-slate-800">{val}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-xs text-slate-400">No stats available.</span>
-              )}
-
-              {/* Superadmin checkbox — separated by a vertical divider */}
-              <div className="flex items-center gap-2 pl-6 border-l border-slate-200" onClick={e => e.stopPropagation()}>
-                <input
-                  id={`superadmin-${user.id}`}
-                  type="checkbox"
-                  checked={user.is_superadmin}
-                  disabled={actioning}
-                  onChange={async () => {
-                    if (user.is_superadmin && !confirm(`Remove superadmin from ${user.email}?`)) return;
-                    if (!user.is_superadmin && !confirm(`Grant superadmin to ${user.email}? They will have full admin access.`)) return;
-                    setActioning(true);
-                    try {
-                      await adminUpdateUser(user.id, { is_superadmin: !user.is_superadmin });
-                      flash(user.is_superadmin ? "Admin removed" : "Admin granted");
-                      onRefresh();
-                    } catch { flash("Failed"); }
-                    finally { setActioning(false); }
-                  }}
-                  className="w-4 h-4 accent-brand-600 cursor-pointer disabled:opacity-40"
-                />
-                <label htmlFor={`superadmin-${user.id}`} className="text-xs font-medium text-slate-600 cursor-pointer select-none">
-                  Superadmin
-                </label>
+          <td colSpan={6} className="px-6 py-3">
+            {loadingStats ? (
+              <span className="text-xs text-slate-400">Loading activity…</span>
+            ) : stats ? (
+              <div className="flex gap-6 text-sm">
+                {[
+                  ["Sessions",   stats.session_count],
+                  ["Resumes",    stats.resume_count],
+                  ["Alerts",     stats.alert_count],
+                  ["Saved Jobs", stats.saved_job_count],
+                ].map(([label, val]) => (
+                  <div key={String(label)}>
+                    <span className="text-slate-500 text-xs">{label}</span>
+                    <p className="font-semibold text-slate-800">{val}</p>
+                  </div>
+                ))}
               </div>
-            </div>
+            ) : (
+              <span className="text-xs text-slate-400">No stats available.</span>
+            )}
           </td>
         </tr>
       )}
@@ -311,7 +318,7 @@ function UsersTab({
           </table>
         </div>
       )}
-      <p className="text-xs text-slate-400 mt-2">Click a row to expand activity counts. Superadmin accounts cannot be disabled or deleted.</p>
+      <p className="text-xs text-slate-400 mt-2">Click a row to expand activity counts. To disable or delete a superadmin, first uncheck their Admin checkbox.</p>
     </div>
   );
 }

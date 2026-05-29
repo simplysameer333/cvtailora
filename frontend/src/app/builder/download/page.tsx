@@ -64,9 +64,10 @@ export default function DownloadPage() {
   async function generate() {
     const sessionId = getSessionId();
     if (!sessionId) { toast.error("No session found."); return; }
+    const boldKeywords = localStorage.getItem("tailormycv_bold_keywords") !== "false";
     setLoading(true);
     try {
-      const result = await exportResume(sessionId, true);
+      const result = await exportResume(sessionId, true, boldKeywords);
       setFiles(result);
       if (result.pdf_error) {
         toast(`PDF error: ${result.pdf_error}`, { icon: "⚠️", duration: 8000 });
