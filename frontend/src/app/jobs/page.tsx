@@ -10,12 +10,13 @@ import {
 import {
   searchJobs, saveJob, unsaveJob, getSavedJobs,
   getAccountProfile, createSessionFromProfileWithJob,
-  getJobsQuota,
+  getJobsQuota, searchCatalogRoles,
   type Job, type QuotaStatus,
 } from "@/lib/api";
 import { setSessionId } from "@/lib/session";
 import { useAuth } from "@/lib/useAuth";
 import ResumePickerModal from "@/components/ResumePickerModal";
+import TagInput from "@/components/TagInput";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
 
@@ -176,7 +177,18 @@ function JobCard({
 
         {/* Row 1 — title (left) + location/type/remote (right) */}
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-semibold text-slate-900 text-base leading-snug">{job.job_title}</h3>
+          {job.job_apply_link && job.job_apply_link !== "#" ? (
+            <a
+              href={job.job_apply_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-slate-900 text-base leading-snug hover:text-brand-600 hover:underline underline-offset-2 transition-colors"
+            >
+              {job.job_title}
+            </a>
+          ) : (
+            <h3 className="font-semibold text-slate-900 text-base leading-snug">{job.job_title}</h3>
+          )}
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
             {location && (
               <span className="flex items-center gap-1 text-xs text-slate-500">
@@ -258,7 +270,7 @@ export default function JobsPage() {
   const tier = session?.user?.tier ?? "free";
   const canSearch = tier === "plus" || tier === "pro";
 
-  const [query, setQuery] = useState("");
+  const [queryTags, setQueryTags] = useState<string[]>([]);
   const [location, setLocation] = useState("");
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [hasProfileResume, setHasProfileResume] = useState(false);
@@ -310,13 +322,15 @@ export default function JobsPage() {
     if (!canSearch) return;
     getAccountProfile()
       .then((profile) => {
-        const role = profile?.target_roles?.[0] ?? "";
-        const loc  = profile?.location ?? "";
-        if (role) setQuery(role);
-        if (loc)  setLocation(loc);
+        const tags: string[] = [];
+        if (profile?.target_roles?.length) tags.push(...profile.target_roles);
+        if (profile?.primary_skill) tags.push(profile.primary_skill);
+        const loc = profile?.location ?? "";
+        if (tags.length) setQueryTags(tags);
+        if (loc) setLocation(loc);
         setHasProfileResume(!!profile?.resume_text);
         setProfileLoaded(true);
-        if (role) runSearch(role, loc, 1);
+        if (tags.length) runSearch(tags.join(" "), loc, 1);
       })
       .catch(() => setProfileLoaded(true));
     getJobsQuota().then(setQuota).catch(() => {});
@@ -324,8 +338,9 @@ export default function JobsPage() {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
+    if (!queryTags.length) return;
     setPage(1);
-    await runSearch(query, location, 1);
+    await runSearch(queryTags.join(" "), location, 1);
   }
 
   async function handleSave(job: Job) {
@@ -385,7 +400,7 @@ export default function JobsPage() {
           )}
 
           {/* Profile-sourced indicator */}
-          {profileLoaded && hasProfileResume && query && (
+          {profileLoaded && hasProfileResume && queryTags.length > 0 && (
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <FiUser className="w-3.5 h-3.5 text-teal-500" />
               Pre-filled from your profile · <a href="/profile" className="text-brand-600 hover:underline">Edit profile</a>
@@ -414,16 +429,13 @@ export default function JobsPage() {
           )}
 
           {/* Search bar */}
-          <form onSubmit={handleSearch} className="card flex flex-col sm:flex-row gap-3 !p-3">
-            <div className="relative flex-1">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Job title, keywords, or company"
-                className="input pl-9"
-                required
+          <form onSubmit={handleSearch} className="card flex flex-col sm:flex-row sm:items-start gap-3 !p-3">
+            <div className="flex-1">
+              <TagInput
+                value={queryTags}
+                onChange={setQueryTags}
+                fetchSuggestions={searchCatalogRoles}
+                placeholder="Job title, keywords, or company…"
               />
             </div>
             <div className="relative flex-1">
@@ -436,7 +448,7 @@ export default function JobsPage() {
                 className="input pl-9"
               />
             </div>
-            <button type="submit" disabled={loading} className="btn-primary shrink-0">
+            <button type="submit" disabled={loading || !queryTags.length} className="btn-primary shrink-0">
               {loading ? "Searching…" : "Search"}
             </button>
           </form>
@@ -444,15 +456,27 @@ export default function JobsPage() {
           {/* Results */}
           {loading && (
             <div className="flex flex-col gap-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="card animate-pulse h-40" />
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="card flex items-start gap-4 animate-pulse">
+                  <div className="w-12 h-12 rounded-xl bg-slate-200 shrink-0" />
+                  <div className="flex-1 flex flex-col gap-2.5">
+                    <div className="h-4 bg-slate-200 rounded-md w-1/2" />
+                    <div className="h-3 bg-slate-100 rounded-md w-1/3" />
+                    <div className="h-3 bg-slate-100 rounded-md w-2/3" />
+                    <div className="flex gap-2 mt-0.5">
+                      <div className="h-7 w-24 bg-slate-200 rounded-lg" />
+                      <div className="h-7 w-28 bg-slate-100 rounded-lg" />
+                      <div className="h-7 w-16 bg-slate-100 rounded-lg" />
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           )}
 
           {!loading && searched && jobs.length === 0 && (
             <div className="card text-center py-12 text-slate-500">
-              No jobs found for <strong>{query}</strong>
+              No jobs found for <strong>{queryTags.join(", ")}</strong>
               {location ? ` in ${location}` : ""}. Try broader keywords.
             </div>
           )}
@@ -500,14 +524,14 @@ export default function JobsPage() {
                 {page > 1 && (
                   <button
                     className="btn-secondary text-sm"
-                    onClick={() => { const p = page - 1; setPage(p); runSearch(query, location, p); }}
+                    onClick={() => { const p = page - 1; setPage(p); runSearch(queryTags.join(" "), location, p); }}
                   >
                     ← Previous
                   </button>
                 )}
                 <button
                   className="btn-secondary text-sm"
-                  onClick={() => { const p = page + 1; setPage(p); runSearch(query, location, p); }}
+                  onClick={() => { const p = page + 1; setPage(p); runSearch(queryTags.join(" "), location, p); }}
                 >
                   Next →
                 </button>

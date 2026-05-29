@@ -384,6 +384,7 @@ export interface AccountProfile {
   linkedin: string;
   location: string;
   target_roles: string[];
+  primary_skill: string;
   key_skills: string[];
   summary: string;
   resume_text?: string;

@@ -31,6 +31,7 @@ const EMPTY: Omit<AccountProfile, "id" | "resume_text"> = {
   linkedin: "",
   location: "",
   target_roles: [],
+  primary_skill: "",
   key_skills: [],
   summary: "",
 };
@@ -95,17 +96,18 @@ export default function ProfilePage() {
       const { prefilled } = await uploadProfileResume(file);
       setForm((f) => ({
         ...f,
-        full_name:    prefilled.full_name    || f.full_name,
-        email:        prefilled.email        || f.email,
-        phone:        prefilled.phone        || f.phone,
-        linkedin:     prefilled.linkedin     || f.linkedin,
-        location:     prefilled.location     || f.location,
-        target_roles: prefilled.target_roles?.length ? prefilled.target_roles
-                      : (prefilled as { target_role?: string }).target_role
-                        ? [(prefilled as { target_role?: string }).target_role!]
-                        : f.target_roles,
-        key_skills:   prefilled.key_skills?.length ? prefilled.key_skills : f.key_skills,
-        summary:      prefilled.summary      || f.summary,
+        full_name:     prefilled.full_name     || f.full_name,
+        email:         prefilled.email         || f.email,
+        phone:         prefilled.phone         || f.phone,
+        linkedin:      prefilled.linkedin      || f.linkedin,
+        location:      prefilled.location      || f.location,
+        target_roles:  prefilled.target_roles?.length ? prefilled.target_roles
+                       : (prefilled as { target_role?: string }).target_role
+                         ? [(prefilled as { target_role?: string }).target_role!]
+                         : f.target_roles,
+        primary_skill: (prefilled as { primary_skill?: string }).primary_skill || f.primary_skill,
+        key_skills:    prefilled.key_skills?.length ? prefilled.key_skills : f.key_skills,
+        summary:       prefilled.summary       || f.summary,
       }));
       setHasResume(true);
       toast.success("Resume parsed — review the fields below and save.");
@@ -426,6 +428,20 @@ export default function ProfilePage() {
               />
               <p className="text-xs text-slate-400 mt-1">
                 Used to pre-fill job searches. Add one or more roles.
+              </p>
+            </div>
+
+            <div>
+              <label className="label">Primary skill</label>
+              <TagInput
+                value={form.primary_skill ? [form.primary_skill] : []}
+                onChange={(tags) => patch("primary_skill", tags[0] ?? "")}
+                fetchSuggestions={searchCatalogSkills}
+                placeholder="e.g. Java, Python, Financial Modelling…"
+                single
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                Your core technical or professional skill — combined with your role when searching for jobs.
               </p>
             </div>
 

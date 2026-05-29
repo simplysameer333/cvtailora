@@ -13,77 +13,98 @@ tailormycv/
 │
 ├── backend/
 │   ├── main.py                      FastAPI app entry point; mounts all routers under /api
-│   ├── config.py                    Pydantic-settings; all tunable config (model names, thresholds, tier flags) from .env
+│   ├── config.py                    Pydantic-settings; all tunable config from .env
 │   ├── database.py                  Motor async MongoDB client; TTL indexes on sessions (24h) and GridFS files
 │   ├── seed_templates.py            One-time script — upserts 3 prebuilt DOCX templates into MongoDB
 │   ├── seed_professions.py          One-time script — upserts initial profession configs into MongoDB
 │   │
 │   ├── routers/
-│   │   ├── resume.py                POST /api/resume/upload — parse PDF/DOCX + optional instructions, create session
-│   │   │                            POST /api/resume/sample-format — upload sample CV as formatting reference
-│   │   ├── profile.py               POST /api/profile — save user profile
-│   │   │                            GET  /api/profile/prefill — AI-extract profile fields from parsed resume text
+│   │   ├── auth.py                  POST /api/auth/register, /login, /sync (Google OAuth), /me
+│   │   ├── account.py               GET/PUT /api/account/profile — persistent profile (separate from sessions)
+│   │   │                            POST /api/account/profile/resume — upload + AI prefill
+│   │   │                            POST /api/sessions/from-profile — one-click tailor (profile → session)
+│   │   ├── resume_library.py        CRUD /api/account/resumes — save/rename/delete/download resumes (Plus+)
+│   │   ├── resume.py                POST /api/resume/upload — parse PDF/DOCX, create session
+│   │   │                            POST /api/resume/sample-format — upload formatting reference CV
+│   │   ├── profile.py               POST /api/profile — save session user profile
+│   │   │                            GET  /api/profile/prefill — AI-extract profile fields from resume text
 │   │   ├── job_description.py       POST /api/job-description — store pasted job description
-│   │   ├── templates.py             GET /api/templates — template gallery
-│   │   ├── generate.py              POST /api/generate — run job analysis then evaluator-optimizer pipeline
-│   │   │                            PUT  /api/sessions/{id}/resume — sync client-side resume back to session
-│   │   │                            PATCH /api/sessions/{id}/template — attach template to session
-│   │   │                            PUT  /api/sessions/{id}/locked-facts — save user-pinned facts
-│   │   ├── export.py                POST /api/export — fill template → DOCX + PDF (pure Python, no LibreOffice)
-│   │   │                            GET  /api/download/{id} — stream file download
-│   │   └── professions.py           CRUD /api/professions — manage profession profiles via admin UI
+│   │   ├── jobs.py                  GET /api/jobs/search — JSearch (RapidAPI), cached, Plus+ only
+│   │   │                            POST/GET/DELETE /api/jobs/save|saved — save/list/unsave jobs
+│   │   │                            GET /api/jobs/quota — monthly usage stats
+│   │   ├── templates.py             GET /api/templates · POST /api/templates/upload
+│   │   ├── generate.py              POST /api/generate — full pipeline
+│   │   │                            PUT /api/sessions/{id}/resume — sync client resume to session
+│   │   │                            PATCH /api/sessions/{id}/template — attach template
+│   │   │                            PUT /api/sessions/{id}/locked-facts — save pinned facts
+│   │   ├── export.py                POST /api/export · GET /api/download/{id}
+│   │   ├── catalog.py               GET /api/catalog/roles?q= · /api/catalog/skills?q= (autocomplete)
+│   │   └── professions.py           CRUD /api/professions — profession profile admin
 │   │
 │   ├── models/
+│   │   ├── user.py                  User, UserPublic; tier: free | plus | pro
 │   │   ├── session.py               GeneratedResume, UserProfile, EvaluatorResult, EvalCycle, OutputFiles
 │   │   └── template.py              Template document model
 │   │
+│   ├── dependencies/
+│   │   └── auth.py                  get_current_user (Bearer dep), require_tier(min_tier) factory dep
+│   │
 │   └── services/
+│       ├── auth_service.py          JWT (python-jose), bcrypt hashing, user CRUD; 24h token expiry
 │       ├── resume_parser.py         Extracts text from PDF/DOCX via pdfplumber / python-docx
 │       ├── template_service.py      Loads DOCX templates, substitutes {{PLACEHOLDER}} tags
-│       ├── file_generator.py        generate_docx (python-docx) + generate_pdf (reportlab — no LibreOffice needed)
-│       ├── email_service.py         Quality alert — logs WARNING to console; SMTP delivery via .env
+│       ├── file_generator.py        generate_docx (python-docx) + generate_pdf (reportlab — no LibreOffice)
+│       ├── quota_service.py         Monthly JSearch call counter; warning thresholds
 │       ├── profession_service.py    MongoDB CRUD + resolve_profession_for_role()
+│       ├── storage/                 get_storage() factory → LocalStorageBackend | S3StorageBackend
 │       │
 │       └── pipeline/               LangGraph evaluator-optimizer pipeline
 │           ├── graph.py             StateGraph definition
 │           ├── nodes.py             generate_node, evaluate_node (parallel), aggregate_node, should_continue
-│           ├── state.py             PipelineState TypedDict — all fields passed through the graph
-│           ├── utils.py             parse_json_response() — strips markdown fences, parses LLM JSON
-│           │
-│           ├── prompts/
-│           │   ├── anthropic.py     job_analyzer_messages(), generator_messages(), section_messages(), evaluator_messages()
-│           │   ├── openai.py        openai_evaluator_messages()
-│           │   └── google.py        google_evaluator_messages()
-│           │
+│           ├── state.py             PipelineState TypedDict
+│           ├── toon.py              TOON encoding wrapper (40–45% token reduction on structured inputs)
+│           ├── prompts/             anthropic.py · openai.py · google.py · professions/<slug>.py
 │           └── agents/
-│               ├── job_analyzer.py  JobAnalyzerAgent — extracts top-N key skills from JD before eval loop
+│               ├── job_analyzer.py  JobAnalyzerAgent — extracts top-N key skills from JD
 │               ├── generator.py     GeneratorAgent — full generation + section regen
-│               ├── aggregator.py    AggregatorAgent — compares scores to PASS_THRESHOLD; prepares feedback
-│               └── evaluators/      AnthropicEvaluatorAgent, OpenAIEvaluatorAgent, GoogleEvaluatorAgent
+│               ├── aggregator.py    AggregatorAgent — score gating + feedback routing
+│               └── evaluators/      AnthropicEvaluatorAgent · OpenAIEvaluatorAgent · GoogleEvaluatorAgent
 │
 └── frontend/src/
     ├── app/
-    │   ├── layout.tsx               Root layout — Inter font, global Toaster, metadata
-    │   ├── page.tsx                 Landing page — hero, how-it-works steps, CTA
+    │   ├── page.tsx                 Landing — hero, how-it-works, CTA
+    │   ├── auth/
+    │   │   ├── login/page.tsx       Sign in — credentials + Google OAuth
+    │   │   └── register/page.tsx    Email/password registration
+    │   ├── profile/page.tsx         Account profile — resume upload (AI prefill), career form,
+    │   │                            primary skill, Resume Library (Plus+)
+    │   ├── jobs/page.tsx            Job search — TagInput query, location, JSearch results,
+    │   │                            save/unsave, Tailor Resume, Apply with Saved (Plus+)
     │   ├── builder/
-    │   │   ├── layout.tsx           Builder shell — StepProgress bar + SessionGuard (expiry handler)
-    │   │   ├── SessionGuard.tsx     Client component — listens for session-expired event, redirects to upload
-    │   │   ├── upload/page.tsx      Step 1 — drag-and-drop upload; clears previous session localStorage on new upload
-    │   │   ├── profile/page.tsx     Step 2 — AI pre-fills profile fields from resume; user confirms
+    │   │   ├── layout.tsx           Builder shell — StepProgress bar + SessionGuard
+    │   │   ├── upload/page.tsx      Step 1 — drag-and-drop; one-click tailor banner
+    │   │   ├── profile/page.tsx     Step 2 — AI pre-filled profile form
     │   │   ├── job/page.tsx         Step 3 — paste job description
-    │   │   ├── template/page.tsx    Step 4 — template gallery; formatting reference upload; output format selector
-    │   │   ├── preview/page.tsx     Step 5 — editable resume preview; per-section regeneration with guidance;
-    │   │   │                        global regeneration with guidance; locked facts; dynamic section addition
-    │   │   └── download/page.tsx    Step 6 — explicit Generate Files button; Word + PDF format cards; named download
-    │   └── admin/
-    │       └── professions/page.tsx Profession CRUD admin panel
+    │   │   ├── template/page.tsx    Step 4 — template gallery + sample CV + additional instructions
+    │   │   ├── preview/page.tsx     Step 5 — editable preview; locked facts; section regen; custom sections
+    │   │   └── download/page.tsx    Step 6 — Generate Files; DOCX + PDF format cards
+    │   └── settings/
+    │       └── professions/page.tsx Profession CRUD admin
     ├── components/
-    │   └── StepProgress.tsx         Six-step indicator with completion checkmarks
-    └── lib/
-        ├── api.ts                   Typed API client + axios interceptor for session-expiry (404 → clear + redirect)
-        ├── session.ts               getSessionId() / setSessionId() — tailormycv_session_id in localStorage
-        ├── stepGuard.ts             useStepGuard() — prevents skipping steps
-        └── useSessionGuard.ts       useSessionExpiredHandler() — toast + redirect on session-expired event
+    │   ├── Navbar.tsx               Shared nav — avatar dropdown, tier badge, sign in/out
+    │   ├── TagInput.tsx             Async-autocomplete tag/bubble input (used on profile + jobs pages)
+    │   ├── ResumePickerModal.tsx    "Apply with Saved" modal — shows resume library or tailor-new option
+    │   ├── AuthGuard.tsx            Redirects unauthenticated users
+    │   └── StepProgress.tsx        Six-step indicator with completion checkmarks
+    ├── lib/
+    │   ├── api.ts                   Typed API client; axios interceptor for session-expiry
+    │   ├── useAuth.ts               useAuth() hook — wraps useSession; works in real + dev mode
+    │   ├── nextauth.ts              NextAuth config (Credentials + Google providers)
+    │   ├── stepGuard.ts             useStepGuard() — prevents skipping builder steps
+    │   └── session.ts               getSessionId() / setSessionId()
+    └── providers/
+        ├── AuthProvider.tsx         SessionProvider + TokenSync (sets axios Authorization header)
+        └── DevProvider.tsx          Dev bypass provider with plan switcher dropdown
 ```
 
 ---
@@ -94,9 +115,10 @@ tailormycv/
 - Python 3.11+
 - Node.js 18+
 - MongoDB Atlas account (free tier works)
-- Anthropic API key (required — generator, job analyzer, default evaluator)
-- OpenAI API key (optional — evaluator skipped if absent or flag is false)
-- Google API key (optional — evaluator skipped if absent or flag is false)
+- Anthropic API key (required)
+- OpenAI API key (optional — evaluator)
+- Google API key (optional — evaluator)
+- RapidAPI key with JSearch subscription (optional — job search)
 
 ### Backend
 
@@ -107,10 +129,10 @@ python -m venv .venv
 # source .venv/bin/activate     # macOS/Linux
 pip install -r requirements.txt
 
-# Copy .env.example → .env and fill in ANTHROPIC_API_KEY and MONGODB_URI
+# Copy .env.example → .env and fill in required values (see below)
 
-python seed_templates.py        # Seeds Clean / Modern / Executive templates into MongoDB
-python seed_professions.py      # Seeds initial profession profiles into MongoDB
+python seed_templates.py        # Seeds Clean / Modern / Executive templates
+python seed_professions.py      # Seeds initial profession profiles
 
 uvicorn main:app --reload --port 9000
 ```
@@ -122,20 +144,20 @@ API docs: http://localhost:9000/docs
 ```powershell
 cd frontend
 npm install
-# Copy .env.example → .env.local (minimum required values shown below)
 npm run dev
 ```
 
-Minimum `frontend/.env.local` for local development:
+Minimum `frontend/.env.local` for local development (no auth required):
 ```
 NEXT_PUBLIC_API_URL=http://localhost:9000
 NEXT_PUBLIC_DEV_BYPASS_AUTH=true
+NEXTAUTH_URL=http://localhost:4000
+NEXTAUTH_SECRET=any-random-string
 ```
 
 App: http://localhost:4000
-Profession admin: http://localhost:4000/settings/professions
 
-> **Dev auth bypass** — with `NEXT_PUBLIC_DEV_BYPASS_AUTH=true` (and `DEV_BYPASS_AUTH=true` in the backend), no login is required. A plan switcher appears in the Navbar user dropdown to toggle between Free / Plus / Pro for testing tier-gated features. Remove both flags before deploying to production.
+> **Dev auth bypass** — `NEXT_PUBLIC_DEV_BYPASS_AUTH=true` (frontend) + `DEV_BYPASS_AUTH=true` (backend) skips all authentication. A plan switcher appears in the Navbar dropdown to toggle Free / Plus / Pro for testing tier-gated features. Remove both flags before deploying.
 
 ---
 
@@ -143,14 +165,35 @@ Profession admin: http://localhost:4000/settings/professions
 
 | Step | Route | What happens |
 |------|-------|-------------|
-| 1 | `/builder/upload` | Resume parsed (pdfplumber / python-docx); new session created; previous session localStorage cleared |
-| 2 | `/builder/profile` | Claude extracts name, email, phone, LinkedIn, location, target role, skills from resume text; user reviews and confirms |
-| 3 | `/builder/job` | User pastes job description |
-| 4 | `/builder/template` | Pick Clean / Modern / Executive template, or upload a formatting reference CV; choose DOCX or PDF output |
-| 5 | `/builder/preview` | Full AI pipeline runs; user edits any field inline; regenerates individual sections with freetext guidance; adds custom sections; locks facts the AI must never change |
-| 6 | `/builder/download` | User clicks Generate Files; DOCX always available; PDF generated via reportlab (pure Python) |
+| 1 | `/builder/upload` | Resume parsed; new session created; one-click tailor banner shown if arriving from Jobs page |
+| 2 | `/builder/profile` | Claude extracts name, email, phone, LinkedIn, location, target role, skills; user confirms |
+| 3 | `/builder/job` | User pastes job description (pre-filled if from Jobs → Tailor Resume flow) |
+| 4 | `/builder/template` | Pick template; optional formatting reference CV; additional instructions textarea |
+| 5 | `/builder/preview` | Full AI pipeline runs; inline editing; section regen; custom sections; locked facts |
+| 6 | `/builder/download` | Generate Files button; DOCX always available; PDF via reportlab |
 
 Each step is guarded by `useStepGuard` — navigating to a later step without completing earlier ones redirects back.
+
+---
+
+## Profile & Job Search
+
+### Account Profile (`/profile`)
+- Persistent profile stored in `user_profiles` MongoDB collection (separate from builder sessions)
+- **Resume upload** → Claude AI prefills: name, email, phone, LinkedIn, location, target roles, primary skill, key skills, summary
+- **Primary skill** — the one core technical/professional skill (e.g. "Java", "Python", "Financial Modelling"). Combined with target roles when pre-filling job searches
+- **Target roles** — one or more roles used to seed job searches
+- **Resume Library** (Plus+) — save multiple resumes; upload directly or save tailored ones from the builder
+
+### Job Search (`/jobs`) — Plus+ only
+- **TagInput search bar** — add roles, keywords, or companies as bubbles; uses catalog autocomplete
+- Pre-filled from profile on load: target roles + primary skill become search tags; location pre-filled too
+- Results from JSearch (RapidAPI) — Indeed, LinkedIn, Glassdoor and more
+- **Job title is clickable** — opens the original listing in a new tab
+- **Tailor Resume** → stores job description + context to localStorage → redirects to `/builder/upload`
+- **Apply with Saved** → `ResumePickerModal` — pick from Resume Library or tailor a new one
+- Save/unsave jobs; monthly quota banner with warning thresholds
+- **Result caching** — same query+location+page is cached in MongoDB for `JSEARCH_CACHE_TTL_S` seconds (default 2 hours) to conserve quota
 
 ---
 
@@ -199,74 +242,28 @@ POST /api/generate
             Best result returned
 ```
 
-`POST /api/generate` runs:
-
-1. **Profession resolution** — `target_role` matched against keyword lists in the `professions` MongoDB collection; falls back to `FEATURED_PROFESSION_SLUG`, then generic
-2. **Job Analyzer** (`JobAnalyzerAgent`) — one LLM call extracts top-N skills from the JD the candidate can credibly claim; N from `SKILL_EXTRACTION_COUNT`
-3. **Generator** (`GeneratorAgent`) — writes resume JSON; receives: parsed resume, profile, JD, profession config, key skills, sample CV text (formatting reference), locked facts, and optional feedback
-4. **Evaluators** — run in parallel; active set filtered by API key presence and `*_EVALUATOR_ENABLED` flag; each scores 0–100 with profession-specific criteria
-5. **Aggregator** — compares min score to `PASS_THRESHOLD`; if all pass exits loop; otherwise sends feedback back to generator
-6. Loop repeats up to `MAX_EVAL_CYCLES`; best result always returned
-
 Quality scores are **never shown to users** — qualitative labels (Excellent / Strong / Good / Reviewed) are shown instead.
 
 ### Token Efficiency — TOON Encoding
 
-All structured data sent to LLMs (resume JSON, user profiles) is serialised with **TOON** (Token-Oriented Object Notation, `toon-format==0.9.0b1`) before being placed in prompt messages. LLM outputs remain plain JSON — TOON is applied to inputs only.
+All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.0b1`) before prompt injection, cutting structured input tokens by 40–45%. Outputs remain plain JSON.
 
-TOON converts uniform arrays to a compact tabular format, eliminating repeated key names:
-
-```
-# Standard JSON: ~650 tokens for a full resume payload
-# TOON-encoded:  ~370–400 tokens — 40–45% fewer tokens on structured data
-
-experience[2|]: company|role|dates
-  Acme Corp|Engineer|2020–2023
-  Beta Ltd|Tech Lead|2023–present
-```
-
-The wrapper lives at `backend/services/pipeline/toon.py` and falls back to compact JSON if the package is unavailable. A one-line format legend is prepended to each prompt so the model can parse the encoded input.
-
-**Estimated savings at scale:**
-
-| Tier | Evaluators | Max cycles | Tokens saved / generation |
-|------|-----------|-----------|--------------------------|
-| Free | 1 | 1–3 | ~280 |
-| Plus | 2 | 1–3 | ~950 |
-| Pro  | 3 | 1–3 | ~2,500 |
-
-At 10,000 Pro-tier generations/month (~25 M tokens), TOON reduces costs by roughly **$60–75/month** at Claude Sonnet input pricing.
-
-### Subscription Tiers (env-flag driven until billing is wired)
+### Subscription Tiers
 
 | Feature | Free | Plus | Pro |
 |---------|------|------|-----|
 | Resume builder (6-step flow) | ✅ | ✅ | ✅ |
 | DOCX + PDF export | ✅ | ✅ | ✅ |
-| Basic templates (Clean / Modern / Executive) | ✅ | ✅ | ✅ |
 | Persistent profile page | ✅ | ✅ | ✅ |
 | AI evaluators | Anthropic only | Anthropic + Google | All three |
 | Key skills extracted from JD | 3 | 5 | 10 |
-| Max refinement cycles | 3 | 3 | 3 |
-| Custom templates (upload your own .docx) | ❌ | ✅ | ✅ |
-| Job search (JSearch — Indeed / LinkedIn / Glassdoor) | ❌ | ✅ | ✅ |
-| Save jobs | ❌ | Up to 25 | Unlimited |
-| One-click Tailor (job listing → builder) | ❌ | ✅ | ✅ |
+| Job search (JSearch) | ❌ | ✅ | ✅ |
+| Saved jobs | ❌ | Up to 25 | Unlimited |
+| One-click Tailor | ❌ | ✅ | ✅ |
+| Resume Library | ❌ | Up to 5 | Unlimited |
 | Section-level regeneration | ❌ | ❌ | ✅ |
 | Locked Facts panel | ❌ | ❌ | ✅ |
 | Sample CV formatting reference | ❌ | ❌ | ✅ |
-
-Tier is stored on the `User` document (`tier: "free" | "plus" | "pro"`). Backend enforcement uses the `require_tier(min_tier)` FastAPI dependency. The `DEV_BYPASS_AUTH=true` flag bypasses all auth on localhost and exposes a plan switcher in the Navbar dropdown for testing tier-gated features.
-
-### Adding a new profession
-**Via UI** (preferred): `/admin/professions` → Add Profession — no deployment needed.
-**Via code**: create `pipeline/prompts/professions/<slug>.py`, add to `INITIAL_PROFESSIONS`, run `seed_professions.py`.
-
-### Adding a new evaluator provider
-1. `pipeline/agents/evaluators/<provider>.py` — subclass `BaseEvaluatorAgent`
-2. `pipeline/prompts/<provider>.py` — prompt builder
-3. Register in `EVALUATOR_REGISTRY` in `agents/evaluators/__init__.py`
-4. Add `<PROVIDER>_EVALUATOR_ENABLED` flag to `config.py` and `.env`
 
 ---
 
@@ -275,7 +272,12 @@ Tier is stored on the `User` document (`tier: "free" | "plus" | "pro"`). Backend
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | — | **Required.** Claude API key |
-| `MONGODB_URI` | — | **Required.** URL-encode special chars in password (e.g. `@` → `%40`) |
+| `MONGODB_URI` | — | **Required.** URL-encode special chars in password |
+| `JWT_SECRET` | `change-me` | Secret for signing JWTs; generate with `secrets.token_hex(32)` |
+| `DEV_BYPASS_AUTH` | `false` | Skip all auth on localhost |
+| `RAPIDAPI_KEY` | — | RapidAPI key for JSearch (job search) |
+| `JSEARCH_CACHE_TTL_S` | `7200` | Seconds to cache job search results (2 hours default) |
+| `JSEARCH_MONTHLY_LIMIT` | `500` | Monthly JSearch call budget |
 | `GENERATOR_MODEL` | `claude-sonnet-4-20250514` | Model for generator + job analyzer |
 | `ANTHROPIC_EVALUATOR_MODEL` | `claude-sonnet-4-20250514` | Claude evaluator model |
 | `OPENAI_EVALUATOR_MODEL` | `gpt-4o-mini` | OpenAI evaluator model |
@@ -285,12 +287,12 @@ Tier is stored on the `User` document (`tier: "free" | "plus" | "pro"`). Backend
 | `GOOGLE_EVALUATOR_ENABLED` | `false` | Enable Gemini evaluator |
 | `PASS_THRESHOLD` | `50` | Min score (0–100) for evaluator pass |
 | `MAX_EVAL_CYCLES` | `3` | Max generator-evaluator iterations |
-| `MAX_AI_CALLS_PER_SESSION` | `10` | Hard per-session AI call cap (0 = unlimited) |
+| `MAX_AI_CALLS_PER_SESSION` | `10` | Hard per-session AI call cap |
 | `SKILL_EXTRACTION_COUNT` | `3` | Top-N skills extracted from job description |
-| `FEATURED_PROFESSION_SLUG` | `software_engineer` | Fallback profession when no keyword match |
-| `ALLOWED_ORIGINS` | `http://localhost:4000` | CORS origins (comma-separated) |
 | `STORAGE_BACKEND` | `local` | `local` or `s3` |
-| `SUPPORT_EMAIL` | — | Recipient for quality-alert emails |
+| `ALLOWED_ORIGINS` | `http://localhost:4000` | CORS origins (comma-separated) |
+| `GOOGLE_CLIENT_ID` | — | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret |
 
 ---
 
@@ -298,37 +300,42 @@ Tier is stored on the `User` document (`tier: "free" | "plus" | "pro"`). Backend
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| POST | `/api/auth/register` | Email/password sign-up |
+| POST | `/api/auth/login` | Email/password sign-in → JWT |
+| POST | `/api/auth/sync` | Google OAuth → backend JWT |
+| GET | `/api/auth/me` | Current authenticated user |
+| GET | `/api/account/profile` | Get persistent account profile |
+| PUT | `/api/account/profile` | Save account profile |
+| POST | `/api/account/profile/resume` | Upload resume → AI prefill profile |
+| POST | `/api/sessions/from-profile` | Create builder session from profile (one-click tailor) |
+| GET | `/api/account/resumes` | List Resume Library |
+| POST | `/api/account/resumes/upload` | Upload resume to library |
+| POST | `/api/account/resumes/from-session` | Save tailored resume to library |
+| PATCH | `/api/account/resumes/{id}` | Rename saved resume |
+| DELETE | `/api/account/resumes/{id}` | Delete saved resume |
+| GET | `/api/account/resumes/{id}/download` | Download saved resume |
+| POST | `/api/account/resumes/{id}/create-session` | Create session from library resume |
 | POST | `/api/resume/upload` | Upload & parse resume; create session |
 | POST | `/api/resume/sample-format?session_id=` | Upload formatting reference CV |
-| GET | `/api/profile/prefill?session_id=` | AI-extract profile fields from resume text |
-| POST | `/api/profile?session_id=` | Save user profile |
+| GET | `/api/profile/prefill?session_id=` | AI-extract profile fields |
+| POST | `/api/profile?session_id=` | Save session profile |
 | POST | `/api/job-description?session_id=` | Save job description |
-| GET | `/api/templates` | List all templates |
+| GET | `/api/jobs/search` | JSearch job search (Plus+, cached) |
+| GET | `/api/jobs/quota` | Monthly quota stats |
+| POST | `/api/jobs/save` | Save a job |
+| GET | `/api/jobs/saved` | List saved jobs |
+| DELETE | `/api/jobs/saved/{job_id}` | Unsave a job |
+| GET | `/api/catalog/roles?q=` | Role autocomplete |
+| GET | `/api/catalog/skills?q=` | Skills autocomplete |
+| GET | `/api/templates` | List templates |
+| POST | `/api/templates/upload` | Upload custom template |
 | PATCH | `/api/sessions/{id}/template` | Attach template to session |
-| PUT | `/api/sessions/{id}/locked-facts` | Update locked facts list |
-| PUT | `/api/sessions/{id}/resume` | Sync client-side resume to session (used when preview loads from localStorage) |
+| PUT | `/api/sessions/{id}/locked-facts` | Update locked facts |
+| PUT | `/api/sessions/{id}/resume` | Sync client-side resume to session |
 | POST | `/api/generate?session_id=` | Run full pipeline |
-| POST | `/api/generate?session_id=` + `{section}` | Regenerate single section (no eval loop) |
 | POST | `/api/export?session_id=` | Export DOCX + PDF |
-| GET | `/api/download/{file_id}` | Stream file download |
+| GET | `/api/download/{file_id}` | Download generated file |
 | GET/POST/PUT/DELETE | `/api/professions` | Profession profile CRUD |
-
----
-
-## Session Management
-
-- Sessions are anonymous — identified by `tailormycv_session_id` in `localStorage`
-- MongoDB TTL index auto-deletes sessions and GridFS files after **24 hours**
-- On new upload, all previous-session localStorage keys are cleared so stale data never carries over
-- The axios interceptor in `api.ts` catches any 404 "session not found" response, clears localStorage, and fires a `session-expired` custom event
-- `SessionGuard` (mounted in the builder layout) listens for that event, shows a toast, and redirects to `/builder/upload`
-
----
-
-## PDF Export
-
-PDF is generated via **reportlab** (pure Python) — no LibreOffice or external tools required.
-The `generate_pdf()` function in `services/file_generator.py` builds a styled A4 PDF directly from the resume JSON with branded headings, section dividers, and clean typography.
 
 ---
 
@@ -346,5 +353,13 @@ Minimum backend env vars for launch:
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 MONGODB_URI=mongodb+srv://...
+JWT_SECRET=<random 32-byte hex>
 ALLOWED_ORIGINS=https://your-frontend.up.railway.app
+```
+
+Minimum frontend env vars:
+```
+NEXT_PUBLIC_API_URL=https://your-backend.up.railway.app
+NEXTAUTH_URL=https://your-frontend.up.railway.app
+NEXTAUTH_SECRET=<random string>
 ```

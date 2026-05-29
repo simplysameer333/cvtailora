@@ -136,7 +136,7 @@ export default function TagInput({
             onChange={(e) => { setInput(e.target.value); fetchDebounced(e.target.value); }}
             onKeyDown={handleKeyDown}
             onFocus={() => input && suggestions.length > 0 && setOpen(true)}
-            className="flex-1 min-w-[140px] text-sm outline-none bg-transparent placeholder:text-slate-400 py-0.5"
+            className="flex-1 min-w-[80px] text-sm outline-none bg-transparent placeholder:text-slate-400 py-0.5"
             placeholder={value.length === 0 ? placeholder : ""}
           />
         )}

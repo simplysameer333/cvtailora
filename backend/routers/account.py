@@ -41,6 +41,7 @@ Fields:
 - linkedin  (full URL preferred)
 - location  (city + country/state)
 - target_role  (most recent job title or stated objective)
+- primary_skill  (the single most defining technical or professional skill, e.g. "Java", "Python", "Financial Modelling", "UX Design" — one short phrase, not a sentence)
 - key_skills  (top 8-10 skills as a JSON array)
 - summary  (2–3 sentence professional summary — write one if absent)
 
@@ -73,6 +74,7 @@ class ProfileBody(BaseModel):
     linkedin: str = ""
     location: str = ""
     target_roles: List[str] = []
+    primary_skill: str = ""
     key_skills: List[str] = []
     summary: str = ""
 
@@ -165,7 +167,7 @@ async def upload_profile_resume(
             "$setOnInsert": {
                 "user_id": user["_id"],
                 "full_name": "", "email": "", "phone": "", "linkedin": "",
-                "location": "", "target_roles": [], "key_skills": [], "summary": "",
+                "location": "", "target_roles": [], "primary_skill": "", "key_skills": [], "summary": "",
                 "created_at": now,
             },
         },

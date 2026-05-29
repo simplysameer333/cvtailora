@@ -1,11 +1,11 @@
 # User Requirements Document
 ## TailorMyCv — AI-Powered Resume Builder
 
-**Version:** 1.4  
-**Date:** May 2026  
-**App Name:** TailorMyCv  
-**Support Email:** samorsameer@gmail.com  
-**Deployment Target:** Railway.com  
+**Version:** 1.5
+**Date:** May 2026
+**App Name:** TailorMyCv
+**Support Email:** samorsameer@gmail.com
+**Deployment Target:** Railway.com
 
 ---
 
@@ -14,12 +14,12 @@
 **TailorMyCv** is a full-stack web application that takes three inputs — an existing resume, a user profile, and a job description — and uses a multi-agent AI pipeline to generate a tailored, professionally formatted resume in a user-selected template. The primary output is a `.docx` file; PDF export is an optional server-side feature.
 
 The AI pipeline is profession-aware and tier-driven:
-- A **Job Analyzer** agent extracts the top-N skills from the job description before generation begins, giving the generator focused direction
+- A **Job Analyzer** agent extracts the top-N skills from the job description before generation begins
 - A **Generator** agent writes the resume tailored to the role and profession
-- One or more **Evaluator** agents score the result using profession-specific criteria (active evaluators determined by subscription tier)
-- An **Aggregator** consolidates feedback and the generator refines until the quality threshold is met or max cycles are reached
+- One or more **Evaluator** agents score the result using profession-specific criteria
+- An **Aggregator** consolidates feedback; the generator refines until the quality threshold is met or max cycles are reached
 
-Profession profiles are stored in MongoDB and managed via an admin UI at `/settings/professions` — no code changes needed to add new professions.
+Users authenticate with email/password or Google OAuth. A persistent **Account Profile** stores career information, a primary skill, and a Resume Library — all of which power job search pre-fill and one-click resume tailoring from job listings.
 
 ---
 
@@ -29,277 +29,280 @@ Profession profiles are stored in MongoDB and managed via an admin UI at `/setti
 |---|---|
 | Frontend | Next.js 14 (App Router) + Tailwind CSS |
 | Backend | Python 3.13 + FastAPI |
+| Auth | NextAuth v4 (Credentials + Google OAuth) + FastAPI JWT (python-jose + passlib[bcrypt]) |
 | Pipeline Orchestration | LangGraph 1.2.1 (`StateGraph` with cyclic evaluator-optimizer loop) |
-| Database | MongoDB Atlas |
-| AI — Job Analyzer | Anthropic Claude API (same model as generator; one call before the loop) |
-| AI — Generator | Anthropic Claude API (model configured via `GENERATOR_MODEL` env var) |
+| Database | MongoDB Atlas + Motor (async) |
+| AI — Job Analyzer | Anthropic Claude API |
+| AI — Generator | Anthropic Claude API (`GENERATOR_MODEL` env var) |
 | AI — Evaluators | Anthropic + OpenAI + Google (models via `*_EVALUATOR_MODEL` env vars; active set per tier) |
-| Profession Profiles | MongoDB `professions` collection; managed via admin UI |
-| File Parsing | `pdfplumber` (PDF resume), `python-docx` (DOCX resume + sample CV) |
-| File Generation | `python-docx` (DOCX output); LibreOffice headless (optional PDF) |
-| Quality Alerts | Logged to server console (`WARNING` level); email delivery disabled until SMTP configured |
+| Job Search | JSearch via RapidAPI — Indeed, LinkedIn, Glassdoor aggregator |
+| Profession Profiles | MongoDB `professions` collection; managed via `/settings/professions` admin UI |
+| File Parsing | `pdfplumber` (PDF), `python-docx` (DOCX) |
+| File Generation | `python-docx` (DOCX); `reportlab` (PDF — no LibreOffice required) |
+| Storage | Pluggable: `LocalStorageBackend` (dev) or `S3StorageBackend` (prod) via `get_storage()` factory |
+| Token Efficiency | `toon-format==0.9.0b1` — 40–45% token reduction on structured inputs |
 | Observability | LangSmith tracing (optional; auto-detected from env vars) |
-| Deployment | Railway.com — two services: `frontend` (Next.js) + `backend` (FastAPI) |
-| Storage | MongoDB GridFS for generated output files |
+| Deployment | Railway.com — two services: `tailormycv-frontend` (Next.js) + `tailormycv-backend` (FastAPI) |
 
 ---
 
-## 3. Application Flow
+## 3. Authentication
+
+### 3.1 Auth Flows
+
+**Email/password:**
+NextAuth Credentials provider → `POST /api/auth/login` → backend issues JWT → stored in NextAuth session cookie.
+
+**Google OAuth:**
+NextAuth Google provider → `signIn` callback → `POST /api/auth/sync` → backend creates/finds/links user → JWT in session. If the Google email matches an existing email/password account, `google_id` is linked automatically.
+
+**Token sync:**
+`AuthProvider` calls `setApiToken()` on session change → sets axios `Authorization: Bearer <token>` globally.
+
+**Dev bypass:**
+`NEXT_PUBLIC_DEV_BYPASS_AUTH=true` (frontend) + `DEV_BYPASS_AUTH=true` (backend) skips all auth. `DevProvider` replaces `SessionProvider`; plan switcher appears in Navbar dropdown for tier testing.
+
+### 3.2 Backend Auth Files
+
+| File | Purpose |
+|---|---|
+| `models/user.py` | `User`, `UserPublic`; `tier: free \| plus \| pro` |
+| `services/auth_service.py` | JWT signing (24h expiry), bcrypt hashing, user CRUD |
+| `dependencies/auth.py` | `get_current_user` (Bearer dep), `require_tier(min_tier)` factory |
+| `routers/auth.py` | `/api/auth/register`, `/login`, `/sync`, `/me` |
+
+### 3.3 Frontend Auth Files
+
+| File | Purpose |
+|---|---|
+| `lib/nextauth.ts` | NextAuth config — Credentials + Google providers; JWT/session callbacks |
+| `providers/AuthProvider.tsx` | `SessionProvider` + `TokenSync` component |
+| `providers/DevProvider.tsx` | Dev bypass with plan switcher |
+| `lib/useAuth.ts` | `useAuth()` hook — wraps `useSession`; works in real and dev mode |
+| `components/Navbar.tsx` | Avatar dropdown, tier badge, sign in/out |
+
+---
+
+## 4. Application Flow
 
 ### Step 1 — Upload Resume
 - User uploads their existing resume as a `.pdf` or `.docx` file (max 5 MB)
-- An optional **Additional Instructions** text box lets the user tell the AI what to prioritise or avoid (e.g. "focus on leadership experience", "I'm switching to product management")
-- Backend parses the file and extracts raw text; both the resume text and any instructions are stored in the session
+- Optional **Additional Instructions** textarea for prioritisation guidance
+- Backend parses the file; session created; raw text and instructions stored
+- **One-click tailor banner** shown when arriving from Jobs page (job description + employer pre-loaded)
 
 ### Step 2 — Complete User Profile
-- User fills in a profile form:
-  - Full name, email, phone, LinkedIn URL, location
-  - Target job title / role ← used to auto-detect profession
-  - Preferred tone (Professional / Conversational / Executive)
-  - Key skills (comma-separated)
-  - Additional notes or achievements
-- Profile is saved to MongoDB
+- Claude AI pre-fills profile from resume: name, email, phone, LinkedIn, location, target role, skills, summary
+- User reviews and confirms; stored in session `user_profile`
 
 ### Step 3 — Paste Job Description
-- User pastes the full job description text into a textarea
-- Stored in MongoDB against the session
+- User pastes the full job description; stored in session
+- Pre-filled when arriving via the one-click Tailor Resume flow from Jobs page
 
-### Step 4 — Select Template + Optional Formatting Reference
-- User selects a template from the gallery (prebuilt or custom upload)
-- Optionally uploads a **sample CV for formatting reference** — a real CV whose layout and section order the generator should mirror (content is never copied)
-- Selected template ID is saved to the session; sample CV text is parsed and stored
+### Step 4 — Select Template + Optional Extras
+- Template gallery (prebuilt or custom upload)
+- Optional formatting reference CV — layout mirrored, content never copied
+- Optional **Additional Instructions** textarea — passed to generator as `additional_instructions`
 
 ### Step 5 — AI Resume Generation
-On clicking "Generate Resume" the backend runs:
+1. **Profession resolution** — `target_role` matched against keyword lists; falls back to `FEATURED_PROFESSION_SLUG`
+2. **Job Analyzer** — one LLM call extracts top-N skills (N per tier)
+3. **Generator** — writes resume JSON using resume + profile + JD + profession + skills + locked facts + sample CV + instructions
+4. **Evaluators** — run in parallel; score 0–100
+5. **Aggregator** — if all pass `PASS_THRESHOLD` → exit; else send feedback → next cycle
+6. Repeats up to `MAX_EVAL_CYCLES`; best result always returned
 
-1. **Profession resolution** — `target_role` matched against profession keyword lists in MongoDB; matched profession config loaded once (no DB calls inside the loop)
-2. **Job Analyzer** (`JobAnalyzerAgent`) — one LLM call extracts the top-N skills from the job description that the candidate can credibly claim; N driven by subscription tier (`SKILL_EXTRACTION_COUNT`)
-3. **Generator** (`GeneratorAgent`) — writes a tailored resume JSON using: parsed resume + profile + JD + profession config + locked facts + key skills + sample CV formatting reference
-4. **Evaluators** (run in parallel via `asyncio.gather`) — score the resume 0–100 using profession-specific criteria; active set determined by tier flags
-5. **Aggregator** — consolidates scores; if all meet `PASS_THRESHOLD` the loop exits; otherwise feedback is returned to the generator
-6. Loop repeats up to `MAX_EVAL_CYCLES` times; best result is always returned
-7. If quality threshold was not met, a `WARNING` log entry is written (email delivery is disabled; will be re-enabled when SMTP is configured)
-
-- User sees a loading spinner during generation
-- On completion, resume content is displayed in an editable preview with qualitative quality indicators (no raw scores shown to users)
+Quality scores never shown to users — qualitative labels only (Excellent / Strong / Good / Reviewed).
 
 ### Step 6 — Download
-- Backend applies AI-generated content to the selected template
-- DOCX is always generated; PDF is optional (requires `PDF_EXPORT_ENABLED=true` and LibreOffice on server)
-- Files are stored in GridFS and download links provided
-- Filenames derived from the `name` field in the generated resume (e.g. `jane_doe.docx`)
+- DOCX always generated; PDF via reportlab (no LibreOffice)
+- Files stored in GridFS; auto-expire after 24 hours
 
 ---
 
-## 4. Functional Requirements
+## 5. Account Profile (`/profile`)
 
-### 4.1 Resume Upload & Parsing
-- Accept `.pdf` and `.docx` files, max 5 MB
-- Extract structured raw text for pipeline use
-- Accept optional free-text additional instructions alongside the file upload
-- Store parsed text and instructions in the session
+A persistent profile stored in the `user_profiles` MongoDB collection — separate from builder sessions and preserved across sessions.
 
-### 4.2 User Profile Form
+### 5.1 Fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `full_name` | string | |
+| `email` | string | |
+| `phone` | string | |
+| `linkedin` | string | Full URL |
+| `location` | string | City + country/state |
+| `target_roles` | string[] | TagInput (multi); used to seed job searches |
+| `primary_skill` | string | TagInput (single); one core technical/professional skill — combined with roles on job search pre-fill |
+| `key_skills` | string[] | TagInput (multi); async autocomplete from `/api/catalog/skills` |
+| `summary` | string | 2–3 sentence professional summary |
+| `resume_text` | string (internal) | Raw text from uploaded resume |
+
+### 5.2 Resume Upload + AI Prefill
+- Accept PDF / DOCX; max 5 MB
+- Claude extracts: `full_name`, `email`, `phone`, `linkedin`, `location`, `target_role` → `target_roles`, `primary_skill`, `key_skills`, `summary`
+- Fields only overwritten if AI returns a non-empty value; existing values preserved otherwise
+- `primary_skill` — model instructed to return the single most defining technical or professional skill (one short phrase)
+
+### 5.3 Resume Library (Plus+)
+- Upload resumes directly or save tailored ones from the builder
+- Plus: max 5 resumes; Pro: unlimited
+- Actions: rename, download, delete
+- Used by "Apply with Saved" on the Jobs page (`ResumePickerModal`)
+
+---
+
+## 6. Job Search (`/jobs`) — Plus+ only
+
+### 6.1 Search Bar
+- **Query field** uses `TagInput` — roles, keywords, or companies added as bubble tags
+- Autocomplete from `/api/catalog/roles`; free-text entry also supported
+- **Location field** — plain text input; pre-filled from profile on load
+- Pre-fill on load: profile `target_roles` + `primary_skill` become search tags; `location` pre-fills the location field; auto-search runs immediately
+
+Example: profile has `target_roles: ["Vice President"]` and `primary_skill: "Java"` → search tags `["Vice President", "Java"]` → query sent as `"Vice President Java"`.
+
+### 6.2 Job Cards
+- Employer logo (Clearbit), job title (clickable — opens listing in new tab), employer name, publisher, location, employment type, remote badge, salary, posted date
+- **Tailor Resume** — stores JD + job title + employer to localStorage → redirects to `/builder/upload`
+- **Apply with Saved** — opens `ResumePickerModal`; shows Resume Library or "Tailor New Resume" option
+- **Save / Unsave** — bookmark icon; saved jobs retrievable across sessions
+
+### 6.3 Result Caching
+- Same query + location + page served from MongoDB cache if within `JSEARCH_CACHE_TTL_S` seconds
+- Cache hit costs zero RapidAPI quota
+- TTL configurable via `.env` (`JSEARCH_CACHE_TTL_S`, default 7200 = 2 hours)
+- Cache stored in `search_cache` MongoDB collection with `cached_at` timestamp
+
+### 6.4 Quota Management
+- Monthly call counter in MongoDB; resets on the 1st of each month
+- Warning banner shown in UI when usage crosses `JSEARCH_QUOTA_WARN_PCT` (default 50%)
+- Hard limit: `JSEARCH_MONTHLY_LIMIT` (default 500); returns HTTP 429 when exhausted
+
+### 6.5 Loading State
+- Skeleton cards shown during API call — matching job card structure (logo placeholder + title/subtitle/button bars)
+- Prevents empty page during slow RapidAPI responses
+
+---
+
+## 7. Functional Requirements
+
+### 7.1 Resume Upload & Parsing
+- Accept `.pdf` and `.docx`, max 5 MB
+- Extract structured raw text; store in session
+- Accept optional additional instructions alongside file upload
+
+### 7.2 User Profile Form (builder session)
 - Fields: Full Name, Email, Phone, LinkedIn, Location, Target Role, Preferred Tone, Key Skills, Additional Notes
 - Required: Full Name, Email
-- Persist profile to MongoDB
+- Persisted to MongoDB session
 
-### 4.3 Job Description Input
+### 7.3 Job Description Input
 - Large textarea; min 50 characters enforced
 - Stored in MongoDB against the session
 
-### 4.4 Template System
-- **Prebuilt templates**: stored server-side as `.docx` files with named placeholder tags
-- **Custom template upload**: accept `.docx`; validate required placeholder tags
-- **Sample CV for formatting reference**: accept `.pdf` or `.docx`; parse text; store as `sample_cv_text` in session; injected into generator prompt as structural guidance — content never copied
-- Selected template ID saved to session via `PATCH /api/sessions/{id}/template`
+### 7.4 Template System
+- **Prebuilt templates**: `.docx` files with named placeholder tags
+- **Custom template upload**: accept `.docx`; validate required placeholders
+- **Sample CV for formatting reference**: layout mirrored, content never copied
 
-### 4.5 Profession Profile Management (Admin)
+### 7.5 Profession Profile Management (Admin — `/settings/professions`)
+Schema, resolution logic, and built-in professions unchanged from v1.4.
 
-Profession profiles define pipeline behaviour per occupational domain. Stored in MongoDB; managed via `/settings/professions`.
-
-#### Profession Config Schema
-```json
-{
-  "slug": "software_engineer",
-  "display_name": "Software Engineer",
-  "keywords": ["software", "developer", "engineer", "backend"],
-  "generator_context": "Appended to generator system prompt",
-  "evaluator_context": "Appended to evaluator system prompt",
-  "scoring_criteria": "Replaces generic 0–100 scoring breakdown",
-  "aggregator_context": "Prepended to feedback prompt for next generator cycle",
-  "evaluator_names": [],
-  "is_active": true
-}
-```
-
-**`evaluator_names`**: list of evaluators to use for this profession (`"anthropic"`, `"openai"`, `"google"`). Empty = use all tier-enabled evaluators.
-
-#### Profession Resolution
-- `user_profile.target_role` matched case-insensitively against each profession's `keywords`
-- Falls back to `FEATURED_PROFESSION_SLUG` (default `software_engineer`) if no match, then to generic baseline
-- Resolved once before the graph — zero DB calls inside the loop
-
-#### Built-in Professions
-| Slug | Display Name | Focus |
-|---|---|---|
-| `software_engineer` | Software Engineer | Tech stack specificity, quantified scale, architecture ownership, GitHub presence |
-| `animator` | Animator / Creative | Portfolio/showreel link, software tools, named production credits, style range |
-| `hotel_management` | Hotel Management | RevPAR/NPS/occupancy KPIs, operations scale, brand experience, certifications |
-
-### 4.6 AI Resume Generation Pipeline
-
-#### Pipeline Flow
-
-```
-POST /api/generate
-        │
-        ▼
-┌───────────────────┐
-│ Profession Resolve│  MongoDB keyword match on target_role
-└────────┬──────────┘
-        │
-        ▼
-┌───────────────────┐
-│  Job Analyzer     │  1 LLM call → ordered list of top-N key skills
-│  (pre-loop)       │
-└────────┬──────────┘
-        │
-        ▼ ╔══════════════════════════════════════════╗
-        │ ║       EVALUATOR-OPTIMIZER LOOP           ║
-        │ ║   (repeats up to MAX_EVAL_CYCLES times)  ║
-        │ ║                                          ║
-        └►║  ┌─────────────────────────────────┐    ║
-          ║  │  Generator (GeneratorAgent)     │    ║
-          ║  │  Input: resume + profile + JD + │    ║
-          ║  │  profession + skills + feedback  │    ║
-          ║  └──────────────┬──────────────────┘    ║
-          ║                 │ resume JSON            ║
-          ║                 ▼                        ║
-          ║  ┌─────────────────────────────────┐    ║
-          ║  │  Evaluators  (asyncio.gather)   │    ║
-          ║  │  Anthropic · OpenAI · Google    │    ║
-          ║  │  → score 0–100 + suggestions    │    ║
-          ║  └──────────────┬──────────────────┘    ║
-          ║                 │                        ║
-          ║                 ▼                        ║
-          ║  ┌─────────────────────────────────┐    ║
-          ║  │  Aggregator  (pure computation) │    ║
-          ║  │  min_score ≥ PASS_THRESHOLD?    │    ║
-          ║  └──────┬───────────────┬──────────┘    ║
-          ║    YES  │               │ NO             ║
-          ╚═════════╪═══════════════╪════════════════╝
-                    │               └──► feedback → next cycle
-                    ▼
-            Best result returned
-```
-
-#### Job Analyzer Agent (`JobAnalyzerAgent`)
-- Runs **once before the generator-evaluator loop** — adds one LLM call total
-- Input: job description + resume text + user profile
-- Output: ordered list of top-N skills the candidate can credibly claim
-- N is set by `SKILL_EXTRACTION_COUNT` in `.env` — maps to subscription tier (see §4.9)
-- On any failure, returns an empty list — pipeline is never blocked
-
-#### Generator Agent (`GeneratorAgent`)
-- Model: `GENERATOR_MODEL` env var
-- Each cycle receives: resume text + profile + JD + profession config + key skills + sample CV text + locked facts + optional feedback from previous cycle
-- Key skills injected as "KEY SKILLS TO EMPHASISE" — generator prioritises these in bullets, skills section, and summary
-- Sample CV text injected as "FORMATTING REFERENCE" — structure mirrored, content never copied
-- Output: resume JSON
-
-#### Evaluator Agents (run in parallel)
-Provider-based class names — model swap requires only an `.env` change:
-
-| Class | Provider | Model env var | Default model |
-|---|---|---|---|
-| `AnthropicEvaluatorAgent` | Anthropic | `ANTHROPIC_EVALUATOR_MODEL` | `claude-sonnet-4-20250514` |
-| `OpenAIEvaluatorAgent` | OpenAI | `OPENAI_EVALUATOR_MODEL` | `gpt-4o-mini` |
-| `GoogleEvaluatorAgent` | Google | `GOOGLE_EVALUATOR_MODEL` | `gemini-1.5-pro` |
-
-Active evaluators are filtered by: API key present AND feature flag `true` AND profession allows it.  
-Evaluator errors return `score=0` — pipeline never crashes.  
-Returns: `{ "model": str, "score": int, "suggestions": [str] }`
-
-#### Aggregator Agent
-- Pure synchronous computation — zero I/O, zero added latency
-- Computes minimum score; compares against `PASS_THRESHOLD` (config, not hardcoded)
-- Prepends `aggregator_context` to feedback for the next generator cycle
-- Returns: `{ all_passed: bool, min_score: int, feedback_prompt: str, evaluator_results: [...] }`
+### 7.6 AI Resume Generation Pipeline
+See §3 (pipeline diagram) — unchanged from v1.4.
 
 #### Fact-Locking
-- Users can pin specific facts on the Preview page (e.g. "Senior Engineer at Google, 2019–2023")
-- Stored in session as `locked_facts: list[str]`
-- Injected into generator system prompt as "LOCKED FACTS — MUST NOT BE CHANGED"
+- Users pin specific facts on Preview page
+- Injected as "LOCKED FACTS — MUST NOT BE CHANGED" in generator system prompt
 - Persisted via `PUT /api/sessions/{id}/locked-facts`
 
-#### Quality Alert
-- If `all_passed = false` after all cycles, a `WARNING` log entry is written to the server console
-- Email delivery is disabled until SMTP is configured; alert body is preserved in code for future activation
+### 7.7 Editable Preview
+- Inline editing; changes persisted to `localStorage`
+- Full pipeline regeneration and per-section regeneration
+- Qualitative quality labels (no raw scores)
+- Locked Facts panel (collapsible)
+- Custom section addition
 
-#### Cost Controls
-| Config | Default | Purpose |
-|---|---|---|
-| `PASS_THRESHOLD` | 50 | Minimum score for "pass" — lower = fewer loops = lower cost |
-| `MAX_EVAL_CYCLES` | 3 | Max generator-evaluator iterations per request |
-| `MAX_AI_CALLS_PER_SESSION` | 10 | Hard per-session cap; returns HTTP 429 when exceeded |
+### 7.8 File Generation & Download
+- DOCX always generated; PDF optional (`PDF_EXPORT_ENABLED=true`)
+- Files stored in GridFS; expire after 24 hours
+- Filenames derived from `name` in generated resume JSON
 
-#### Resume JSON Schema
-```json
-{
-  "name": "string",
-  "contact": { "email": "string", "phone": "string", "linkedin": "string", "location": "string" },
-  "summary": "string",
-  "experience": [{ "company": "string", "role": "string", "dates": "string", "bullets": ["string"] }],
-  "education": [{ "institution": "string", "degree": "string", "dates": "string" }],
-  "skills": ["string"],
-  "certifications": ["string"]
-}
-```
+### 7.9 Subscription Tiers
 
-### 4.7 Editable Preview
-- Each section displayed as editable fields; changes persisted to `localStorage`
-- "Regenerate All" re-runs the full pipeline
-- "Regenerate Section" per section — targeted rewrite, bypasses eval loop
-- Qualitative quality indicators shown (Excellent / Strong / Good) — no raw scores shown to users
-- **Locked Facts panel** — collapsible; add/remove facts that the AI must preserve verbatim on next generate
-
-### 4.8 File Generation & Download
-- DOCX always generated; PDF optional (`PDF_EXPORT_ENABLED=true` + LibreOffice on server)
-- Files stored in MongoDB GridFS; download links provided on Step 6
-- Filenames: `first_last.docx` derived from `name` in generated resume JSON
-- Files auto-expire after 24 hours via GridFS TTL
-
-### 4.9 Subscription Tiers (planned — flags drive current behaviour)
-
-| Tier | Evaluators | Skills extracted | Config |
+| Feature | Free | Plus | Pro |
 |---|---|---|---|
-| **Free** | Anthropic only | 3 | `ANTHROPIC_EVALUATOR_ENABLED=true`, `SKILL_EXTRACTION_COUNT=3` |
-| **Plus** | Anthropic + Google | 5 | `GOOGLE_EVALUATOR_ENABLED=true`, `SKILL_EXTRACTION_COUNT=5` |
-| **Pro** | All three | 10 | All evaluators enabled, `SKILL_EXTRACTION_COUNT=10` |
-
-Current deployment runs Free tier. Per-user tier lookup will replace the global flags when billing is wired.
+| Resume builder (6-step flow) | ✅ | ✅ | ✅ |
+| DOCX + PDF export | ✅ | ✅ | ✅ |
+| Persistent profile | ✅ | ✅ | ✅ |
+| AI evaluators | Anthropic only | Anthropic + Google | All three |
+| Key skills extracted from JD | 3 | 5 | 10 |
+| Job search (JSearch) | ❌ | ✅ | ✅ |
+| Saved jobs | ❌ | Up to 25 | Unlimited |
+| One-click Tailor | ❌ | ✅ | ✅ |
+| Resume Library | ❌ | Up to 5 | Unlimited |
+| Section-level regeneration | ❌ | ❌ | ✅ |
+| Locked Facts panel | ❌ | ❌ | ✅ |
+| Sample CV formatting reference | ❌ | ❌ | ✅ |
 
 ---
 
-## 5. Non-Functional Requirements
+## 8. Non-Functional Requirements
 
-- **Responsiveness**: Desktop and tablet; mobile is nice-to-have
-- **Performance**: AI generation is non-streaming (spinner shown); file generation < 15 seconds; profession resolution adds zero in-loop latency
-- **Scalability**: All agents stateless and independently testable; evaluators run concurrently; aggregator is pure computation; new professions require no code change
-- **Error handling**: Graceful errors for failed uploads, API failures, invalid templates; evaluator failures score 0 (no crash); job analyzer failures return empty list (no crash)
-- **Security**: API keys in Railway env vars; never exposed to frontend; scores not shown in UI to avoid misleading quality claims
+- **Responsiveness**: Desktop, tablet, and mobile
+- **Performance**: AI generation non-streaming (spinner shown); job search results cached; profession resolution adds zero in-loop latency
+- **Scalability**: Agents stateless; evaluators run concurrently; aggregator pure computation; new professions require no code change
+- **Error handling**: Graceful errors for failed uploads, API failures, invalid templates; evaluator failures score 0; job analyzer failures return empty list
+- **Security**: API keys in Railway env vars; JWT auth for all account/profile/jobs endpoints; scores not shown in UI
 - **File cleanup**: Generated files auto-deleted from GridFS after 24 hours
 
 ---
 
-## 6. Data Model (MongoDB)
+## 9. Data Model (MongoDB)
+
+### `users` collection
+```json
+{
+  "_id": "ObjectId",
+  "email": "string (unique index)",
+  "name": "string",
+  "hashed_password": "string (optional — absent for Google-only accounts)",
+  "google_id": "string (sparse unique index)",
+  "tier": "free | plus | pro",
+  "is_active": true,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+### `user_profiles` collection
+```json
+{
+  "_id": "ObjectId",
+  "user_id": "ObjectId (ref users)",
+  "full_name": "string",
+  "email": "string",
+  "phone": "string",
+  "linkedin": "string",
+  "location": "string",
+  "target_roles": ["string"],
+  "primary_skill": "string",
+  "key_skills": ["string"],
+  "summary": "string",
+  "resume_text": "string",
+  "resume_file_key": "string (storage path)",
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
 
 ### `sessions` collection
 ```json
 {
   "_id": "ObjectId",
-  "created_at": "datetime",
+  "created_at": "datetime (TTL index — expires after 24h)",
   "resume_parsed": { "raw_text": "string", "filename": "string" },
   "upload_instructions": "string",
   "user_profile": {},
@@ -307,118 +310,131 @@ Current deployment runs Free tier. Per-user tier lookup will replace the global 
   "selected_template_id": "string",
   "sample_cv_text": "string",
   "locked_facts": ["string"],
-  "key_skills": ["string"],
   "generated_resume": {},
-  "profession_slug": "software_engineer",
-  "eval_cycles": 0,
-  "eval_history": [
-    {
-      "cycle": 1,
-      "profession": "software_engineer",
-      "evaluator_results": [
-        { "model": "anthropic", "score": 82, "suggestions": ["string"] }
-      ],
-      "min_score": 82,
-      "all_passed": false,
-      "timestamp": "datetime"
-    }
-  ],
-  "ai_call_count": 3,
-  "quality_alert_sent": false,
-  "output_files": {
-    "docx_file_id": "GridFS ObjectId",
-    "pdf_file_id": "GridFS ObjectId"
-  }
+  "output_files": { "docx_file_id": "GridFS ObjectId", "pdf_file_id": "GridFS ObjectId" }
 }
 ```
 
-### `templates` collection
+### `saved_jobs` collection
 ```json
 {
   "_id": "ObjectId",
+  "user_id": "ObjectId (ref users)",
+  "job_id": "string",
+  "job_data": {},
+  "saved_at": "datetime"
+}
+```
+
+### `search_cache` collection
+```json
+{
+  "_id": "ObjectId",
+  "key": "string (MD5 of query|location|page)",
+  "payload": {},
+  "cached_at": "datetime"
+}
+```
+
+### `saved_resumes` collection
+```json
+{
+  "_id": "ObjectId",
+  "user_id": "ObjectId (ref users)",
   "name": "string",
-  "type": "prebuilt | custom",
-  "preview_image_url": "string",
-  "file_path": "string",
-  "placeholders": ["string"],
+  "type": "uploaded | tailored",
+  "file_key": "string (storage path)",
+  "tailored_for_employer": "string (optional)",
   "created_at": "datetime"
 }
 ```
 
-### `professions` collection
-```json
-{
-  "_id": "ObjectId",
-  "slug": "software_engineer",
-  "display_name": "Software Engineer",
-  "keywords": ["software", "developer", "engineer"],
-  "generator_context": "string",
-  "evaluator_context": "string",
-  "scoring_criteria": "string",
-  "aggregator_context": "string",
-  "evaluator_names": [],
-  "is_active": true,
-  "created_at": "datetime",
-  "updated_at": "datetime"
-}
-```
-
 ---
 
-## 7. API Endpoints (FastAPI)
+## 10. API Endpoints (FastAPI)
 
+### Auth
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/resume/upload` | Upload resume (PDF/DOCX) + optional instructions; creates session |
-| `POST` | `/api/resume/sample-format?session_id=` | Upload sample CV as formatting reference; stored as `sample_cv_text` |
-| `POST` | `/api/profile?session_id=` | Save user profile form data |
-| `POST` | `/api/job-description?session_id=` | Save pasted job description |
-| `GET` | `/api/templates` | List all available templates |
-| `POST` | `/api/templates/upload` | Upload a custom `.docx` template |
-| `PATCH` | `/api/sessions/{id}/template` | Attach selected template ID to session |
-| `PUT` | `/api/sessions/{id}/locked-facts` | Save/replace user-pinned locked facts |
-| `POST` | `/api/generate?session_id=` | Run full pipeline (job analysis + evaluator-optimizer loop) |
-| `POST` | `/api/generate?session_id=&section=` | Regenerate single section (no eval loop) |
-| `POST` | `/api/export?session_id=` | Generate DOCX (+ optional PDF) and store in GridFS |
-| `GET` | `/api/download/{file_id}` | Download a generated file |
-| `GET` | `/api/professions` | List all active profession profiles |
-| `GET` | `/api/professions/{slug}` | Get single profession profile |
-| `POST` | `/api/professions` | Create new profession profile |
-| `PUT` | `/api/professions/{slug}` | Update profession profile |
-| `DELETE` | `/api/professions/{slug}` | Deactivate profession profile (soft delete) |
+| POST | `/api/auth/register` | Email/password sign-up |
+| POST | `/api/auth/login` | Email/password sign-in → JWT |
+| POST | `/api/auth/sync` | Google OAuth → backend JWT |
+| GET | `/api/auth/me` | Current user |
+
+### Account Profile
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/account/profile` | Get persistent profile |
+| PUT | `/api/account/profile` | Save profile (all fields including `primary_skill`) |
+| POST | `/api/account/profile/resume` | Upload resume → AI prefill |
+| POST | `/api/sessions/from-profile` | Create builder session from profile |
+
+### Resume Library (Plus+)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/account/resumes` | List saved resumes |
+| POST | `/api/account/resumes/upload` | Upload to library |
+| POST | `/api/account/resumes/from-session` | Save tailored resume from builder |
+| PATCH | `/api/account/resumes/{id}` | Rename |
+| DELETE | `/api/account/resumes/{id}` | Delete |
+| GET | `/api/account/resumes/{id}/download` | Download file |
+| POST | `/api/account/resumes/{id}/create-session` | Create session from library resume |
+
+### Job Search (Plus+)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/jobs/search` | JSearch — cached by `JSEARCH_CACHE_TTL_S` |
+| GET | `/api/jobs/quota` | Monthly usage stats |
+| POST | `/api/jobs/save` | Save a job |
+| GET | `/api/jobs/saved` | List saved jobs |
+| DELETE | `/api/jobs/saved/{job_id}` | Unsave |
+
+### Builder
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/resume/upload` | Upload & parse resume; create session |
+| POST | `/api/resume/sample-format?session_id=` | Upload formatting reference CV |
+| GET | `/api/profile/prefill?session_id=` | AI-extract profile fields |
+| POST | `/api/profile?session_id=` | Save session profile |
+| POST | `/api/job-description?session_id=` | Save job description |
+| GET | `/api/templates` | List templates |
+| POST | `/api/templates/upload` | Upload custom template |
+| PATCH | `/api/sessions/{id}/template` | Attach template |
+| PUT | `/api/sessions/{id}/locked-facts` | Update locked facts |
+| PUT | `/api/sessions/{id}/resume` | Sync client-side resume to session |
+| POST | `/api/generate?session_id=` | Run full pipeline |
+| POST | `/api/export?session_id=` | Export DOCX + PDF |
+| GET | `/api/download/{file_id}` | Download file |
+
+### Catalog & Admin
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/catalog/roles?q=` | Role autocomplete |
+| GET | `/api/catalog/skills?q=` | Skills autocomplete |
+| GET/POST/PUT/DELETE | `/api/professions` | Profession profile CRUD |
 
 ---
 
-## 8. Frontend Pages (Next.js App Router)
+## 11. Frontend Pages (Next.js App Router)
 
 | Route | Page |
 |---|---|
-| `/` | Landing page — hero, how it works, "Start for Free" CTA |
-| `/builder/upload` | Step 1 — drag-and-drop resume upload + optional additional instructions textarea |
-| `/builder/profile` | Step 2 — user profile form (name, contact, tone, target role drives profession detection) |
-| `/builder/job` | Step 3 — paste job description textarea |
-| `/builder/template` | Step 4 — template gallery + custom upload + optional sample CV for formatting reference |
-| `/builder/preview` | Step 5 — editable resume preview; qualitative quality indicator; locked facts panel; section regen |
-| `/builder/download` | Step 6 — download DOCX (and PDF if enabled); filename from resume name |
-| `/settings/professions` | Admin — manage profession profiles (add, edit, delete, set prompts + evaluator selection) |
-
-A persistent **step progress bar** (steps 1–6 with completion indicators) is shown across all `/builder/*` pages.
-
----
-
-## 9. Prebuilt Templates (Launch)
-
-| Template Name | Style |
-|---|---|
-| **Clean** | Minimal single-column, Arial font, subtle section dividers |
-| **Modern** | Two-column header, accent colour sidebar for skills |
-| **Executive** | Classic serif font, formal layout, suited for senior roles |
-
-Each `.docx` template uses placeholder tags: `{{NAME}}`, `{{EMAIL}}`, `{{PHONE}}`, `{{LINKEDIN}}`, `{{LOCATION}}`, `{{SUMMARY}}`, `{{EXPERIENCE}}`, `{{EDUCATION}}`, `{{SKILLS}}`, `{{CERTIFICATIONS}}`.
+| `/` | Landing — hero, how it works, CTA |
+| `/auth/login` | Sign in — credentials + Google OAuth |
+| `/auth/register` | Email/password registration |
+| `/profile` | Account profile — resume upload (AI prefill), personal info, career fields (target roles, primary skill, key skills), Resume Library |
+| `/jobs` | Job search — TagInput query bar (pre-filled from profile roles + primary skill), JSearch results, save/tailor/apply actions |
+| `/builder/upload` | Step 1 — drag-and-drop resume upload |
+| `/builder/profile` | Step 2 — AI pre-filled profile confirmation |
+| `/builder/job` | Step 3 — paste job description |
+| `/builder/template` | Step 4 — template gallery + sample CV + additional instructions |
+| `/builder/preview` | Step 5 — editable preview; locked facts; section regen; custom sections |
+| `/builder/download` | Step 6 — download DOCX / PDF |
+| `/settings/professions` | Admin — profession profile CRUD |
 
 ---
 
-## 10. Environment Variables
+## 12. Environment Variables
 
 ### Backend (FastAPI)
 ```
@@ -427,47 +443,61 @@ ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 GOOGLE_API_KEY=
 
-# Model names — swap in .env; no code changes needed
+# Auth
+JWT_SECRET=                          # Required in prod; generate: python -c "import secrets; print(secrets.token_hex(32))"
+JWT_ALGORITHM=HS256
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+DEV_BYPASS_AUTH=false                # Set true on localhost only
+
+# Model names
 GENERATOR_MODEL=claude-sonnet-4-20250514
 ANTHROPIC_EVALUATOR_MODEL=claude-sonnet-4-20250514
 OPENAI_EVALUATOR_MODEL=gpt-4o-mini
 GOOGLE_EVALUATOR_MODEL=gemini-1.5-pro
 
-# Subscription tier — evaluators active per tier
-# Free: ANTHROPIC=true, others false
-# Plus: ANTHROPIC+GOOGLE=true
-# Pro: all three true
+# Evaluator flags
 ANTHROPIC_EVALUATOR_ENABLED=true
 OPENAI_EVALUATOR_ENABLED=false
 GOOGLE_EVALUATOR_ENABLED=false
 
-# Skill extraction — top-N skills the job analyzer extracts
-# Free=3 | Plus=5 | Pro=10
-SKILL_EXTRACTION_COUNT=3
-
-# Pipeline quality controls
+# Pipeline controls
 PASS_THRESHOLD=50
 MAX_EVAL_CYCLES=3
-
-# Per-session AI cost cap (0 = unlimited)
 MAX_AI_CALLS_PER_SESSION=10
+SKILL_EXTRACTION_COUNT=3             # Free=3 | Plus=5 | Pro=10
+
+# Job search
+RAPIDAPI_KEY=                        # RapidAPI key for JSearch
+JSEARCH_MONTHLY_LIMIT=500
+JSEARCH_QUOTA_WARN_PCT=50
+JSEARCH_CACHE_TTL_S=7200             # Cache TTL in seconds (2 hours default)
 
 # Feature flags
 PDF_EXPORT_ENABLED=false
 FEATURED_PROFESSION_SLUG=software_engineer
+
+# Storage
+STORAGE_BACKEND=local                # local | s3
+STORAGE_LOCAL_PATH=./uploads
+AWS_S3_BUCKET=
+AWS_S3_PREFIX=uploads/
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
 
 # Infrastructure
 MONGODB_URI=
 ALLOWED_ORIGINS=https://your-frontend.railway.app
 SUPPORT_EMAIL=samorsameer@gmail.com
 
-# SMTP alerts (disabled until configured)
+# SMTP (disabled until configured)
 SMTP_HOST=
 SMTP_PORT=587
 SMTP_USER=
 SMTP_PASSWORD=
 
-# Observability (optional)
+# Observability
 LANGSMITH_TRACING=true
 LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=
@@ -477,14 +507,18 @@ LANGSMITH_PROJECT=tailormycv
 ### Frontend (Next.js)
 ```
 NEXT_PUBLIC_API_URL=https://your-backend.railway.app
+NEXTAUTH_URL=https://your-frontend.railway.app
+NEXTAUTH_SECRET=                     # Random string; generate: openssl rand -base64 32
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+NEXT_PUBLIC_DEV_BYPASS_AUTH=false    # true on localhost only
 ```
 
 ---
 
-## 11. Out of Scope (v1)
+## 13. Out of Scope (v1)
 
-- User authentication / login (sessions are anonymous, identified by `tailormycv_session_id` in `localStorage`)
-- Subscription billing and per-user tier enforcement (tiers exist as config flags; per-user lookup is a future milestone)
+- Subscription billing and per-user tier enforcement (tier is a global env flag; per-user lookup is a future milestone)
 - Resume version history
 - Cover letter generation
 - LinkedIn import
@@ -495,99 +529,42 @@ NEXT_PUBLIC_API_URL=https://your-backend.railway.app
 
 ---
 
-## 12. AI Prompts Architecture
+## 14. AI Prompts Architecture
 
-Prompts are organised by **two orthogonal axes**:
+Prompts organised by two axes:
 
-1. **Provider axis** — which API is called: `prompts/anthropic.py`, `prompts/openai.py`, `prompts/google.py`  
-   Every LLM call's base system prompt and message builder lives in the provider file.
-
-2. **Profession axis** — which domain: `prompts/professions/<slug>.py`  
-   Each profession file defines context strings injected into provider prompts at call time. Stored in MongoDB and editable via admin UI.
-
-| File | Prompts owned |
-|---|---|
-| `pipeline/prompts/anthropic.py` | `job_analyzer_messages()`, `generator_messages()`, `section_messages()`, `anthropic_evaluator_messages()` |
-| `pipeline/prompts/openai.py` | `openai_evaluator_messages()` |
-| `pipeline/prompts/google.py` | `google_evaluator_messages()` |
-| `pipeline/prompts/professions/generic.py` | Fallback config (no profession match) |
-| `pipeline/prompts/professions/software_engineer.py` | SWE contexts (seed data) |
-| `pipeline/prompts/professions/animator.py` | Animation/creative contexts (seed data) |
-| `pipeline/prompts/professions/hotel_management.py` | Hospitality contexts (seed data) |
+1. **Provider axis** — `prompts/anthropic.py`, `prompts/openai.py`, `prompts/google.py`
+2. **Profession axis** — `prompts/professions/<slug>.py`; stored in MongoDB; editable via admin UI
 
 ---
 
-## 13. Token Efficiency — TOON Encoding
+## 15. Token Efficiency — TOON Encoding
 
-All structured data sent to LLMs (resume JSON, user profiles) is serialised with **TOON** (Token-Oriented Object Notation) before being placed in prompt messages. LLM **outputs** remain plain JSON — TOON is applied to inputs only.
+All structured LLM inputs serialised with **TOON** (`toon-format==0.9.0b1`); outputs remain plain JSON. Wrapper at `backend/services/pipeline/toon.py`; falls back to compact JSON if unavailable.
 
-### Library
+Typical savings: 40–45% on structured inputs (~650 tokens → ~370–400 tokens per resume payload).
 
-| | |
-|---|---|
-| PyPI package | `toon-format==0.9.0b1` |
-| Wrapper module | `backend/services/pipeline/toon.py` |
-| Fallback | Compact JSON (`json.dumps(data, separators=(",",":"))`) if package is unavailable |
-
-### How TOON works
-
-TOON converts uniform arrays to a tabular format, eliminating the repetitive key names that JSON repeats for every object in an array.
-
-**JSON (verbose):**
-```json
-[
-  {"company": "Acme Corp", "role": "Engineer",  "dates": "2020–2023"},
-  {"company": "Beta Ltd",  "role": "Tech Lead",  "dates": "2023–present"}
-]
-```
-**TOON (compact):**
-```
-experience[2|]: company|role|dates
-  Acme Corp|Engineer|2020–2023
-  Beta Ltd|Tech Lead|2023–present
-```
-
-A one-line TOON legend is prepended to every system prompt where encoded input is used, so the model can parse it correctly. The legend deliberately avoids curly braces to prevent conflicts with Python's `.format()` calls on prompt template strings.
-
-### Where TOON is applied
-
-| Prompt builder | TOON-encoded inputs |
-|---|---|
-| `job_analyzer_messages()` | `user_profile` dict |
-| `generator_messages()` | `user_profile` dict |
-| `section_messages()` | `user_profile` dict + `existing_resume` JSON |
-| `anthropic_evaluator_messages()` | `resume_json` (the resume being evaluated) |
-| `openai_evaluator_messages()` | `resume_json` |
-| `google_evaluator_messages()` | `resume_json` |
-
-### Estimated token savings
-
-A typical resume JSON payload is ~650 tokens in standard JSON and ~370–400 tokens in TOON — a **40–45% reduction on structured data inputs**.
-
-| Tier | Active evaluators | Max cycles | TOON-encoded calls | Tokens saved / generation |
-|---|---|---|---|---|
-| Free | 1 | 1–3 | 2–4 | ~280 |
-| Plus | 2 | 1–3 | 3–7 | ~950 |
-| Pro | 3 | 1–3 | 4–10 | ~2,500 |
-
-At 10,000 Pro-tier generations per month (~25 M tokens saved) TOON reduces costs by approximately **$60–75/month** at Claude Sonnet input pricing.
+| Tier | Active evaluators | Tokens saved / generation |
+|---|---|---|
+| Free | 1 | ~280 |
+| Plus | 2 | ~950 |
+| Pro | 3 | ~2,500 |
 
 ---
 
-## 14. Naming Conventions
+## 16. Naming Conventions
 
 | Context | Format |
 |---|---|
-| Brand / UI / logo | `TailorMyCv` |
+| Brand / UI | `TailorMyCv` |
 | GitHub repo | `tailormycv` |
 | Railway services | `tailormycv-frontend`, `tailormycv-backend` |
 | MongoDB database | `tailormycv` |
-| localStorage keys | `tailormycv_session_id`, `tailormycv_generated`, `tailormycv_eval_summary`, `tailormycv_template_id`, `tailormycv_locked_facts` |
-| Domain | `tailormycv.com` |
-| Agent class names | Provider-based: `JobAnalyzerAgent`, `GeneratorAgent`, `AnthropicEvaluatorAgent`, `OpenAIEvaluatorAgent`, `GoogleEvaluatorAgent` |
-| Profession slugs | `lowercase_underscored`: `software_engineer`, `hotel_management` |
-| URLs / API routes | `lowercase-hyphenated`: `/api/job-description`, `/api/sample-format` |
+| localStorage keys | `tailormycv_` prefix (all lowercase) |
+| Agent class names | Provider-based: `AnthropicEvaluatorAgent`, `OpenAIEvaluatorAgent`, `GoogleEvaluatorAgent` |
+| Profession slugs | `lowercase_underscored` |
+| API routes | `lowercase-hyphenated` |
 
 ---
 
-*End of User Requirements Document — TailorMyCv v1.4*
+*End of User Requirements Document — TailorMyCv v1.5*

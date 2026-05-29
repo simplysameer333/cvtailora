@@ -18,7 +18,7 @@ Quota tracking:
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
@@ -35,7 +35,6 @@ router = APIRouter()
 
 _JSEARCH_BASE = "https://jsearch.p.rapidapi.com"
 _PLUS_SAVE_LIMIT = 25
-CACHE_TTL_S = 3600  # 1 hour
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -53,7 +52,8 @@ def _cache_key(*parts: str) -> str:
 
 async def _get_cache(key: str) -> dict | None:
     db = get_db()
-    doc = await db.search_cache.find_one({"key": key})
+    cutoff = datetime.utcnow() - timedelta(seconds=settings.jsearch_cache_ttl_s)
+    doc = await db.search_cache.find_one({"key": key, "cached_at": {"$gte": cutoff}})
     return doc["payload"] if doc else None
 
 

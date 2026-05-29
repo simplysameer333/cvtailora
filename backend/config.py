@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     jsearch_monthly_limit: int = 500
     # Warn in API responses when usage crosses this percentage (and every 10% after).
     jsearch_quota_warn_pct: int = 50
+    # How long to serve cached search results before hitting RapidAPI again (seconds).
+    # Same query+location+page within this window costs zero quota.
+    jsearch_cache_ttl_s: int = 7200  # 2 hours default
 
     # ── Infrastructure ────────────────────────────────────────────────────────
     mongodb_uri: str
