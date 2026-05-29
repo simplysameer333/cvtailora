@@ -446,7 +446,7 @@ export default function JobsPage() {
 
           {/* Search bar */}
           <form onSubmit={handleSearch} className="card flex flex-col sm:flex-row sm:items-start gap-3 !p-3">
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <TagInput
                 value={queryTags}
                 onChange={setQueryTags}
@@ -454,7 +454,7 @@ export default function JobsPage() {
                 placeholder="Job title, keywords, or company…"
               />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <TagInput
                 value={locationTags}
                 onChange={setLocationTags}
@@ -462,21 +462,6 @@ export default function JobsPage() {
                 placeholder="City, country, or Remote…"
               />
             </div>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                const ps = Number(e.target.value) as JsearchPageSize;
-                setPageSize(ps);
-                setPage(1);
-                if (searched) runSearch(queryTags.join(" "), locationTags.join(" OR "), 1, ps);
-              }}
-              className="input shrink-0 w-28 cursor-pointer"
-              title="Results per page"
-            >
-              {JSEARCH_PAGE_SIZES.map((n) => (
-                <option key={n} value={n}>{n} / page</option>
-              ))}
-            </select>
             <button type="submit" disabled={loading || !queryTags.length} className="btn-primary shrink-0">
               {loading ? "Searching…" : "Search"}
             </button>
@@ -536,6 +521,28 @@ export default function JobsPage() {
 
           {!loading && jobs.length > 0 && (
             <>
+              {/* Results header — count + per-page selector */}
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>{jobs.length} result{jobs.length !== 1 ? "s" : ""} · page {page}</span>
+                <div className="flex items-center gap-2">
+                  <span>Show</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      const ps = Number(e.target.value) as JsearchPageSize;
+                      setPageSize(ps);
+                      setPage(1);
+                      if (searched) runSearch(queryTags.join(" "), locationTags.join(" OR "), 1, ps);
+                    }}
+                    className="border border-slate-200 rounded-lg text-xs py-1 px-2 bg-white cursor-pointer hover:border-brand-400 transition focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  >
+                    {JSEARCH_PAGE_SIZES.map((n) => (
+                      <option key={n} value={n}>{n} per page</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div className="flex flex-col gap-3">
                 {jobs.map((job) => (
                   <JobCard
