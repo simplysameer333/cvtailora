@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     # ── Infrastructure ────────────────────────────────────────────────────────
     mongodb_uri: str
     allowed_origins: str = "http://localhost:4000"
+    frontend_url: str = "http://localhost:4000"
 
     # ── Email (Brevo HTTP API for job alert digests) ─────────────────────────
     # Sign up free at brevo.com — verify tailormycv.alerts@gmail.com as sender,

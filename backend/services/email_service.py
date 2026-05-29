@@ -1,8 +1,39 @@
 import logging
+from datetime import datetime, timezone
 
 import httpx
 
 logger = logging.getLogger("tailormycv")
+
+
+def _time_ago(dt_str: str | None) -> str:
+    if not dt_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        diff = int((datetime.now(timezone.utc) - dt).total_seconds())
+        if diff < 3600:
+            return f"{diff // 60}m ago"
+        if diff < 86400:
+            return f"{diff // 3600}h ago"
+        return f"{diff // 86400}d ago"
+    except Exception:
+        return ""
+
+
+def _fmt_salary(job: dict) -> str:
+    lo = job.get("job_min_salary")
+    hi = job.get("job_max_salary")
+    if not lo and not hi:
+        return ""
+    cur = job.get("job_salary_currency") or "$"
+    period_raw = job.get("job_salary_period") or ""
+    period = "/yr" if period_raw == "YEAR" else "/hr" if period_raw == "HOUR" else ""
+    def fmt(n: float) -> str:
+        return f"{round(n / 1000)}K" if n >= 1000 else str(int(n))
+    if lo and hi:
+        return f"{cur}{fmt(lo)}–{fmt(hi)}{period}"
+    return f"{cur}{fmt(lo or hi)}{period}"
 
 
 async def send_quality_alert(session_id: str, aggregated: dict, resume_json: dict) -> None:
@@ -25,7 +56,6 @@ async def send_job_alert_email(
     user_name: str,
     alert_name: str,
     jobs: list[dict],
-    frontend_url: str = "https://tailormycv.com",
 ) -> bool:
     """Send a daily job alert digest via Brevo HTTP API. Returns True on success."""
     from config import settings
@@ -33,7 +63,7 @@ async def send_job_alert_email(
     if not settings.brevo_api_key:
         raise RuntimeError("BREVO_API_KEY is not set — add it to .env and Railway")
 
-    html = _render_alert_email(user_name, alert_name, jobs, frontend_url)
+    html = _render_alert_email(user_name, alert_name, jobs, settings.frontend_url)
     subject = (
         f"Your job alert: {alert_name} — "
         f"{len(jobs)} new listing{'s' if len(jobs) != 1 else ''}"
@@ -71,7 +101,6 @@ def _render_alert_email(
     jobs: list[dict],
     frontend_url: str,
 ) -> str:
-    job_cards_html = ""
     emp_type_map = {
         "FULLTIME": "Full-time",
         "PARTTIME": "Part-time",
@@ -79,33 +108,93 @@ def _render_alert_email(
         "INTERN": "Internship",
     }
 
+    job_cards_html = ""
     for job in jobs:
         title = job.get("job_title", "Untitled Role")
         employer = job.get("employer_name", "")
-        location = ", ".join(filter(None, [job.get("job_city"), job.get("job_country")]))
+        publisher = job.get("job_publisher", "")
+        logo = job.get("employer_logo", "")
+
+        location = ", ".join(filter(None, [
+            job.get("job_city"), job.get("job_state"), job.get("job_country"),
+        ]))
         emp_type = emp_type_map.get(job.get("job_employment_type", ""), "")
         is_remote = job.get("job_is_remote", False)
-        apply_link = (
-            job.get("job_apply_link")
-            or job.get("job_google_link")
-            or f"{frontend_url}/jobs"
-        )
-        if not apply_link or apply_link == "#":
+
+        apply_link = job.get("job_apply_link") or f"{frontend_url}/jobs"
+        if apply_link == "#":
             apply_link = f"{frontend_url}/jobs"
 
+        salary = _fmt_salary(job)
+        posted = _time_ago(job.get("job_posted_at_datetime_utc"))
+        skills = (job.get("job_required_skills") or [])[:4]
+
+        # Logo or initials fallback
+        if logo:
+            logo_html = (
+                f'<img src="{logo}" width="44" height="44" '
+                f'style="border-radius:10px;border:1px solid #f1f5f9;'
+                f'object-fit:contain;display:block;background:#fff;" />'
+            )
+        else:
+            initials = (employer[:2] if employer else "?").upper()
+            logo_html = (
+                f'<div style="width:44px;height:44px;border-radius:10px;'
+                f'background:#e2e8f0;text-align:center;line-height:44px;'
+                f'font-size:14px;font-weight:700;color:#64748b;">{initials}</div>'
+            )
+
+        via_html = (
+            f' <span style="color:#94a3b8;font-size:11px;">via {publisher}</span>'
+            if publisher else ""
+        )
+
+        # Salary · posted
+        sal_parts = []
+        if salary:
+            sal_parts.append(f'<span style="font-weight:600;color:#0f172a;">{salary}</span>')
+        if posted:
+            sal_parts.append(f'<span style="color:#94a3b8;">{posted}</span>')
+        sal_html = (
+            f'<div style="font-size:12px;margin:8px 0 6px;">'
+            f'{"&nbsp;&middot;&nbsp;".join(sal_parts)}</div>'
+            if sal_parts else ""
+        )
+
+        # Location · type · remote
         meta_parts = list(filter(None, [location, emp_type, "Remote" if is_remote else ""]))
         meta_html = (
-            f'<div style="font-size:12px;color:#94a3b8;margin-bottom:12px;">'
+            f'<div style="font-size:12px;color:#94a3b8;margin-bottom:10px;">'
             f'{"&nbsp;&middot;&nbsp;".join(meta_parts)}</div>'
             if meta_parts else ""
         )
 
+        # Skill chips
+        skills_html = ""
+        if skills:
+            chips = "".join(
+                f'<span style="display:inline-block;background:#f1f5f9;color:#475569;'
+                f'font-size:11px;padding:3px 8px;border-radius:6px;'
+                f'margin:0 4px 4px 0;">{s}</span>'
+                for s in skills
+            )
+            skills_html = f'<div style="margin-bottom:12px;">{chips}</div>'
+
         job_cards_html += f"""
         <div style="border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;
                     margin-bottom:12px;background:#fff;">
-          <div style="font-size:16px;font-weight:600;color:#0f172a;margin-bottom:3px;">{title}</div>
-          <div style="font-size:13px;color:#475569;margin-bottom:6px;">{employer}</div>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;">
+            <tr>
+              <td width="56" valign="top">{logo_html}</td>
+              <td valign="top" style="padding-left:12px;">
+                <div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:2px;">{title}</div>
+                <div style="font-size:13px;color:#475569;">{employer}{via_html}</div>
+              </td>
+            </tr>
+          </table>
+          {sal_html}
           {meta_html}
+          {skills_html}
           <a href="{apply_link}"
              style="display:inline-block;background:#2B579A;color:#fff;font-size:13px;
                     font-weight:600;padding:8px 18px;border-radius:8px;text-decoration:none;">
