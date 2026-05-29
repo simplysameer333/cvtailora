@@ -1,8 +1,6 @@
-import asyncio
 import logging
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+
+import httpx
 
 logger = logging.getLogger("tailormycv")
 
@@ -29,14 +27,12 @@ async def send_job_alert_email(
     jobs: list[dict],
     frontend_url: str = "https://tailormycv.com",
 ) -> bool:
-    """Send a daily job alert digest via SMTP. Returns True on success."""
+    """Send a daily job alert digest via Brevo HTTP API. Returns True on success."""
     from config import settings
 
-    if not all([settings.smtp_host, settings.smtp_user, settings.smtp_password]):
+    if not settings.brevo_api_key:
         logger.warning(
-            "[job-alert] SMTP not configured — skipping email to %s. "
-            "Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD in .env.",
-            user_email,
+            "[job-alert] BREVO_API_KEY not set — skipping email to %s.", user_email
         )
         return False
 
@@ -46,25 +42,25 @@ async def send_job_alert_email(
         f"{len(jobs)} new listing{'s' if len(jobs) != 1 else ''}"
     )
 
-    def _send():
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"TailorMyCv Alerts <{settings.smtp_user}>"
-        msg["To"] = user_email
-        msg.attach(MIMEText(html, "html"))
-
-        with smtplib.SMTP(settings.smtp_host, int(settings.smtp_port)) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(settings.smtp_user, settings.smtp_password)
-            server.sendmail(settings.smtp_user, [user_email], msg.as_string())
+    payload = {
+        "sender": {"name": "TailorMyCv Alerts", "email": settings.brevo_sender_email},
+        "to": [{"email": user_email, "name": user_name}],
+        "subject": subject,
+        "htmlContent": html,
+    }
 
     try:
-        await asyncio.to_thread(_send)
-        logger.info("[job-alert] Sent alert email to %s", user_email)
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                "https://api.brevo.com/v3/smtp/email",
+                json=payload,
+                headers={"api-key": settings.brevo_api_key, "Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+        logger.info("[job-alert] Sent alert email to %s via Brevo", user_email)
         return True
     except Exception as exc:
-        logger.error("[job-alert] SMTP error sending to %s: %s", user_email, exc)
+        logger.error("[job-alert] Brevo error sending to %s: %s", user_email, exc)
         return False
 
 

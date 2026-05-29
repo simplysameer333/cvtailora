@@ -86,12 +86,12 @@ class Settings(BaseSettings):
     mongodb_uri: str
     allowed_origins: str = "http://localhost:4000"
 
-    # ── Email (Gmail SMTP for job alert digests) ──────────────────────────────
+    # ── Email (Brevo HTTP API for job alert digests) ─────────────────────────
+    # Sign up free at brevo.com — verify tailormycv.alerts@gmail.com as sender,
+    # then grab the API key from Settings → SMTP & API → API Keys.
     support_email: str = "samorsameer@gmail.com"
-    smtp_host: str = ""
-    smtp_port: str = "587"
-    smtp_user: str = ""
-    smtp_password: str = ""
+    brevo_api_key: str = ""
+    brevo_sender_email: str = "tailormycv.alerts@gmail.com"
 
     # ── Alerts ────────────────────────────────────────────────────────────────
     # UTC hour (0–23) at which the daily alert job runs

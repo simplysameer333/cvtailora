@@ -66,10 +66,8 @@ $backendSecrets = @(
     "LANGSMITH_ENDPOINT",
     "LANGSMITH_PROJECT",
     "RAPIDAPI_KEY",
-    "SMTP_HOST",
-    "SMTP_PORT",
-    "SMTP_USER",
-    "SMTP_PASSWORD",
+    "BREVO_API_KEY",
+    "BREVO_SENDER_EMAIL",
     "ALERT_SEND_HOUR",
     "ALERT_MAX_JOBS_PER_EMAIL"
 )
