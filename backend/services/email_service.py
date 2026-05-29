@@ -85,8 +85,12 @@ def _render_alert_email(
         location = ", ".join(filter(None, [job.get("job_city"), job.get("job_country")]))
         emp_type = emp_type_map.get(job.get("job_employment_type", ""), "")
         is_remote = job.get("job_is_remote", False)
-        apply_link = job.get("job_apply_link") or f"{frontend_url}/jobs"
-        if apply_link == "#":
+        apply_link = (
+            job.get("job_apply_link")
+            or job.get("job_google_link")
+            or f"{frontend_url}/jobs"
+        )
+        if not apply_link or apply_link == "#":
             apply_link = f"{frontend_url}/jobs"
 
         meta_parts = list(filter(None, [location, emp_type, "Remote" if is_remote else ""]))

@@ -179,6 +179,24 @@ _MOCK_JOBS = [
         "job_is_remote": False,
         "job_apply_link": "https://deepmind.com/careers",
     },
+    {
+        "job_title": "Python Developer — Data Platform",
+        "employer_name": "Revolut",
+        "job_city": "London",
+        "job_country": "UK",
+        "job_employment_type": "FULLTIME",
+        "job_is_remote": True,
+        "job_apply_link": "https://www.revolut.com/careers",
+    },
+    {
+        "job_title": "Software Engineer II (Python)",
+        "employer_name": "Wise",
+        "job_city": "London",
+        "job_country": "UK",
+        "job_employment_type": "FULLTIME",
+        "job_is_remote": False,
+        "job_apply_link": "https://www.wise.jobs/",
+    },
 ]
 
 
