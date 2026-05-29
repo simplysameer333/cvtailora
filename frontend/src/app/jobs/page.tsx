@@ -1,21 +1,24 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   FiSearch, FiMapPin, FiBookmark, FiZap, FiExternalLink,
   FiClock, FiDollarSign, FiBriefcase, FiWifi, FiUser,
-  FiAlertTriangle, FiX, FiFileText,
+  FiAlertTriangle, FiX, FiFileText, FiBell, FiEdit2,
+  FiTrash2, FiPlusCircle, FiToggleLeft, FiToggleRight,
 } from "react-icons/fi";
 import {
   searchJobs, saveJob, unsaveJob, getSavedJobs,
   getAccountProfile, createSessionFromProfileWithJob,
   getJobsQuota, searchCatalogRoles,
-  type Job, type QuotaStatus,
+  listJobAlerts, deleteJobAlert, toggleJobAlert,
+  type Job, type QuotaStatus, type JobAlert,
 } from "@/lib/api";
 import { setSessionId } from "@/lib/session";
 import { useAuth } from "@/lib/useAuth";
 import ResumePickerModal from "@/components/ResumePickerModal";
+import CreateAlertModal from "@/components/CreateAlertModal";
 import TagInput from "@/components/TagInput";
 import { JSEARCH_PAGE_SIZES, JSEARCH_DEFAULT_PAGE_SIZE, type JsearchPageSize } from "@/lib/config";
 
@@ -136,6 +139,23 @@ function UpgradeWall() {
   );
 }
 
+function AlertsUpgradeWall() {
+  return (
+    <div className="card text-center py-14 flex flex-col items-center gap-4">
+      <div className="w-14 h-14 rounded-full bg-brand-100 flex items-center justify-center">
+        <FiBell className="w-7 h-7 text-brand-600" />
+      </div>
+      <div>
+        <h2 className="text-xl font-bold text-slate-900">Job Alerts is a Plus feature</h2>
+        <p className="text-slate-500 mt-2 max-w-sm mx-auto text-sm">
+          Get daily email digests when new jobs match your saved searches.
+        </p>
+      </div>
+      <span className="text-xs text-slate-400">Upgrade to Plus or Pro to unlock</span>
+    </div>
+  );
+}
+
 // ── Job card ──────────────────────────────────────────────────────────────────
 
 const EMPLOYMENT_LABEL: Record<string, string> = {
@@ -230,7 +250,7 @@ function JobCard({
           </div>
         </div>
 
-        {/* Row 3 — action buttons (always fixed position) */}
+        {/* Row 3 — action buttons */}
         <div className="flex items-center gap-2 mt-2.5 flex-wrap">
           <button
             onClick={() => onTailor(job)}
@@ -274,14 +294,115 @@ function JobCard({
   );
 }
 
+// ── Alert card ────────────────────────────────────────────────────────────────
+
+function AlertCard({
+  alert,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  alert: JobAlert;
+  onToggle: (id: string) => void;
+  onEdit: (alert: JobAlert) => void;
+  onDelete: (id: string) => void;
+}) {
+  const allTags = [
+    ...alert.query_tags,
+    ...(alert.company ? [alert.company] : []),
+    ...alert.location_tags,
+  ];
+  const lastSent = alert.last_sent_at ? timeAgo(alert.last_sent_at) : null;
+
+  return (
+    <div className={`card flex items-start gap-4 transition-colors ${
+      alert.is_active ? "hover:border-brand-400" : "opacity-60"
+    }`}>
+      <div className="shrink-0 mt-0.5">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+          alert.is_active ? "bg-brand-100" : "bg-slate-100"
+        }`}>
+          <FiBell className={`w-5 h-5 ${alert.is_active ? "text-brand-600" : "text-slate-400"}`} />
+        </div>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-slate-900 text-sm">{alert.name}</p>
+            {lastSent ? (
+              <p className="text-xs text-slate-400 mt-0.5">Last emailed {lastSent}</p>
+            ) : (
+              <p className="text-xs text-slate-400 mt-0.5">No email sent yet</p>
+            )}
+          </div>
+          {/* Toggle */}
+          <button
+            onClick={() => onToggle(alert.id)}
+            title={alert.is_active ? "Pause alert" : "Resume alert"}
+            className="text-slate-400 hover:text-brand-600 transition shrink-0 mt-0.5"
+          >
+            {alert.is_active
+              ? <FiToggleRight className="w-5 h-5 text-brand-500" />
+              : <FiToggleLeft className="w-5 h-5" />
+            }
+          </button>
+        </div>
+
+        {/* Tag chips */}
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {alert.query_tags.map((t) => (
+              <span key={t} className="text-xs bg-brand-50 text-brand-700 rounded-full px-2.5 py-0.5 border border-brand-100">
+                {t}
+              </span>
+            ))}
+            {alert.company && (
+              <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-2.5 py-0.5">
+                {alert.company}
+              </span>
+            )}
+            {alert.location_tags.map((t) => (
+              <span key={t} className="text-xs bg-teal-50 text-teal-700 rounded-full px-2.5 py-0.5 border border-teal-100 flex items-center gap-1">
+                <FiMapPin className="w-2.5 h-2.5" />{t}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 mt-2.5">
+          <button
+            onClick={() => onEdit(alert)}
+            className="btn-secondary text-xs px-3 py-1.5 gap-1.5"
+          >
+            <FiEdit2 className="w-3.5 h-3.5" /> Edit
+          </button>
+          <button
+            onClick={() => onDelete(alert.id)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500
+                       hover:border-red-300 hover:text-red-500 hover:bg-red-50 transition gap-1.5 flex items-center"
+          >
+            <FiTrash2 className="w-3.5 h-3.5" /> Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
+
+const PLUS_ALERT_LIMIT = 5;
 
 export default function JobsPage() {
   const { data: session } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const tier = session?.user?.tier ?? "free";
   const canSearch = tier === "plus" || tier === "pro";
 
+  // ── Search state ────────────────────────────────────────────────────────────
   const [queryTags, setQueryTags] = useState<string[]>([]);
   const [locationTags, setLocationTags] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState<JsearchPageSize>(JSEARCH_DEFAULT_PAGE_SIZE);
@@ -297,6 +418,16 @@ export default function JobsPage() {
   const [quotaWarningDismissed, setQuotaWarningDismissed] = useState<string | null>(null);
   const [pickerJob, setPickerJob] = useState<Job | null>(null);
 
+  // ── Alerts state ────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"results" | "alerts">(
+    searchParams.get("tab") === "alerts" ? "alerts" : "results"
+  );
+  const [alerts, setAlerts] = useState<JobAlert[]>([]);
+  const [alertsLoaded, setAlertsLoaded] = useState(false);
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
+  const [editingAlert, setEditingAlert] = useState<JobAlert | undefined>();
+
+  // ── Search ──────────────────────────────────────────────────────────────────
   const runSearch = useCallback(async (q: string, loc: string, p: number, ps: number) => {
     if (!q.trim()) return;
     setLoading(true);
@@ -305,14 +436,12 @@ export default function JobsPage() {
       setJobs(result.jobs);
       setHasMore(result.jobs.length >= ps);
       setSearched(true);
-      // Update quota display from response
       if (result.quota_pct !== undefined) {
         setQuota((prev) => prev
           ? { ...prev, pct: result.quota_pct, remaining: result.quota_remaining, warning: result.quota_warning }
           : null
         );
       }
-      // Fetch saved IDs to mark already-saved jobs
       try {
         const saved = await getSavedJobs();
         setSavedIds(new Set(saved.map((j) => j.job_id)));
@@ -332,7 +461,7 @@ export default function JobsPage() {
     }
   }, []);
 
-  // Pre-fill search from profile, auto-search if role is available
+  // Pre-fill search from profile on mount
   useEffect(() => {
     if (!canSearch) return;
     getAccountProfile()
@@ -350,6 +479,14 @@ export default function JobsPage() {
       .catch(() => setProfileLoaded(true));
     getJobsQuota().then(setQuota).catch(() => {});
   }, [canSearch, runSearch]);
+
+  // Load alerts when tab becomes active
+  useEffect(() => {
+    if (activeTab !== "alerts" || alertsLoaded || !canSearch) return;
+    listJobAlerts()
+      .then((data) => { setAlerts(data); setAlertsLoaded(true); })
+      .catch(() => setAlertsLoaded(true));
+  }, [activeTab, alertsLoaded, canSearch]);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -383,12 +520,53 @@ export default function JobsPage() {
       `${job.job_title} at ${job.employer_name}`,
       job.job_description ?? "",
     ].filter(Boolean).join("\n\n");
-    // Store job context — upload page reads these to show the banner + pre-fill Step 3
     localStorage.setItem("tailormycv_prefill_jd", jd);
     localStorage.setItem("tailormycv_tailor_job_title", job.job_title);
     localStorage.setItem("tailormycv_tailor_employer", job.employer_name);
     router.push("/builder/upload");
   }
+
+  // ── Alert handlers ──────────────────────────────────────────────────────────
+
+  function openCreateAlert() {
+    setEditingAlert(undefined);
+    setAlertModalOpen(true);
+  }
+
+  function openEditAlert(alert: JobAlert) {
+    setEditingAlert(alert);
+    setAlertModalOpen(true);
+  }
+
+  function handleAlertSaved(saved: JobAlert) {
+    setAlerts((prev) => {
+      const idx = prev.findIndex((a) => a.id === saved.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = saved;
+        return next;
+      }
+      return [saved, ...prev];
+    });
+  }
+
+  async function handleToggleAlert(id: string) {
+    try {
+      const { is_active } = await toggleJobAlert(id);
+      setAlerts((prev) => prev.map((a) => a.id === id ? { ...a, is_active } : a));
+    } catch { toast.error("Failed to update alert."); }
+  }
+
+  async function handleDeleteAlert(id: string) {
+    try {
+      await deleteJobAlert(id);
+      setAlerts((prev) => prev.filter((a) => a.id !== id));
+      toast.success("Alert deleted.");
+    } catch { toast.error("Failed to delete alert."); }
+  }
+
+  const alertCount = alerts.length;
+  const atPlusLimit = tier === "plus" && alertCount >= PLUS_ALERT_LIMIT;
 
   return (
     <div className="flex flex-col gap-6">
@@ -403,7 +581,7 @@ export default function JobsPage() {
         <UpgradeWall />
       ) : (
         <>
-          {/* Profile nudge — shown until profile is set up */}
+          {/* Profile nudge */}
           {profileLoaded && !hasProfileResume && (
             <div className="flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm">
               <FiUser className="w-4 h-4 text-brand-600 mt-0.5 shrink-0" />
@@ -462,142 +640,286 @@ export default function JobsPage() {
                 placeholder="City, country, or Remote…"
               />
             </div>
-            <button type="submit" disabled={loading || !queryTags.length} className="btn-primary shrink-0">
-              {loading ? "Searching…" : "Search"}
-            </button>
+            <div className="flex gap-2 shrink-0">
+              <button type="submit" disabled={loading || !queryTags.length} className="btn-primary">
+                {loading ? "Searching…" : "Search"}
+              </button>
+              {/* Save as alert — brand-coloured, visible when query exists */}
+              {queryTags.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setEditingAlert(undefined); setAlertModalOpen(true); }}
+                  title="Save this search as a daily job alert"
+                  className="btn-accent !px-3 !py-2 shrink-0 gap-1.5"
+                >
+                  <FiBell className="w-4 h-4" />
+                  <span className="hidden sm:inline">Save Alert</span>
+                </button>
+              )}
+            </div>
           </form>
 
-          {/* Results */}
-          {loading && (
-            <div className="flex flex-col gap-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="card flex items-start gap-4 animate-pulse">
-                  <div className="w-12 h-12 rounded-xl bg-slate-200 shrink-0" />
-                  <div className="flex-1 flex flex-col gap-2.5">
-                    <div className="h-4 bg-slate-200 rounded-md w-1/2" />
-                    <div className="h-3 bg-slate-100 rounded-md w-1/3" />
-                    <div className="h-3 bg-slate-100 rounded-md w-2/3" />
-                    <div className="flex gap-2 mt-0.5">
-                      <div className="h-7 w-24 bg-slate-200 rounded-lg" />
-                      <div className="h-7 w-28 bg-slate-100 rounded-lg" />
-                      <div className="h-7 w-16 bg-slate-100 rounded-lg" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Tab bar */}
+          <div className="flex items-center gap-1 border-b border-slate-200 -mb-3">
+            <button
+              onClick={() => setActiveTab("results")}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "results"
+                  ? "border-brand-600 text-brand-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Results
+            </button>
+            <button
+              onClick={() => setActiveTab("alerts")}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "alerts"
+                  ? "border-brand-600 text-brand-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <FiBell className="w-3.5 h-3.5" />
+              My Alerts
+              {alertsLoaded && alertCount > 0 && (
+                <span className={`text-xs rounded-full px-1.5 py-0.5 font-semibold leading-none ${
+                  activeTab === "alerts"
+                    ? "bg-brand-100 text-brand-600"
+                    : "bg-slate-100 text-slate-500"
+                }`}>
+                  {alertCount}
+                </span>
+              )}
+            </button>
+          </div>
 
-          {!loading && searched && jobs.length === 0 && (
-            <div className="card text-center py-12 text-slate-500">
-              No jobs found for <strong>{queryTags.join(", ")}</strong>
-              {locationTags.length > 0 ? ` in ${locationTags.join(", ")}` : ""}. Try broader keywords.
-            </div>
-          )}
-
-          {!loading && !searched && (
-            DEV ? (
-              <>
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <span className="flex-1 border-t border-slate-200" />
-                  Sample listings (dev mode) — search above for live results
-                  <span className="flex-1 border-t border-slate-200" />
-                </div>
+          {/* ── Results tab ──────────────────────────────────────────────────── */}
+          {activeTab === "results" && (
+            <>
+              {loading && (
                 <div className="flex flex-col gap-3">
-                  {MOCK_JOBS.map((job) => (
-                    <JobCard key={job.job_id} job={job} saved={savedIds.has(job.job_id)}
-                      onSave={handleSave} onTailor={handleTailor} onUseSaved={(j) => setPickerJob(j)} />
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="card flex items-start gap-4 animate-pulse">
+                      <div className="w-12 h-12 rounded-xl bg-slate-200 shrink-0" />
+                      <div className="flex-1 flex flex-col gap-2.5">
+                        <div className="h-4 bg-slate-200 rounded-md w-1/2" />
+                        <div className="h-3 bg-slate-100 rounded-md w-1/3" />
+                        <div className="h-3 bg-slate-100 rounded-md w-2/3" />
+                        <div className="flex gap-2 mt-0.5">
+                          <div className="h-7 w-24 bg-slate-200 rounded-lg" />
+                          <div className="h-7 w-28 bg-slate-100 rounded-lg" />
+                          <div className="h-7 w-16 bg-slate-100 rounded-lg" />
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </>
-            ) : (
-              <div className="card text-center py-14 flex flex-col items-center gap-3 text-slate-400">
-                <FiSearch className="w-8 h-8 text-slate-300" />
-                <p className="text-sm font-medium text-slate-500">Enter a job title above to search live listings</p>
-                <p className="text-xs">Results are pulled in real time from major job boards</p>
-              </div>
-            )
+              )}
+
+              {!loading && searched && jobs.length === 0 && (
+                <div className="card text-center py-12 text-slate-500">
+                  No jobs found for <strong>{queryTags.join(", ")}</strong>
+                  {locationTags.length > 0 ? ` in ${locationTags.join(", ")}` : ""}. Try broader keywords.
+                </div>
+              )}
+
+              {!loading && !searched && (
+                DEV ? (
+                  <>
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <span className="flex-1 border-t border-slate-200" />
+                      Sample listings (dev mode) — search above for live results
+                      <span className="flex-1 border-t border-slate-200" />
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      {MOCK_JOBS.map((job) => (
+                        <JobCard key={job.job_id} job={job} saved={savedIds.has(job.job_id)}
+                          onSave={handleSave} onTailor={handleTailor} onUseSaved={(j) => setPickerJob(j)} />
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="card text-center py-14 flex flex-col items-center gap-3 text-slate-400">
+                    <FiSearch className="w-8 h-8 text-slate-300" />
+                    <p className="text-sm font-medium text-slate-500">Enter a job title above to search live listings</p>
+                    <p className="text-xs">Results are pulled in real time from major job boards</p>
+                  </div>
+                )
+              )}
+
+              {!loading && jobs.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>{jobs.length} result{jobs.length !== 1 ? "s" : ""} · page {page}</span>
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={() => { setEditingAlert(undefined); setAlertModalOpen(true); }}
+                        className="flex items-center gap-1 font-semibold text-brand-600 hover:text-brand-700 transition"
+                      >
+                        <FiBell className="w-3.5 h-3.5" /> Get daily alerts
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <span>Show</span>
+                        <select
+                          value={pageSize}
+                          onChange={(e) => {
+                            const ps = Number(e.target.value) as JsearchPageSize;
+                            setPageSize(ps);
+                            setPage(1);
+                            if (searched) runSearch(queryTags.join(" "), locationTags.join(" OR "), 1, ps);
+                          }}
+                          className="border border-slate-200 rounded-lg text-xs py-1 px-2 bg-white cursor-pointer hover:border-brand-400 transition focus:outline-none focus:ring-2 focus:ring-brand-100"
+                        >
+                          {JSEARCH_PAGE_SIZES.map((n) => (
+                            <option key={n} value={n}>{n} per page</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    {jobs.map((job) => (
+                      <JobCard
+                        key={job.job_id}
+                        job={job}
+                        saved={savedIds.has(job.job_id)}
+                        onSave={handleSave}
+                        onTailor={handleTailor}
+                        onUseSaved={(j) => setPickerJob(j)}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Google-style pagination */}
+                  <div className="flex items-center justify-center gap-1 pt-2 flex-wrap">
+                    <button
+                      disabled={page === 1}
+                      onClick={() => { const p = page - 1; setPage(p); runSearch(queryTags.join(" "), locationTags.join(" OR "), p, pageSize); }}
+                      className="flex items-center gap-1 px-3 h-9 rounded-full text-sm text-slate-600 hover:text-brand-600 hover:bg-brand-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      ← Prev
+                    </button>
+                    {getPaginationPages(page, hasMore ? MAX_PAGES : page).map((n, i) =>
+                      n === "..." ? (
+                        <span key={`ellipsis-${i}`} className="w-9 h-9 flex items-center justify-center text-slate-400 text-sm select-none">
+                          …
+                        </span>
+                      ) : (
+                        <button
+                          key={n}
+                          onClick={() => { if (n !== page) { setPage(n); runSearch(queryTags.join(" "), locationTags.join(" OR "), n, pageSize); } }}
+                          className={`w-9 h-9 rounded-full text-sm font-medium transition ${
+                            n === page
+                              ? "bg-brand-600 text-white shadow-sm"
+                              : "text-slate-600 hover:bg-brand-50 hover:text-brand-600 border border-slate-200"
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      )
+                    )}
+                    <button
+                      disabled={!hasMore}
+                      onClick={() => { const p = page + 1; setPage(p); runSearch(queryTags.join(" "), locationTags.join(" OR "), p, pageSize); }}
+                      className="flex items-center gap-1 px-3 h-9 rounded-full text-sm text-slate-600 hover:text-brand-600 hover:bg-brand-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
           )}
 
-          {!loading && jobs.length > 0 && (
-            <>
-              {/* Results header — count + per-page selector */}
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>{jobs.length} result{jobs.length !== 1 ? "s" : ""} · page {page}</span>
-                <div className="flex items-center gap-2">
-                  <span>Show</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      const ps = Number(e.target.value) as JsearchPageSize;
-                      setPageSize(ps);
-                      setPage(1);
-                      if (searched) runSearch(queryTags.join(" "), locationTags.join(" OR "), 1, ps);
-                    }}
-                    className="border border-slate-200 rounded-lg text-xs py-1 px-2 bg-white cursor-pointer hover:border-brand-400 transition focus:outline-none focus:ring-2 focus:ring-brand-100"
-                  >
-                    {JSEARCH_PAGE_SIZES.map((n) => (
-                      <option key={n} value={n}>{n} per page</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {jobs.map((job) => (
-                  <JobCard
-                    key={job.job_id}
-                    job={job}
-                    saved={savedIds.has(job.job_id)}
-                    onSave={handleSave}
-                    onTailor={handleTailor}
-                    onUseSaved={(j) => setPickerJob(j)}
-                  />
-                ))}
-              </div>
-
-              {/* Google-style pagination */}
-              <div className="flex items-center justify-center gap-1 pt-2 flex-wrap">
-                {/* ← Prev */}
-                <button
-                  disabled={page === 1}
-                  onClick={() => { const p = page - 1; setPage(p); runSearch(queryTags.join(" "), locationTags.join(" OR "), p, pageSize); }}
-                  className="flex items-center gap-1 px-3 h-9 rounded-full text-sm text-slate-600 hover:text-brand-600 hover:bg-brand-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  ← Prev
-                </button>
-
-                {/* Page numbers */}
-                {getPaginationPages(page, hasMore ? MAX_PAGES : page).map((n, i) =>
-                  n === "..." ? (
-                    <span key={`ellipsis-${i}`} className="w-9 h-9 flex items-center justify-center text-slate-400 text-sm select-none">
-                      …
-                    </span>
-                  ) : (
+          {/* ── My Alerts tab ─────────────────────────────────────────────────── */}
+          {activeTab === "alerts" && (
+            <div className="flex flex-col gap-4">
+              {tier === "free" ? (
+                <AlertsUpgradeWall />
+              ) : (
+                <>
+                  {/* Header row */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-slate-700">
+                        {tier === "plus"
+                          ? `${alertCount} / ${PLUS_ALERT_LIMIT} alerts used`
+                          : `${alertCount} alert${alertCount !== 1 ? "s" : ""}`}
+                      </p>
+                      {atPlusLimit && (
+                        <span className="text-xs bg-amber-50 text-amber-600 border border-amber-200 rounded-full px-2 py-0.5">
+                          Limit reached
+                        </span>
+                      )}
+                    </div>
                     <button
-                      key={n}
-                      onClick={() => { if (n !== page) { setPage(n); runSearch(queryTags.join(" "), locationTags.join(" OR "), n, pageSize); } }}
-                      className={`w-9 h-9 rounded-full text-sm font-medium transition ${
-                        n === page
-                          ? "bg-brand-600 text-white shadow-sm"
-                          : "text-slate-600 hover:bg-brand-50 hover:text-brand-600 border border-slate-200"
-                      }`}
+                      onClick={openCreateAlert}
+                      disabled={atPlusLimit}
+                      className="btn-primary text-sm gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={atPlusLimit ? "Upgrade to Pro for unlimited alerts" : "Create a new job alert"}
                     >
-                      {n}
+                      <FiPlusCircle className="w-4 h-4" /> New Alert
                     </button>
-                  )
-                )}
+                  </div>
 
-                {/* Next → */}
-                <button
-                  disabled={!hasMore}
-                  onClick={() => { const p = page + 1; setPage(p); runSearch(queryTags.join(" "), locationTags.join(" OR "), p, pageSize); }}
-                  className="flex items-center gap-1 px-3 h-9 rounded-full text-sm text-slate-600 hover:text-brand-600 hover:bg-brand-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  Next →
-                </button>
-              </div>
-            </>
+                  {/* Plus limit nudge */}
+                  {atPlusLimit && (
+                    <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+                      <FiAlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span className="text-amber-700">
+                        You&apos;ve reached the Plus limit of {PLUS_ALERT_LIMIT} alerts.
+                        Upgrade to Pro for unlimited job alerts.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Alert list */}
+                  {!alertsLoaded && (
+                    <div className="flex flex-col gap-3">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="card flex items-start gap-4 animate-pulse">
+                          <div className="w-10 h-10 rounded-xl bg-slate-200 shrink-0" />
+                          <div className="flex-1 flex flex-col gap-2">
+                            <div className="h-4 bg-slate-200 rounded w-1/3" />
+                            <div className="h-3 bg-slate-100 rounded w-1/4" />
+                            <div className="flex gap-1.5 mt-1">
+                              <div className="h-5 w-16 bg-slate-100 rounded-full" />
+                              <div className="h-5 w-20 bg-slate-100 rounded-full" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {alertsLoaded && alerts.length === 0 && (
+                    <div className="card text-center py-14 flex flex-col items-center gap-3 text-slate-400">
+                      <FiBell className="w-8 h-8 text-slate-300" />
+                      <p className="text-sm font-medium text-slate-500">No alerts yet</p>
+                      <p className="text-xs">
+                        Search for jobs above, then click the{" "}
+                        <FiBell className="inline w-3 h-3 text-slate-400" /> button to save a search as a daily alert.
+                      </p>
+                    </div>
+                  )}
+
+                  {alertsLoaded && alerts.length > 0 && (
+                    <div className="flex flex-col gap-3">
+                      {alerts.map((alert) => (
+                        <AlertCard
+                          key={alert.id}
+                          alert={alert}
+                          onToggle={handleToggleAlert}
+                          onEdit={openEditAlert}
+                          onDelete={handleDeleteAlert}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </>
       )}
@@ -608,6 +930,15 @@ export default function JobsPage() {
         onTailorNew={() => pickerJob && handleTailor(pickerJob)}
         jobTitle={pickerJob?.job_title}
         employerName={pickerJob?.employer_name}
+      />
+
+      <CreateAlertModal
+        open={alertModalOpen}
+        onClose={() => setAlertModalOpen(false)}
+        onSaved={handleAlertSaved}
+        initialQueryTags={queryTags}
+        initialLocationTags={locationTags}
+        editAlert={editingAlert}
       />
     </div>
   );

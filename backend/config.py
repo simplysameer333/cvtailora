@@ -88,10 +88,10 @@ class Settings(BaseSettings):
 
     # ── Alerts ────────────────────────────────────────────────────────────────
     support_email: str = "samorsameer@gmail.com"
-    smtp_host: str = ""
-    smtp_port: str = "587"
-    smtp_user: str = ""
-    smtp_password: str = ""
+    # UTC hour (0–23) at which the daily alert job runs
+    alert_send_hour: int = 8
+    # Max jobs included per alert digest email
+    alert_max_jobs_per_email: int = 10
 
     class Config:
         env_file = ".env"

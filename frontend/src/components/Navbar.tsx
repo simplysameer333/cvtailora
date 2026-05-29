@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
-import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2 } from "react-icons/fi";
+import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell } from "react-icons/fi";
 import Logo from "./Logo";
 import { useAuth } from "@/lib/useAuth";
 import { useDevContext, type Tier } from "@/providers/DevProvider";
@@ -162,6 +162,17 @@ export default function Navbar() {
                     <FiUser className="w-4 h-4" />
                     My Profile
                   </Link>
+
+                  {(tier === "plus" || tier === "pro") && (
+                    <Link
+                      href="/jobs?tab=alerts"
+                      onClick={() => setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition"
+                    >
+                      <FiBell className="w-4 h-4" />
+                      My Alerts
+                    </Link>
+                  )}
 
                   {!DEV && (
                     <button

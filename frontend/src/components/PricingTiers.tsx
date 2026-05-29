@@ -56,6 +56,7 @@ export const TIERS: {
       "Save up to 25 jobs",
       "Resume Library (5 resumes)",
       "One-click Tailor from job listings",
+      "Daily job alerts (up to 5 saved searches)",
     ],
   },
   {
@@ -70,6 +71,7 @@ export const TIERS: {
       "Sample CV formatting reference",
       "Unlimited Resume Library",
       "Unlimited saved jobs",
+      "Unlimited daily job alerts",
     ],
   },
 ];

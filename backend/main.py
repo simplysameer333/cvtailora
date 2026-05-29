@@ -3,13 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from config import settings
 from database import connect_db, disconnect_db
-from routers import resume, profile, job_description, templates, generate, export, professions, auth, jobs, account, catalog, resume_library
+from routers import resume, profile, job_description, templates, generate, export, professions, auth, jobs, account, catalog, resume_library, job_alerts
+from services.alert_scheduler import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_db()
+    start_scheduler()
     yield
+    stop_scheduler()
     await disconnect_db()
 
 
@@ -35,6 +38,7 @@ app.include_router(jobs.router, prefix="/api")
 app.include_router(account.router, prefix="/api")
 app.include_router(catalog.router, prefix="/api")
 app.include_router(resume_library.router, prefix="/api")
+app.include_router(job_alerts.router, prefix="/api")
 
 
 @app.get("/health")

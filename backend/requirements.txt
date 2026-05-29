@@ -25,3 +25,5 @@ toon-format==0.9.0b1    # Compact token-efficient serialisation for LLM prompts
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
+# Job alerts
+apscheduler==3.10.4

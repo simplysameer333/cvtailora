@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Navbar from "@/components/Navbar";
 import AuthGuard from "@/components/AuthGuard";
 
@@ -7,7 +8,7 @@ export default function JobsLayout({ children }: { children: React.ReactNode }) 
       <AuthGuard />
       <Navbar />
       <main className="flex-1 max-w-4xl mx-auto w-full px-5 sm:px-6 py-6 sm:py-10">
-        {children}
+        <Suspense>{children}</Suspense>
       </main>
     </div>
   );

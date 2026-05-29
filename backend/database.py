@@ -46,6 +46,9 @@ async def _ensure_indexes():
     await db.api_quota.create_index([("provider", 1), ("month", 1)], unique=True)
     # Resume library
     await db.saved_resumes.create_index([("user_id", 1), ("created_at", -1)])
+    # Job alerts — per-user list + scheduler's active-alert scan
+    await db.job_alerts.create_index([("user_id", 1), ("created_at", -1)])
+    await db.job_alerts.create_index("is_active")
 
 
 def get_db():
