@@ -231,17 +231,15 @@ async def send_test_alert_email(body: SendTestEmailBody):
         source = "mock"
 
     # ── Send ──────────────────────────────────────────────────────────────────
-    sent = await send_job_alert_email(
-        user_email=body.email,
-        user_name=user_name,
-        alert_name=alert_name,
-        jobs=jobs,
-    )
-    if not sent:
-        raise HTTPException(
-            502,
-            "Email could not be sent. Check SMTP_HOST / SMTP_USER / SMTP_PASSWORD in .env.",
+    try:
+        await send_job_alert_email(
+            user_email=body.email,
+            user_name=user_name,
+            alert_name=alert_name,
+            jobs=jobs,
         )
+    except RuntimeError as exc:
+        raise HTTPException(502, f"Brevo send failed: {exc}")
     return {
         "sent": True,
         "to": body.email,

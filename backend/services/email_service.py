@@ -31,10 +31,7 @@ async def send_job_alert_email(
     from config import settings
 
     if not settings.brevo_api_key:
-        logger.warning(
-            "[job-alert] BREVO_API_KEY not set — skipping email to %s.", user_email
-        )
-        return False
+        raise RuntimeError("BREVO_API_KEY is not set — add it to .env and Railway")
 
     html = _render_alert_email(user_name, alert_name, jobs, frontend_url)
     subject = (
@@ -59,9 +56,13 @@ async def send_job_alert_email(
             resp.raise_for_status()
         logger.info("[job-alert] Sent alert email to %s via Brevo", user_email)
         return True
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text
+        logger.error("[job-alert] Brevo HTTP %s for %s: %s", exc.response.status_code, user_email, body)
+        raise RuntimeError(f"Brevo {exc.response.status_code}: {body}") from exc
     except Exception as exc:
         logger.error("[job-alert] Brevo error sending to %s: %s", user_email, exc)
-        return False
+        raise RuntimeError(str(exc)) from exc
 
 
 def _render_alert_email(
