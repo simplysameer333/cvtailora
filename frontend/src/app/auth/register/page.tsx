@@ -9,6 +9,7 @@ import { signIn } from "next-auth/react";
 import PricingTiers, { type Tier } from "@/components/PricingTiers";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
+const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -55,8 +56,8 @@ export default function RegisterPage() {
     }
   }
 
-  function handleGoogle() {
-    toast("Google sign-in coming soon. Please use email and password for now.", { icon: "ℹ️" });
+  async function handleGoogle() {
+    await signIn("google", { callbackUrl: "/profile" });
   }
 
   return (
@@ -74,20 +75,25 @@ export default function RegisterPage() {
 
         {/* Registration form */}
         <div className="card flex flex-col gap-5">
-          <button
-            type="button"
-            onClick={handleGoogle}
-            className="btn-secondary w-full justify-center gap-2"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </button>
+          {GOOGLE_ENABLED && (
+            <>
+              <button
+                type="button"
+                onClick={handleGoogle}
+                className="btn-secondary w-full justify-center gap-2"
+              >
+                <GoogleIcon />
+                Continue with Google
+                <span className="text-xs text-slate-400 font-normal">(Free plan)</span>
+              </button>
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1 border-t border-slate-200" />
-            <span className="text-xs text-slate-400">or</span>
-            <div className="flex-1 border-t border-slate-200" />
-          </div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 border-t border-slate-200" />
+                <span className="text-xs text-slate-400">or register with email</span>
+                <div className="flex-1 border-t border-slate-200" />
+              </div>
+            </>
+          )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

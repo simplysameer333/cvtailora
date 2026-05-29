@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { FiMail, FiLock } from "react-icons/fi";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
+const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true";
 
 function LoginContent() {
   const router = useRouter();
@@ -38,7 +39,7 @@ function LoginContent() {
   }
 
   async function handleGoogle() {
-    toast("Google sign-in coming soon. Please use email and password for now.", { icon: "ℹ️" });
+    await signIn("google", { callbackUrl });
   }
 
   return (
@@ -49,19 +50,23 @@ function LoginContent() {
           <p className="text-sm text-slate-500 mt-1">Welcome back to TailorMyCv</p>
         </div>
 
-        <button
-          onClick={handleGoogle}
-          className="btn-secondary w-full justify-center gap-2"
-        >
-          <GoogleIcon />
-          Continue with Google
-        </button>
+        {GOOGLE_ENABLED && (
+          <>
+            <button
+              onClick={handleGoogle}
+              className="btn-secondary w-full justify-center gap-2"
+            >
+              <GoogleIcon />
+              Continue with Google
+            </button>
 
-        <div className="flex items-center gap-3">
-          <div className="flex-1 border-t border-slate-200" />
-          <span className="text-xs text-slate-400">or</span>
-          <div className="flex-1 border-t border-slate-200" />
-        </div>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 border-t border-slate-200" />
+              <span className="text-xs text-slate-400">or</span>
+              <div className="flex-1 border-t border-slate-200" />
+            </div>
+          </>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
