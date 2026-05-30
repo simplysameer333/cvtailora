@@ -303,7 +303,7 @@ function UsersTab({
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 {["Name", "Email", "Tier", "Joined", "Status", "Actions"].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  <th key={h} className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
                 ))}
               </tr>
             </thead>
