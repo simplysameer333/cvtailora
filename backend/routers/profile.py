@@ -52,7 +52,7 @@ async def prefill_profile(session_id: str):
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     message = await client.messages.create(
         model=settings.anthropic_evaluator_model,
-        max_tokens=512,
+        max_tokens=1024,
         messages=[{
             "role": "user",
             "content": f"{_PREFILL_PROMPT}\n\nResume:\n{raw_text[:4000]}",

@@ -33,9 +33,6 @@ from services.pipeline.agents.job_analyzer import JobAnalyzerAgent
 from services.profession_service import resolve_profession_for_role
 from services.email_service import send_quality_alert
 
-# Key skills extracted per tier — aligns with PricingTiers feature list
-_TIER_SKILL_COUNT = {"free": 3, "plus": 5, "pro": 10}
-
 router = APIRouter()
 _job_analyzer = JobAnalyzerAgent()
 
@@ -155,8 +152,8 @@ async def generate(
     user_tier = (user or {}).get("tier", "free")
 
     # ── Job analysis — runs once, outside the eval loop ──────────────────────
-    # Skill count scales with tier: Free=3, Plus=5, Pro=10
-    n_skills = _TIER_SKILL_COUNT.get(user_tier, settings.skill_extraction_count)
+    from services.tier_config_service import get_limit as _get_limit
+    n_skills = _get_limit(user_tier, "key_skills") or settings.skill_extraction_count
     key_skills: list = await _job_analyzer.run(
         resume_text=resume_text,
         user_profile=user_profile,

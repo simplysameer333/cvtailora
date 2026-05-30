@@ -148,7 +148,9 @@ export default function TemplatePage() {
   useStepGuard("template");
   const router = useRouter();
   const { data: session } = useAuth();
-  const isPro = hasFeature(session?.user?.tier ?? "free", "sample_cv");
+  const tier = session?.user?.tier ?? "free";
+  const isPro        = hasFeature(tier, "sample_cv");
+  const isPdfEnabled = hasFeature(tier, "pdf_export");
   const [templates, setTemplates]             = useState<Template[]>([]);
   const [selected, setSelected]               = useState<string | null>(null);
   const [instructions, setInstructions]       = useState("");
@@ -162,7 +164,12 @@ export default function TemplatePage() {
     const saved = localStorage.getItem(LS_INSTRUCTIONS);
     if (saved) setInstructions(saved);
     const savedFmt = localStorage.getItem(LS_OUTPUT_FORMAT) as OutputFormat | null;
-    if (savedFmt) setOutputFormat(savedFmt);
+    if (savedFmt) {
+      // Downgrade saved format if user lost pdf_export access (e.g. tier change)
+      const isLocked = (savedFmt === "pdf" || savedFmt === "both") && !isPdfEnabled;
+      setOutputFormat(isLocked ? "docx" : savedFmt);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onDropSample = useCallback((files: File[]) => {
@@ -335,24 +342,38 @@ export default function TemplatePage() {
       <div className="card p-4">
         <p className="text-sm font-semibold text-slate-800 mb-3">Output Format</p>
         <div className="flex gap-3">
-          {FORMAT_OPTIONS.map(({ value, label, sub, icon: Icon }) => (
-            <button
-              key={value}
-              onClick={() => setOutputFormat(value)}
-              className={clsx(
-                "flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 transition text-sm font-medium",
-                outputFormat === value
-                  ? "border-brand-500 bg-brand-50 text-brand-700"
-                  : "border-slate-200 hover:border-brand-300 text-slate-600",
-              )}
-            >
-              <Icon className="w-5 h-5" />
-              {label}
-              <span className="text-xs font-normal text-slate-400">{sub}</span>
-            </button>
-          ))}
+          {FORMAT_OPTIONS.map(({ value, label, sub, icon: Icon }) => {
+            const locked = (value === "pdf" || value === "both") && !isPdfEnabled;
+            return (
+              <button
+                key={value}
+                onClick={() => !locked && setOutputFormat(value)}
+                disabled={locked}
+                className={clsx(
+                  "flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 transition text-sm font-medium relative",
+                  locked
+                    ? "border-slate-200 text-slate-400 opacity-60 cursor-not-allowed"
+                    : outputFormat === value
+                    ? "border-brand-500 bg-brand-50 text-brand-700"
+                    : "border-slate-200 hover:border-brand-300 text-slate-600",
+                )}
+              >
+                <Icon className="w-5 h-5" />
+                {label}
+                <span className="text-xs font-normal text-slate-400">{sub}</span>
+                {locked && (
+                  <span className="flex items-center gap-0.5 text-[10px] font-semibold bg-brand-100 text-brand-600 rounded px-1.5 py-0.5">
+                    <FiLock className="w-2.5 h-2.5" /> Plus+
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-        {(outputFormat === "pdf" || outputFormat === "both") && (
+        {!isPdfEnabled && (
+          <p className="text-xs text-slate-400 mt-2">PDF export is available on Plus and Pro plans.</p>
+        )}
+        {isPdfEnabled && (outputFormat === "pdf" || outputFormat === "both") && (
           <p className="text-xs text-amber-600 mt-2">PDF requires LibreOffice on the server; falls back to DOCX if unavailable.</p>
         )}
       </div>

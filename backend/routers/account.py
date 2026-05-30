@@ -72,7 +72,7 @@ async def _ai_prefill(resume_text: str) -> dict:
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     msg = await client.messages.create(
         model=settings.anthropic_evaluator_model,
-        max_tokens=600,
+        max_tokens=1024,
         messages=[{"role": "user", "content": f"{_PREFILL_PROMPT}\n\nResume:\n{resume_text[:4000]}"}],
     )
     raw = msg.content[0].text.strip()
