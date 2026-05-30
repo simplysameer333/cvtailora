@@ -14,7 +14,8 @@
 6. [Job Alerts](#6-job-alerts) *(Plus & Pro)*
 7. [Profile & Account](#7-profile--account)
 8. [Settings — Plan & Usage](#8-settings--plan--usage)
-9. [Tips & Best Practices](#9-tips--best-practices)
+9. [Admin Dashboard](#9-admin-dashboard-superadmins-only) *(Superadmins only)*
+10. [Tips & Best Practices](#10-tips--best-practices)
 
 ---
 
@@ -291,7 +292,35 @@ Click **Upgrade to Plus** or **Upgrade to Pro** on the plan card. This will prom
 
 ---
 
-## 9. Tips & Best Practices
+## 9. Admin Dashboard *(Superadmins only)*
+
+Accessible at `/admin`. Only accounts with superadmin flag can see this.
+
+### Users tab
+- Search users by name or email
+- Filter by tier (Free / Plus / Pro) or status (Active / Inactive)
+- Inline tier selector, Admin toggle, Active toggle — click **Save** to apply changes
+- Delete users (must revoke superadmin first)
+
+### Tier Config tab
+- **Feature gates** — checkboxes showing which tiers can use each feature
+  - Change a checkbox and Save to grant/revoke a feature from a tier instantly
+  - Changes take effect on next backend request (no restart needed)
+  - Frontend picks up changes on next page load
+- **Numeric limits** — editable per-tier limits (blank or ∞ = unlimited)
+- **Contradiction validator** — prevents invalid configs:
+  - Lower tier cannot have a feature that higher tiers lack
+  - Limits must be non-decreasing across tiers (Free ≤ Plus ≤ Pro)
+
+### Other tabs
+- **Audit Log** — paginated log of all user actions
+- **Prompts** — override AI prompt templates per profession
+- **Professions** — manage profession configs (affects AI tailoring strategy)
+- **Templates** — upload/manage DOCX resume templates
+
+---
+
+## 10. Tips & Best Practices
 
 ### Get the best results from the AI
 
