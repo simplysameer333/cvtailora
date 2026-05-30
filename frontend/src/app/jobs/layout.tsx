@@ -7,7 +7,7 @@ export default function JobsLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen flex flex-col">
       <AuthGuard />
       <Navbar />
-      <main className="flex-1 max-w-4xl mx-auto w-full px-5 sm:px-6 py-6 sm:py-10">
+      <main className="flex-1 max-w-5xl mx-auto w-full px-5 sm:px-6 py-6 sm:py-10">
         <Suspense>{children}</Suspense>
       </main>
     </div>
