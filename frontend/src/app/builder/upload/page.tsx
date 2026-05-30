@@ -55,15 +55,21 @@ export default function UploadPage() {
   const [libraryLoadingId, setLibraryLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Clear any stale tailor context that may have been left in localStorage
-    // by older versions of the app — now passed via URL params instead.
+    // Clear legacy keys from older app versions.
     localStorage.removeItem("tailormycv_tailor_job_title");
     localStorage.removeItem("tailormycv_tailor_employer");
+
+    // If the user arrived without tailor URL params (i.e. not from Find Jobs),
+    // clear the tailor context so the banner doesn't show from a previous session.
+    if (!searchParams.get("tailor_title")) {
+      localStorage.removeItem("tailormycv_tailor_context");
+    }
 
     listSavedResumes()
       .then(setLibrary)
       .catch(() => {})
       .finally(() => setLibraryLoaded(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onDrop = useCallback((accepted: File[]) => {

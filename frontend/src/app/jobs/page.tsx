@@ -504,8 +504,14 @@ export default function JobsPage() {
       job.job_description ?? "",
     ].filter(Boolean).join("\n\n");
     localStorage.setItem("tailormycv_prefill_jd", jd);
-    // Pass tailor context via URL params — never persisted in localStorage,
-    // so it can't bleed into unrelated upload sessions.
+    // Persist tailor context for the JobContextBanner shown on every builder step.
+    localStorage.setItem("tailormycv_tailor_context", JSON.stringify({
+      title:      job.job_title,
+      employer:   job.employer_name,
+      apply_link: job.job_apply_link || "",
+    }));
+    // Also pass via URL params so the upload page badge is correct even if
+    // localStorage hasn't flushed yet.
     const params = new URLSearchParams({
       tailor_title:    job.job_title,
       tailor_employer: job.employer_name,
