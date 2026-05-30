@@ -67,11 +67,27 @@ api.interceptors.response.use(
   }
 );
 
-export async function uploadResume(file: File) {
+export async function uploadResume(file: File | null, linkedinText?: string) {
   const form = new FormData();
-  form.append("file", file);
+  if (file) form.append("file", file);
+  if (linkedinText) form.append("linkedin_text", linkedinText);
   const { data } = await api.post("/api/resume/upload", form);
   return data as { session_id: string; parsed: { raw_text: string; filename: string } };
+}
+
+export interface LinkedInProfile {
+  full_name: string;
+  headline: string;
+  location: string;
+  email: string;
+  summary: string;
+  skills: string[];
+  raw_text: string;
+}
+
+export async function parseLinkedInProfile(url: string): Promise<LinkedInProfile> {
+  const { data } = await api.post("/api/linkedin/parse", { url });
+  return data as LinkedInProfile;
 }
 
 export async function prefillProfile(sessionId: string): Promise<Partial<{

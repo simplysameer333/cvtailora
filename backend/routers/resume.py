@@ -42,36 +42,63 @@ def _content_type(filename: str) -> str:
 
 @router.post("/resume/upload")
 async def upload_resume(
-    file: UploadFile = File(...),
+    file: UploadFile = File(None),
     instructions: str = Form(""),
+    linkedin_text: str = Form(""),
 ):
-    """Upload and parse the candidate's resume. Creates a new session.
+    """Upload a resume and/or provide LinkedIn profile text. Creates a new session.
 
-    Accepts PDF or DOCX (max 5 MB). An optional *instructions* form field
-    lets the user give the AI extra direction (e.g. "focus on leadership").
+    At least one of *file* (PDF/DOCX) or *linkedin_text* must be supplied.
+    When both are provided the resume content is used as the primary source and
+    the LinkedIn text is appended as supplementary context.
 
-    The original file is stored via the configured storage backend and the
-    key is recorded in the session for future retrieval.
+    Optional *instructions* lets the user give the AI extra direction.
     """
-    if file.content_type not in ACCEPTED_TYPES:
-        raise HTTPException(400, "Only PDF and DOCX files are accepted.")
+    has_file = file is not None and file.filename
+    has_linkedin = bool(linkedin_text.strip())
 
-    file_bytes = await file.read()
-    if len(file_bytes) > MAX_FILE_SIZE:
-        raise HTTPException(400, "File exceeds 5 MB limit.")
+    if not has_file and not has_linkedin:
+        raise HTTPException(
+            400, "Please upload a resume file or provide a LinkedIn profile."
+        )
 
-    try:
-        parsed = parse_resume(file_bytes, file.filename)
-    except Exception as exc:
-        raise HTTPException(422, f"Failed to parse resume: {exc}")
+    parsed: dict = {"raw_text": "", "filename": ""}
+    storage_key: str | None = None
+    file_bytes: bytes | None = None
 
-    # Create the session first so we have an ID for the storage key.
+    # ── Parse resume file ──────────────────────────────────────────────────────
+    if has_file:
+        if file.content_type not in ACCEPTED_TYPES:
+            raise HTTPException(400, "Only PDF and DOCX files are accepted.")
+        file_bytes = await file.read()
+        if len(file_bytes) > MAX_FILE_SIZE:
+            raise HTTPException(400, "File exceeds 5 MB limit.")
+        try:
+            parsed = parse_resume(file_bytes, file.filename)
+        except Exception as exc:
+            raise HTTPException(422, f"Failed to parse resume: {exc}")
+
+    # ── Merge LinkedIn text ────────────────────────────────────────────────────
+    # Resume takes precedence; LinkedIn is appended as supplementary context.
+    if has_linkedin:
+        linkedin_clean = linkedin_text.strip()
+        if parsed["raw_text"]:
+            parsed["raw_text"] = (
+                parsed["raw_text"]
+                + "\n\n---\n[Additional context from LinkedIn profile]\n"
+                + linkedin_clean
+            )
+        else:
+            parsed = {"raw_text": linkedin_clean, "filename": "linkedin_profile.txt"}
+
+    # ── Create session ─────────────────────────────────────────────────────────
     db = get_db()
     result = await db.sessions.insert_one({
         "created_at": datetime.utcnow(),
         "resume_parsed": parsed,
-        "resume_file_key": None,        # filled in below after upload
+        "resume_file_key": None,
         "upload_instructions": instructions.strip(),
+        "linkedin_imported": has_linkedin,
         "user_profile": None,
         "job_description": None,
         "selected_template_id": None,
@@ -83,18 +110,18 @@ async def upload_resume(
     })
     session_id = str(result.inserted_id)
 
-    # Persist the original file — key is scoped to this session.
-    storage_key = f"resumes/{session_id}/{file.filename}"
-    try:
-        storage = get_storage()
-        await storage.save(storage_key, file_bytes, _content_type(file.filename))
-        await db.sessions.update_one(
-            {"_id": ObjectId(session_id)},
-            {"$set": {"resume_file_key": storage_key}},
-        )
-    except Exception as exc:
-        # Non-fatal: parsed text is already stored; log and continue.
-        logger.warning("Failed to persist resume file to storage: %s", exc)
+    # ── Persist original file (non-fatal) ──────────────────────────────────────
+    if has_file and file_bytes:
+        storage_key = f"resumes/{session_id}/{file.filename}"
+        try:
+            storage = get_storage()
+            await storage.save(storage_key, file_bytes, _content_type(file.filename))
+            await db.sessions.update_one(
+                {"_id": ObjectId(session_id)},
+                {"$set": {"resume_file_key": storage_key}},
+            )
+        except Exception as exc:
+            logger.warning("Failed to persist resume file to storage: %s", exc)
 
     return {"session_id": session_id, "parsed": parsed}
 
