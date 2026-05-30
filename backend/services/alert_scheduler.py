@@ -9,6 +9,7 @@ For each active alert it:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -18,6 +19,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import settings
 from database import get_db
 from services.email_service import send_job_alert_email, send_no_results_email
+from services.quota_service import get_quota, increment as _increment_quota
 
 logger = logging.getLogger("tailormycv")
 
@@ -33,22 +35,44 @@ def _jsearch_headers() -> dict:
     }
 
 
-async def _search_jobs(query: str, location: str) -> list[dict]:
+async def _search_jobs(query: str, location: str) -> list[dict] | None:
+    """Return job list (empty = no results), or None if the call failed / quota exhausted.
+
+    Returning None tells the caller to skip the alert rather than send a
+    misleading "no results" notification — the jobs may well exist, JSearch
+    just couldn't be reached right now.
+    """
     if not settings.rapidapi_key:
-        return []
+        return None
+
+    quota = await get_quota()
+    if quota["remaining"] == 0:
+        logger.warning("[alert-scheduler] Monthly JSearch quota exhausted — skipping alert run")
+        return None
+
     q = f"{query.strip()} {location.strip()}".strip()
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            res = await client.get(
-                f"{_JSEARCH_BASE}/search",
-                params={"query": q, "page": "1", "num_results": "10"},
-                headers=_jsearch_headers(),
-            )
-            res.raise_for_status()
-        return res.json().get("data", [])
-    except Exception as exc:
-        logger.warning("[alert-scheduler] JSearch error for query %r: %s", q, exc)
-        return []
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):  # 3 attempts with 1 s delay between retries
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                res = await client.get(
+                    f"{_JSEARCH_BASE}/search",
+                    params={"query": q, "page": "1", "num_results": "10"},
+                    headers=_jsearch_headers(),
+                )
+                res.raise_for_status()
+            await _increment_quota()
+            return res.json().get("data", [])
+        except Exception as exc:
+            last_exc = exc
+            if attempt < 3:
+                logger.warning(
+                    "[alert-scheduler] JSearch attempt %d/3 failed for %r: %s — retrying in 1 s",
+                    attempt, q, exc,
+                )
+                await asyncio.sleep(1)
+    logger.warning("[alert-scheduler] JSearch failed after 3 attempts for %r: %s", q, last_exc)
+    return None
 
 
 async def _process_alert(db, alert: dict) -> None:
@@ -75,7 +99,17 @@ async def _process_alert(db, alert: dict) -> None:
 
     location = " OR ".join(alert.get("location_tags", []))
     jobs = await _search_jobs(query, location)
+
+    if jobs is None:
+        # JSearch errored or quota exhausted — skip silently, retry tomorrow
+        logger.warning(
+            "[alert-scheduler] Alert %s skipped — JSearch unavailable (query=%r)",
+            alert["_id"], query,
+        )
+        return
+
     if not jobs:
+        # JSearch responded successfully but returned zero listings
         await send_no_results_email(
             user_email=user["email"],
             user_name=user.get("name", "there"),

@@ -190,6 +190,8 @@ async def send_test_alert_email(body: SendTestEmailBody, _: dict = Depends(requi
     jsearch_query = f"{query} {location}".strip()
 
     jobs = await _search_jobs(query, location)
+    if jobs is None:
+        raise HTTPException(502, "JSearch is unavailable or quota exhausted. Try again later.")
     if not jobs:
         try:
             await send_no_results_email(
