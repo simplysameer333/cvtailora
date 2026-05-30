@@ -56,10 +56,11 @@ async def _process_alert(db, alert: dict) -> None:
     if not user or not user.get("is_active"):
         return
 
-    # Skip if user's tier no longer qualifies for job alerts (e.g. downgraded from Plus)
-    if user.get("tier", "free") not in ("plus", "pro"):
+    # Skip if user's tier no longer qualifies — reads live MongoDB tier config
+    from services.tier_config_service import has_feature as _has_feature
+    if not _has_feature(user.get("tier", "free"), "job_alerts"):
         logger.info(
-            "[alert-scheduler] Alert %s skipped — user %s is on %s tier",
+            "[alert-scheduler] Alert %s skipped — user %s (tier=%s) not entitled",
             alert["_id"], user.get("email"), user.get("tier", "free"),
         )
         return

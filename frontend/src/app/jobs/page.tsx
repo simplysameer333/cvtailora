@@ -489,7 +489,7 @@ export default function JobsPage() {
 
   // Load alerts when tab becomes active
   useEffect(() => {
-    if (activeTab !== "alerts" || alertsLoaded || false) return;
+    if (activeTab !== "alerts" || alertsLoaded || isFree) return;
     listJobAlerts()
       .then((data) => { setAlerts(data); setAlertsLoaded(true); })
       .catch(() => setAlertsLoaded(true));

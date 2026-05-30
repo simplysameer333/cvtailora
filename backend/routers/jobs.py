@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from config import settings
 from database import get_db
-from dependencies.auth import get_current_user, require_tier
+from dependencies.auth import get_current_user, require_tier, require_feature
 from services.quota_service import get_quota, increment, quota_warning
 
 router = APIRouter()
@@ -198,19 +198,21 @@ class SaveJobBody(BaseModel):
 
 
 @router.post("/jobs/save", status_code=201)
-async def save_job(body: SaveJobBody, user: dict = Depends(get_current_user)):
+async def save_job(body: SaveJobBody, user: dict = Depends(require_feature("save_jobs"))):
     db = get_db()
     user_id = user["_id"]
 
     if await db.saved_jobs.find_one({"user_id": user_id, "job_id": body.job_id}):
         raise HTTPException(409, "Job already saved.")
 
-    if user.get("tier") == "plus":
+    from services.tier_config_service import get_limit as _get_limit
+    limit = _get_limit(user.get("tier", "free"), "saved_jobs")
+    if limit is not None:  # None = unlimited
         count = await db.saved_jobs.count_documents({"user_id": user_id})
-        if count >= _PLUS_SAVE_LIMIT:
+        if count >= limit:
             raise HTTPException(
                 403,
-                f"Plus plan allows up to {_PLUS_SAVE_LIMIT} saved jobs. Upgrade to Pro for unlimited.",
+                f"Your plan allows up to {limit} saved jobs. Upgrade for unlimited.",
             )
 
     await db.saved_jobs.insert_one({

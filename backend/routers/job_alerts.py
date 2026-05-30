@@ -66,12 +66,14 @@ async def create_alert(body: CreateAlertBody, user: dict = Depends(require_featu
     db = get_db()
     user_id = user["_id"]
 
-    if user.get("tier") == "plus":
+    from services.tier_config_service import get_limit as _get_limit
+    limit = _get_limit(user.get("tier", "free"), "job_alerts")
+    if limit is not None:  # None = unlimited
         count = await db.job_alerts.count_documents({"user_id": user_id})
-        if count >= _PLUS_ALERT_LIMIT:
+        if count >= limit:
             raise HTTPException(
                 403,
-                f"Plus plan allows up to {_PLUS_ALERT_LIMIT} job alerts. Upgrade to Pro for unlimited.",
+                f"Your plan allows up to {limit} job alerts. Upgrade for unlimited.",
             )
 
     # Normalise tag order so duplicates are caught regardless of input order

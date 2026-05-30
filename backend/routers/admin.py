@@ -89,13 +89,16 @@ async def admin_update_user(user_id: str, body: UserPatchBody, admin: dict = Dep
     if not result:
         raise HTTPException(404, "User not found.")
 
-    # Side effects on tier downgrade to free — deactivate job alerts so the
-    # scheduler doesn't keep emailing a user who no longer has a qualifying tier.
-    if body.tier == "free":
-        await db.job_alerts.update_many(
-            {"user_id": oid, "is_active": True},
-            {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
-        )
+    # If the new tier has no access to job_alerts, deactivate all active alerts
+    # so the scheduler doesn't email a user who no longer qualifies.
+    # Reads live tier config so this stays correct if tiers are reconfigured.
+    if body.tier is not None:
+        from services.tier_config_service import has_feature as _has_feature
+        if not _has_feature(body.tier, "job_alerts"):
+            await db.job_alerts.update_many(
+                {"user_id": oid, "is_active": True},
+                {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
+            )
 
     return {
         "id": str(result["_id"]),
