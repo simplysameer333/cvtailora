@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useState, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   FiUploadCloud, FiFile, FiZap, FiTarget, FiAward, FiX, FiBriefcase,
@@ -31,6 +31,11 @@ function isValidLinkedInUrl(url: string): boolean {
 
 export default function UploadPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // ── Tailor context — read from URL params only, never from localStorage ────
+  const jobTitle = searchParams.get("tailor_title") ?? "";
+  const employer = searchParams.get("tailor_employer") ?? "";
 
   // ── Resume file state ──────────────────────────────────────────────────────
   const [file, setFile] = useState<File | null>(null);
@@ -49,13 +54,12 @@ export default function UploadPage() {
   const [libraryLoaded, setLibraryLoaded] = useState(false);
   const [libraryLoadingId, setLibraryLoadingId] = useState<string | null>(null);
 
-  // ── Tailor context ─────────────────────────────────────────────────────────
-  const [jobTitle, setJobTitle] = useState("");
-  const [employer, setEmployer] = useState("");
-
   useEffect(() => {
-    setJobTitle(localStorage.getItem("tailormycv_tailor_job_title") ?? "");
-    setEmployer(localStorage.getItem("tailormycv_tailor_employer") ?? "");
+    // Clear any stale tailor context that may have been left in localStorage
+    // by older versions of the app — now passed via URL params instead.
+    localStorage.removeItem("tailormycv_tailor_job_title");
+    localStorage.removeItem("tailormycv_tailor_employer");
+
     listSavedResumes()
       .then(setLibrary)
       .catch(() => {})
@@ -75,11 +79,6 @@ export default function UploadPage() {
     maxSize: 5 * 1024 * 1024,
     maxFiles: 1,
   });
-
-  function clearJobContext() {
-    localStorage.removeItem("tailormycv_tailor_job_title");
-    localStorage.removeItem("tailormycv_tailor_employer");
-  }
 
   // ── LinkedIn fetch ─────────────────────────────────────────────────────────
   async function handleFetchLinkedIn() {
@@ -119,7 +118,6 @@ export default function UploadPage() {
       const res = await uploadResume(file, linkedinProfile?.raw_text);
       setSessionId(res.session_id);
       STALE_KEYS.forEach((k) => localStorage.removeItem(k));
-      clearJobContext();
 
       const source = file && linkedinProfile ? "Resume + LinkedIn combined"
         : linkedinProfile ? "LinkedIn profile imported"
@@ -142,7 +140,6 @@ export default function UploadPage() {
       const { session_id } = await createSessionFromLibraryResume(resume.id, prefillJd);
       setSessionId(session_id);
       STALE_KEYS.forEach((k) => localStorage.removeItem(k));
-      clearJobContext();
       toast.success(`Using "${resume.name}" — review your profile to continue.`);
       router.push("/builder/profile");
     } catch (err: unknown) {

@@ -504,9 +504,13 @@ export default function JobsPage() {
       job.job_description ?? "",
     ].filter(Boolean).join("\n\n");
     localStorage.setItem("tailormycv_prefill_jd", jd);
-    localStorage.setItem("tailormycv_tailor_job_title", job.job_title);
-    localStorage.setItem("tailormycv_tailor_employer", job.employer_name);
-    router.push("/builder/upload");
+    // Pass tailor context via URL params — never persisted in localStorage,
+    // so it can't bleed into unrelated upload sessions.
+    const params = new URLSearchParams({
+      tailor_title:    job.job_title,
+      tailor_employer: job.employer_name,
+    });
+    router.push(`/builder/upload?${params.toString()}`);
   }
 
   // ── Alert handlers ──────────────────────────────────────────────────────────
