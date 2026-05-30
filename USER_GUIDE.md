@@ -47,7 +47,7 @@
 
 ### Sign up
 
-1. Go to **[tailormycv.com](https://tailormycv-frontend-production.up.railway.app)**
+1. Go to **[tailormycv-frontend-production.up.railway.app](https://tailormycv-frontend-production.up.railway.app)**
 2. Click **Get started** on the plan you want
 3. Register with your email and password, or sign in with **Google**
 
