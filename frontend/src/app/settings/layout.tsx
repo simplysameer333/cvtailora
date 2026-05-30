@@ -3,11 +3,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
 import AuthGuard from "@/components/AuthGuard";
-import { FiGrid, FiCreditCard, FiChevronLeft } from "react-icons/fi";
+import { FiGrid, FiCreditCard, FiBarChart2, FiChevronLeft } from "react-icons/fi";
 
 const NAV_ITEMS = [
-  { href: "/settings/overview", label: "Overview",     icon: FiGrid },
-  { href: "/settings/plan",     label: "Plan & Usage", icon: FiCreditCard },
+  { href: "/settings/overview", label: "Overview",   icon: FiGrid },
+  { href: "/settings/plan",     label: "Plan",        icon: FiCreditCard },
+  { href: "/settings/usage",    label: "Usage",       icon: FiBarChart2 },
 ];
 
 function UserAvatar({ name, email }: { name?: string | null; email?: string | null }) {
@@ -81,7 +82,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           {/* ── Sidebar ── */}
           <aside className="w-56 shrink-0 hidden md:flex flex-col gap-4">
 
-            {/* User identity card */}
+            {/* User identity */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4">
               <div className="flex items-center gap-3">
                 <UserAvatar name={user?.name} email={user?.email} />
