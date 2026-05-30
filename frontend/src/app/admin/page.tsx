@@ -16,7 +16,7 @@ import {
   FiUsers, FiActivity, FiCpu, FiRefreshCw, FiSave, FiRotateCcw,
   FiChevronLeft, FiChevronRight, FiBriefcase, FiPlus, FiTrash2,
   FiChevronDown, FiChevronUp, FiToggleLeft, FiToggleRight, FiClock,
-  FiLayout, FiDownload, FiUploadCloud, FiEdit2, FiX, FiSliders, FiAlertCircle,
+  FiLayout, FiDownload, FiUploadCloud, FiEdit2, FiX, FiSliders, FiAlertCircle, FiSearch,
 } from "react-icons/fi";
 import { adminUpdateTierConfig, fetchTierConfig, type TierConfigPayload } from "@/lib/api";
 
@@ -353,9 +353,70 @@ function UsersTab({
   statsCache: Map<string, UserStats>;
   fetchStats: (id: string) => Promise<void>;
 }) {
+  const [search, setSearch] = useState("");
+  const [tierFilter, setTierFilter] = useState<"" | "free" | "plus" | "pro">("");
+  const [statusFilter, setStatusFilter] = useState<"" | "active" | "inactive">("");
+
+  const filtered = users.filter(u => {
+    const q = search.trim().toLowerCase();
+    const matchSearch = !q || u.email.toLowerCase().includes(q) || u.name.toLowerCase().includes(q);
+    const matchTier = !tierFilter || u.tier === tierFilter;
+    const matchStatus = !statusFilter || (statusFilter === "active" ? u.is_active : !u.is_active);
+    return matchSearch && matchTier && matchStatus;
+  });
+
   return (
-    <div>
-      <TabHeader count={users.length} label="total users" fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
+    <div className="space-y-3">
+      <TabHeader count={filtered.length === users.length ? users.length : undefined} label={
+        filtered.length === users.length ? "total users" : `${filtered.length} of ${users.length} users`
+      } fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
+
+      {/* Search + filters */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="relative flex-1 min-w-[180px]">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by name or email…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="input pl-8 text-sm h-9 w-full"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <FiX className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        <select
+          value={tierFilter}
+          onChange={e => setTierFilter(e.target.value as typeof tierFilter)}
+          className="input text-sm h-9 w-auto pr-8"
+        >
+          <option value="">All tiers</option>
+          <option value="free">Free</option>
+          <option value="plus">Plus</option>
+          <option value="pro">Pro</option>
+        </select>
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
+          className="input text-sm h-9 w-auto pr-8"
+        >
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        {(search || tierFilter || statusFilter) && (
+          <button
+            onClick={() => { setSearch(""); setTierFilter(""); setStatusFilter(""); }}
+            className="text-xs text-slate-400 hover:text-slate-700 underline underline-offset-2"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
       {loading && !users.length ? <Spinner text="Loading users…" /> : (
         <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-sm">
@@ -374,17 +435,19 @@ function UsersTab({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {users.map(u => (
+              {filtered.map(u => (
                 <UserRow key={u.id} user={u} statsCache={statsCache} fetchStats={fetchStats} onRefresh={onRefresh} />
               ))}
-              {!users.length && (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No users found.</td></tr>
+              {!filtered.length && (
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                  {search || tierFilter || statusFilter ? "No users match the current filters." : "No users found."}
+                </td></tr>
               )}
             </tbody>
           </table>
         </div>
       )}
-      <p className="text-xs text-slate-400 mt-2">Change Tier, Admin or Active on any row, then click <span className="font-semibold">Save</span> to apply. To delete a superadmin, uncheck Admin, Save, then delete.</p>
+      <p className="text-xs text-slate-400">Change Tier, Admin or Active on any row, then click <span className="font-semibold">Save</span> to apply. To delete a superadmin, uncheck Admin, Save, then delete.</p>
     </div>
   );
 }
