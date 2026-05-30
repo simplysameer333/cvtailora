@@ -83,3 +83,19 @@ def require_tier(min_tier: str) -> Callable:
             )
         return user
     return _check
+
+
+async def get_optional_user(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> dict | None:
+    """Like get_current_user but returns None instead of raising 401.
+
+    Use this on endpoints that should work for anonymous users but apply
+    extra behaviour (e.g. tier-gated features) for authenticated users.
+    """
+    if not creds:
+        return None
+    try:
+        return await get_current_user(creds)
+    except HTTPException:
+        return None

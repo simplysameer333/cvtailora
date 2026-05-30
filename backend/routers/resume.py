@@ -17,10 +17,11 @@ Storage keys follow the convention:
     samples/<session_id>/<original_filename>
 """
 import logging
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from bson import ObjectId
 from datetime import datetime
 from database import get_db
+from dependencies.auth import get_optional_user
 from services.resume_parser import parse_resume
 from services.storage import get_storage
 
@@ -99,8 +100,12 @@ async def upload_resume(
 
 
 @router.post("/resume/sample-format")
-async def upload_sample_cv(session_id: str, file: UploadFile = File(...)):
-    """Upload a sample CV to use as a formatting reference.
+async def upload_sample_cv(
+    session_id: str,
+    file: UploadFile = File(...),
+    user: dict | None = Depends(get_optional_user),
+):
+    """Upload a sample CV to use as a formatting reference. Pro only.
 
     The AI generator will mirror the structure and section order of this CV
     when writing the tailored resume. Content is never copied — only layout
@@ -108,6 +113,10 @@ async def upload_sample_cv(session_id: str, file: UploadFile = File(...)):
 
     The original file is stored via the configured storage backend.
     """
+    user_tier = (user or {}).get("tier", "free")
+    if user_tier not in ("pro",):
+        raise HTTPException(403, "Sample CV reference is a Pro feature. Upgrade your plan to unlock it.")
+
     if file.content_type not in ACCEPTED_TYPES:
         raise HTTPException(400, "Only PDF and DOCX files are accepted.")
 

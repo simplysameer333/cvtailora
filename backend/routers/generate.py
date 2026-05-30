@@ -21,16 +21,20 @@ Job analysis
 - N is driven by SKILL_EXTRACTION_COUNT in .env (maps to subscription tier).
 - The extracted skills are passed to every generator cycle as prioritisation hints.
 """
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from bson import ObjectId
 from pydantic import BaseModel
 from typing import Optional
 from database import get_db
 from config import settings
+from dependencies.auth import get_optional_user
 from services.pipeline import pipeline, generator
 from services.pipeline.agents.job_analyzer import JobAnalyzerAgent
 from services.profession_service import resolve_profession_for_role
 from services.email_service import send_quality_alert
+
+# Key skills extracted per tier — aligns with PricingTiers feature list
+_TIER_SKILL_COUNT = {"free": 3, "plus": 5, "pro": 10}
 
 router = APIRouter()
 _job_analyzer = JobAnalyzerAgent()
@@ -80,6 +84,7 @@ async def generate(
     session_id: str,
     body: GenerateBody = GenerateBody(),
     background_tasks: BackgroundTasks = BackgroundTasks(),
+    user: dict | None = Depends(get_optional_user),
 ):
     db = get_db()
     session = await db.sessions.find_one({"_id": ObjectId(session_id)})
@@ -115,18 +120,31 @@ async def generate(
 
     profession_config = await _resolve_profession(db, target_role)
 
+    # ── Resolve user tier for per-tier feature enforcement ────────────────────
+    user_tier = (user or {}).get("tier", "free")
+
     # ── Job analysis — runs once, outside the eval loop ──────────────────────
-    # Extracts the top-N skills the generator should prioritise every cycle.
-    # On failure it silently returns [] so the pipeline is never blocked.
+    # Skill count scales with tier: Free=3, Plus=5, Pro=10
+    n_skills = _TIER_SKILL_COUNT.get(user_tier, settings.skill_extraction_count)
     key_skills: list = await _job_analyzer.run(
         resume_text=resume_text,
         user_profile=user_profile,
         job_description=job_description,
-        n=settings.skill_extraction_count,
+        n=n_skills,
+    )
+    # Persist key_skills on the session so export can bold them
+    await db.sessions.update_one(
+        {"_id": ObjectId(session_id)},
+        {"$set": {"key_skills": key_skills}},
     )
 
-    # ── Section-only regeneration ─────────────────────────────────────────────
+    # ── Section-only regeneration (Pro only) ─────────────────────────────────
     if body.section:
+        if user_tier not in ("pro",):
+            raise HTTPException(
+                403,
+                "Section-level regeneration is a Pro feature. Upgrade your plan to unlock it.",
+            )
         await _check_cost_limit(db, session_id, 1)
         try:
             result = await generator.run_section(
@@ -259,13 +277,21 @@ async def set_session_template(session_id: str, body: dict):
 
 
 @router.put("/sessions/{session_id}/locked-facts")
-async def set_locked_facts(session_id: str, body: dict):
-    """Replace the session's locked_facts list.
+async def set_locked_facts(
+    session_id: str,
+    body: dict,
+    user: dict | None = Depends(get_optional_user),
+):
+    """Replace the session's locked_facts list. Pro only.
 
     Body: {"locked_facts": ["Company: Google", "Degree: BSc Computer Science"]}
     Locked facts are injected into the generator system prompt on the next
     generate call. The generator is instructed never to modify or remove them.
     """
+    user_tier = (user or {}).get("tier", "free")
+    if user_tier not in ("pro",):
+        raise HTTPException(403, "Locked Facts is a Pro feature. Upgrade your plan to unlock it.")
+
     locked = body.get("locked_facts", [])
     if not isinstance(locked, list):
         raise HTTPException(422, "locked_facts must be a list of strings.")

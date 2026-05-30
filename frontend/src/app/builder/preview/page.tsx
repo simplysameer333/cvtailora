@@ -13,7 +13,9 @@ import {
 } from "@/lib/api";
 import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
-import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSquare, FiTrash2 } from "react-icons/fi";
+import { useAuth } from "@/lib/useAuth";
+import Link from "next/link";
+import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSquare, FiTrash2, FiZap } from "react-icons/fi";
 
 const LS_RESUME = "tailormycv_generated";
 const LS_EVAL = "tailormycv_eval_summary";
@@ -30,6 +32,8 @@ interface CustomSection {
 export default function PreviewPage() {
   useStepGuard("preview");
   const router = useRouter();
+  const { data: session } = useAuth();
+  const isPro = (session?.user?.tier ?? "free") === "pro";
   const [resume, setResume] = useState<GeneratedResume | null>(null);
   const [evalSummary, setEvalSummary] = useState<EvalSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -345,15 +349,33 @@ export default function PreviewPage() {
       {/* Quality status panel */}
       {evalSummary && <EvalSummaryPanel summary={evalSummary} />}
 
-      {/* Locked facts panel */}
-      <LockedFactsPanel
-        facts={lockedFacts}
-        newFact={newFact}
-        saving={savingFacts}
-        onNewFactChange={setNewFact}
-        onAdd={addLockedFact}
-        onRemove={removeLockedFact}
-      />
+      {/* Locked facts panel — Pro only */}
+      {isPro ? (
+        <LockedFactsPanel
+          facts={lockedFacts}
+          newFact={newFact}
+          saving={savingFacts}
+          onNewFactChange={setNewFact}
+          onAdd={addLockedFact}
+          onRemove={removeLockedFact}
+        />
+      ) : (
+        <Link
+          href="/settings/plan"
+          className="card flex items-center gap-3 hover:border-brand-300 transition group"
+        >
+          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 group-hover:bg-brand-50">
+            <FiLock className="w-4 h-4 text-slate-400 group-hover:text-brand-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-700">
+              Locked Facts <span className="text-[10px] font-semibold bg-brand-100 text-brand-700 rounded px-1.5 py-0.5 ml-1">PRO</span>
+            </p>
+            <p className="text-xs text-slate-500">Pin facts the AI must never change — upgrade to Pro to unlock.</p>
+          </div>
+          <FiZap className="w-4 h-4 text-brand-500 shrink-0" />
+        </Link>
+      )}
 
       {/* Contact */}
       <Section
@@ -362,6 +384,7 @@ export default function PreviewPage() {
         loading={loadingSection === "contact"}
         comment={sectionComments["contact"] ?? ""}
         onCommentChange={(v) => setComment("contact", v)}
+        isPro={isPro}
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <EditableField
@@ -387,6 +410,7 @@ export default function PreviewPage() {
         loading={loadingSection === "summary"}
         comment={sectionComments["summary"] ?? ""}
         onCommentChange={(v) => setComment("summary", v)}
+        isPro={isPro}
       >
         <textarea
           className="input h-28 resize-none text-sm"
@@ -402,6 +426,7 @@ export default function PreviewPage() {
         loading={loadingSection === "experience"}
         comment={sectionComments["experience"] ?? ""}
         onCommentChange={(v) => setComment("experience", v)}
+        isPro={isPro}
       >
         {resume.experience.map((job, i) => (
           <div key={i} className="border border-slate-200 rounded-lg p-4 space-y-2 mb-3">
@@ -462,6 +487,7 @@ export default function PreviewPage() {
         loading={loadingSection === "education"}
         comment={sectionComments["education"] ?? ""}
         onCommentChange={(v) => setComment("education", v)}
+        isPro={isPro}
       >
         {resume.education.map((ed, i) => (
           <div key={i} className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
@@ -505,6 +531,7 @@ export default function PreviewPage() {
           loading={loadingSection === sec.title.toLowerCase()}
           comment={sectionComments[sec.title] ?? ""}
           onCommentChange={(v) => setComment(sec.title, v)}
+          isPro={isPro}
         >
           <textarea
             className="input text-sm resize-none"
@@ -528,6 +555,7 @@ export default function PreviewPage() {
           loading={loadingSection === "skills"}
           comment={sectionComments["skills"] ?? ""}
           onCommentChange={(v) => setComment("skills", v)}
+          isPro={isPro}
         >
           <textarea
             className="input text-sm resize-none"
@@ -546,6 +574,7 @@ export default function PreviewPage() {
           loading={loadingSection === "certifications"}
           comment={sectionComments["certifications"] ?? ""}
           onCommentChange={(v) => setComment("certifications", v)}
+          isPro={isPro}
         >
           <textarea
             className="input text-sm resize-none"
@@ -568,6 +597,7 @@ export default function PreviewPage() {
           comment={sectionComments[cs.id] ?? ""}
           onCommentChange={(v) => setComment(cs.id, v)}
           onDelete={() => removeCustomSection(cs.id)}
+          isPro={isPro}
         >
           <textarea
             className="input text-sm resize-none"
@@ -798,6 +828,7 @@ function Section({
   comment,
   onCommentChange,
   onDelete,
+  isPro = true,
 }: {
   title: string;
   children: React.ReactNode;
@@ -806,6 +837,7 @@ function Section({
   comment: string;
   onCommentChange: (v: string) => void;
   onDelete?: () => void;
+  isPro?: boolean;
 }) {
   const [showFeedback, setShowFeedback] = useState(false);
 
@@ -823,27 +855,40 @@ function Section({
               <FiTrash2 className="w-3.5 h-3.5" />
             </button>
           )}
-          <button
-            onClick={() => setShowFeedback((s) => !s)}
-            className={`flex items-center gap-1 text-xs transition ${showFeedback || comment ? "text-brand-600" : "text-slate-400 hover:text-brand-500"}`}
-          >
-            <FiMessageSquare className="w-3 h-3" />
-            {comment ? "Guidance added" : "Regenerate with guidance"}
-          </button>
-          <button
-            onClick={() => onRegenerate("")}
-            disabled={loading}
-            className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 disabled:opacity-50"
-          >
-            <FiRefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-            Regenerate
-          </button>
+          {isPro ? (
+            <>
+              <button
+                onClick={() => setShowFeedback((s) => !s)}
+                className={`flex items-center gap-1 text-xs transition ${showFeedback || comment ? "text-brand-600" : "text-slate-400 hover:text-brand-500"}`}
+              >
+                <FiMessageSquare className="w-3 h-3" />
+                {comment ? "Guidance added" : "Regenerate with guidance"}
+              </button>
+              <button
+                onClick={() => onRegenerate("")}
+                disabled={loading}
+                className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 disabled:opacity-50"
+              >
+                <FiRefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+                Regenerate
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/settings/plan"
+              title="Section-level regeneration is a Pro feature"
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-brand-600 transition"
+            >
+              <FiZap className="w-3 h-3" />
+              Regenerate <span className="text-[10px] font-semibold bg-slate-100 text-slate-500 rounded px-1 py-0.5">PRO</span>
+            </Link>
+          )}
         </div>
       </div>
 
       {children}
 
-      {showFeedback && (
+      {showFeedback && isPro && (
         <div className="border-t border-slate-100 pt-3 space-y-2">
           <textarea
             autoFocus

@@ -6,8 +6,10 @@ import { useDropzone } from "react-dropzone";
 import { listTemplates, uploadSampleCv, type Template } from "@/lib/api";
 import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
+import { useAuth } from "@/lib/useAuth";
+import Link from "next/link";
 import clsx from "clsx";
-import { FiUploadCloud, FiCheckCircle, FiFile, FiFileText, FiLayers } from "react-icons/fi";
+import { FiUploadCloud, FiCheckCircle, FiFile, FiFileText, FiLayers, FiLock, FiZap } from "react-icons/fi";
 
 type OutputFormat = "docx" | "pdf" | "both";
 
@@ -144,6 +146,8 @@ const TEMPLATE_PREVIEWS: Record<string, { component: React.FC; traits: string[] 
 export default function TemplatePage() {
   useStepGuard("template");
   const router = useRouter();
+  const { data: session } = useAuth();
+  const isPro = (session?.user?.tier ?? "free") === "pro";
   const [templates, setTemplates]             = useState<Template[]>([]);
   const [selected, setSelected]               = useState<string | null>(null);
   const [instructions, setInstructions]       = useState("");
@@ -260,7 +264,21 @@ export default function TemplatePage() {
         })}
       </div>
 
-      {/* Formatting reference */}
+      {/* Formatting reference — Pro only */}
+      {!isPro ? (
+        <Link href="/settings/plan" className="card p-4 flex items-center gap-3 hover:border-brand-300 transition group">
+          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 group-hover:bg-brand-50">
+            <FiLock className="w-4 h-4 text-slate-400 group-hover:text-brand-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-700">
+              Formatting Reference <span className="text-[10px] font-semibold bg-brand-100 text-brand-700 rounded px-1.5 py-0.5 ml-1">PRO</span>
+            </p>
+            <p className="text-xs text-slate-500">Upload your own CV as a layout guide — upgrade to Pro to unlock.</p>
+          </div>
+          <FiZap className="w-4 h-4 text-brand-500 shrink-0" />
+        </Link>
+      ) : (
       <div className="card p-4">
         <div className="flex items-center gap-1.5 mb-3">
           <FiFile className="w-3.5 h-3.5 text-brand-500" />
@@ -310,6 +328,7 @@ export default function TemplatePage() {
           </p>
         )}
       </div>
+      )}
 
       {/* Output format */}
       <div className="card p-4">
