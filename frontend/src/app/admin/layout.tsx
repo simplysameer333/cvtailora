@@ -1,4 +1,5 @@
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
 import { FiShield } from "react-icons/fi";
 
@@ -17,6 +18,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </div>
       <div className="flex-1">{children}</div>
+      <Footer />
     </div>
   );
 }

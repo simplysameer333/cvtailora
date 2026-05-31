@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { FiUpload, FiZap, FiDownload } from "react-icons/fi";
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import PricingTiers from "@/components/PricingTiers";
 
 const steps = [
@@ -85,9 +86,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer className="text-center py-6 text-sm text-slate-400 border-t border-slate-200 px-4">
-        © {new Date().getFullYear()} TailorMyCv · AI-powered resume tailoring
-      </footer>
+      <Footer />
     </main>
   );
 }

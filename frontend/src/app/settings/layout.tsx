@@ -1,4 +1,5 @@
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -6,7 +7,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <AuthGuard />
       <Navbar />
-      {children}
+      <div className="flex-1">{children}</div>
+      <Footer />
     </div>
   );
 }
