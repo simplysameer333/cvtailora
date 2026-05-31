@@ -49,11 +49,11 @@ async def parse_linkedin_profile(body: LinkedInParseBody):
             400, "Please enter a valid LinkedIn profile URL (linkedin.com/in/username)."
         )
 
-    if not settings.linkdapi_key:
+    if not settings.rapidapi_key:
         raise HTTPException(503, _SERVICE_UNAVAILABLE)
 
     try:
-        profile = await fetch_profile(url, settings.linkdapi_key)
+        profile = await fetch_profile(url, settings.rapidapi_key)
 
     except ValueError as exc:
         if str(exc) == "linkedin_api_unavailable":

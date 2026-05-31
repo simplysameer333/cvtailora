@@ -1,4 +1,4 @@
-"""LinkedIn profile fetcher via LinkdAPI (linkdapi.com)."""
+"""LinkedIn profile fetcher via LinkdAPI on RapidAPI."""
 from __future__ import annotations
 
 import logging
@@ -8,7 +8,8 @@ import httpx
 
 logger = logging.getLogger("tailormycv")
 
-_BASE_URL = "https://linkdapi.com"
+_RAPIDAPI_HOST = "linkdapi-best-unofficial-linkedin-api.p.rapidapi.com"
+_BASE_URL = f"https://{_RAPIDAPI_HOST}"
 _LINKEDIN_URL_RE = re.compile(
     r"^https?://(www\.)?linkedin\.com/in/[a-zA-Z0-9\-_%\.]+/?(\?.*)?$"
 )
@@ -150,8 +151,8 @@ def _normalize(data: dict) -> dict:
     }
 
 
-async def fetch_profile(linkedin_url: str, linkdapi_key: str) -> dict:
-    """Fetch and normalise a LinkedIn profile via the LinkdAPI full-profile endpoint.
+async def fetch_profile(linkedin_url: str, rapidapi_key: str) -> dict:
+    """Fetch and normalise a LinkedIn profile via LinkdAPI on RapidAPI.
 
     Raises:
         ValueError: invalid URL format or API returned an error response
@@ -168,7 +169,10 @@ async def fetch_profile(linkedin_url: str, linkdapi_key: str) -> dict:
         resp = await client.get(
             f"{_BASE_URL}/api/v1/profile/full",
             params={"username": username},
-            headers={"X-linkdapi-apikey": linkdapi_key},
+            headers={
+                "x-rapidapi-host": _RAPIDAPI_HOST,
+                "x-rapidapi-key": rapidapi_key,
+            },
         )
         resp.raise_for_status()
 
