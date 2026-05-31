@@ -3,6 +3,11 @@
 POST /api/linkedin/parse — validate URL, fetch profile via LinkdAPI, return
 normalised data + raw_text so the frontend can confirm and pass to the upload
 session.
+
+TODO: LinkedIn import is no longer exposed in the UI (removed 2026-06-01) due to
+limited data returned (no email, inconsistent fields). If this endpoint remains
+unused, remove the router, linkedin_service.py, and RAPIDAPI_KEY dependency on
+LinkedIn entirely in a future cleanup.
 """
 import logging
 import traceback
