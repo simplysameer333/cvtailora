@@ -24,6 +24,8 @@ from database import get_db
 from dependencies.auth import get_optional_user
 from services.resume_parser import parse_resume
 from services.storage import get_storage
+from services.resume_checker_service import check_resume as _check_resume
+from config import settings
 
 router = APIRouter()
 logger = logging.getLogger("tailormycv")
@@ -181,3 +183,36 @@ async def upload_sample_cv(
     )
 
     return {"filename": file.filename, "characters": len(parsed["raw_text"])}
+
+
+@router.post("/resume/check")
+async def check_resume_quality(file: UploadFile = File(...)):
+    """Analyse a resume and return a structured quality report.
+
+    No authentication required — available to all users including anonymous.
+    Returns 6-category breakdown with scores and improvement suggestions.
+    """
+    if file.content_type not in ACCEPTED_TYPES:
+        raise HTTPException(400, "Only PDF and DOCX files are accepted.")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(400, "File exceeds 5 MB limit.")
+
+    try:
+        parsed = parse_resume(file_bytes, file.filename)
+    except Exception as exc:
+        raise HTTPException(422, f"Failed to parse resume: {exc}")
+
+    if not parsed.get("raw_text", "").strip():
+        raise HTTPException(422, "Could not extract text from this file. Try a plain PDF or DOCX.")
+
+    try:
+        result = await _check_resume(parsed["raw_text"], settings.anthropic_api_key)
+    except ValueError as exc:
+        raise HTTPException(502, str(exc))
+    except Exception as exc:
+        logger.exception("[checker] Unexpected error")
+        raise HTTPException(502, "Resume analysis failed. Please try again.")
+
+    return result

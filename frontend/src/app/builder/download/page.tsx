@@ -1,13 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { exportResume, downloadUrl, saveResumeFromSession } from "@/lib/api";
+import { exportResume, downloadUrl, saveResumeFromSession, type EvalSummary } from "@/lib/api";
 import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
 import {
   FiDownload, FiCheckCircle,
-  FiAlertCircle, FiRefreshCw, FiArrowLeft, FiBookmark, FiLock,
+  FiAlertCircle, FiRefreshCw, FiArrowLeft, FiBookmark, FiLock, FiAward,
 } from "react-icons/fi";
 import Link from "next/link";
 import { useAuth } from "@/lib/useAuth";
@@ -62,6 +62,14 @@ export default function DownloadPage() {
   const [files, setFiles] = useState<ExportResult | null>(null);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [savedToLibrary, setSavedToLibrary] = useState(false);
+  const [evalSummary, setEvalSummary] = useState<EvalSummary | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("tailormycv_eval_summary");
+      if (stored) setEvalSummary(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
 
   async function generate() {
     const sessionId = getSessionId();
@@ -119,6 +127,9 @@ export default function DownloadPage() {
             : "Generate DOCX and PDF versions of your tailored resume."}
         </p>
       </div>
+
+      {/* Quality score panel */}
+      {evalSummary && <QualityScorePanel evalSummary={evalSummary} />}
 
       {/* Format cards */}
       <div className="grid grid-cols-2 gap-4 mb-5">
@@ -219,6 +230,47 @@ export default function DownloadPage() {
         </Link>
       </div>
 
+    </div>
+  );
+}
+
+function QualityScorePanel({ evalSummary }: { evalSummary: EvalSummary }) {
+  const { min_score, pass_threshold, all_passed, evaluator_results, cycles } = evalSummary;
+  const delta = min_score - pass_threshold;
+  const label  = delta >= 30 ? "Excellent" : delta >= 10 ? "Strong" : delta >= 0 ? "Good" : "Reviewed";
+  const colors = delta >= 30
+    ? { bg: "bg-green-50",  border: "border-green-200", badge: "bg-green-100 text-green-700",  bar: "bg-green-500"  }
+    : delta >= 10
+    ? { bg: "bg-teal-50",   border: "border-teal-200",  badge: "bg-teal-100  text-teal-700",   bar: "bg-teal-500"   }
+    : delta >= 0
+    ? { bg: "bg-blue-50",   border: "border-blue-200",  badge: "bg-blue-100  text-blue-700",   bar: "bg-blue-500"   }
+    : { bg: "bg-slate-50",  border: "border-slate-200", badge: "bg-slate-100 text-slate-600",  bar: "bg-slate-400"  };
+
+  return (
+    <div className={`rounded-2xl border ${colors.border} ${colors.bg} p-4 mb-5`}>
+      <div className="flex items-center gap-3 mb-3">
+        <FiAward className="w-5 h-5 text-slate-500 shrink-0" />
+        <p className="font-semibold text-slate-700 text-sm">Resume Quality Score</p>
+        <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${colors.badge}`}>
+          {label}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex-1 h-2 bg-white/70 rounded-full overflow-hidden border border-white">
+          <div className={`h-full rounded-full ${colors.bar} transition-all`}
+            style={{ width: `${Math.min(100, Math.max(0, min_score))}%` }} />
+        </div>
+        <span className="text-sm font-bold text-slate-700 shrink-0">{min_score}<span className="text-xs font-normal text-slate-400">/100</span></span>
+      </div>
+
+      <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+        <span>{evaluator_results.length} evaluator{evaluator_results.length !== 1 ? "s" : ""}</span>
+        <span>·</span>
+        <span>{cycles} cycle{cycles !== 1 ? "s" : ""}</span>
+        <span>·</span>
+        <span>{all_passed ? "All evaluators passed" : "Optimised best result returned"}</span>
+      </div>
     </div>
   );
 }

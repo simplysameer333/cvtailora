@@ -114,6 +114,37 @@ export async function adminUpdateTierConfig(payload: {
   return data as TierConfigPayload;
 }
 
+// ── Resume Checker ──────────────────────────────────────────────────────────────
+
+export interface CheckItem {
+  label: string;
+  passed: boolean;
+}
+
+export interface CheckCategory {
+  key: string;
+  name: string;
+  score: number;
+  status: "excellent" | "good" | "needs_work" | "missing";
+  checks: CheckItem[];
+  improvements: string[];
+}
+
+export interface ResumeCheckResult {
+  overall_score: number;
+  summary: string;
+  categories: CheckCategory[];
+}
+
+export async function checkResume(file: File): Promise<ResumeCheckResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post("/api/resume/check", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data as ResumeCheckResult;
+}
+
 // ── LinkedIn ────────────────────────────────────────────────────────────────────
 
 export interface LinkedInProfile {

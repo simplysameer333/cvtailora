@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
-import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell, FiShield, FiSettings } from "react-icons/fi";
+import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell, FiShield, FiSettings, FiCheckSquare } from "react-icons/fi";
 import Logo from "./Logo";
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature } from "@/lib/config";
@@ -45,8 +45,9 @@ export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const onChecker = pathname.startsWith("/resume-checker");
   const onBuilder = pathname.startsWith("/builder");
-  const onJobs = pathname.startsWith("/jobs");
+  const onJobs    = pathname.startsWith("/jobs");
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -69,10 +70,59 @@ export default function Navbar() {
 
         <div className="flex items-center gap-1 sm:gap-3">
 
+          {/* ── CV Checker (all users) ── */}
+          <>
+            <Link
+              href="/resume-checker"
+              title="CV Checker"
+              className={`sm:hidden p-2 rounded-lg transition ${
+                onChecker ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <FiCheckSquare className="w-5 h-5" />
+            </Link>
+            <Link
+              href="/resume-checker"
+              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                onChecker
+                  ? "border-brand-400 bg-brand-50 text-brand-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+              }`}
+            >
+              <FiCheckSquare className="w-4 h-4" />
+              CV Checker
+            </Link>
+          </>
+
+          {/* ── CV Builder ── */}
+          {status === "authenticated" && (
+            <>
+              <Link
+                href="/builder/upload"
+                title="CV Builder"
+                className={`sm:hidden p-2 rounded-lg transition ${
+                  onBuilder ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <FiEdit2 className="w-5 h-5" />
+              </Link>
+              <Link
+                href="/builder/upload"
+                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                  onBuilder
+                    ? "border-brand-400 bg-brand-50 text-brand-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+                }`}
+              >
+                <FiEdit2 className="w-4 h-4" />
+                CV Builder
+              </Link>
+            </>
+          )}
+
           {/* ── Find Jobs ── */}
           {status === "authenticated" && (
             <>
-              {/* Mobile: icon only */}
               <Link
                 href="/jobs"
                 title="Find Jobs"
@@ -82,7 +132,6 @@ export default function Navbar() {
               >
                 <FiBriefcase className="w-5 h-5" />
               </Link>
-              {/* Desktop: icon + label */}
               <Link
                 href="/jobs"
                 className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
@@ -93,34 +142,6 @@ export default function Navbar() {
               >
                 <FiBriefcase className="w-4 h-4" />
                 Find Jobs
-              </Link>
-            </>
-          )}
-
-          {/* ── Builder ── */}
-          {status === "authenticated" && (
-            <>
-              {/* Mobile: icon only */}
-              <Link
-                href="/builder/upload"
-                title="Builder"
-                className={`sm:hidden p-2 rounded-lg transition ${
-                  onBuilder ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <FiEdit2 className="w-5 h-5" />
-              </Link>
-              {/* Desktop: icon + label */}
-              <Link
-                href="/builder/upload"
-                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                  onBuilder
-                    ? "border-brand-400 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-                }`}
-              >
-                <FiEdit2 className="w-4 h-4" />
-                Builder
               </Link>
             </>
           )}
