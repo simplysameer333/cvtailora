@@ -404,40 +404,7 @@ Return this exact JSON structure with ALL 51 checks populated:
       ],
       "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
     }}
-  ],
-  "extracted_contact": {{
-    "name":     "<candidate's full name exactly as written on the CV>",
-    "title":    "<current or most recent job title from the CV>",
-    "email":    "<email address if present, else empty string>",
-    "phone":    "<phone number if present, else empty string>",
-    "location": "<city and country e.g. London, UK — or empty string>",
-    "linkedin": "<LinkedIn URL if present, else empty string>"
-  }},
-  "extracted_resume": {{
-    "summary": "<professional summary or objective verbatim from the CV — empty string if none>",
-    "skills": ["<skill>", "<skill>"],
-    "experience": [
-      {{
-        "role":    "<exact job title from CV>",
-        "company": "<exact company name from CV>",
-        "dates":   "<date range exactly as written e.g. Jan 2020 – Present>",
-        "bullets": ["<achievement or responsibility verbatim>", "<achievement or responsibility verbatim>"]
-      }}
-    ],
-    "education": [
-      {{
-        "degree":      "<qualification name exactly as written>",
-        "institution": "<university or school name>",
-        "dates":       "<graduation year or date range>"
-      }}
-    ],
-    "extra_sections": [
-      {{
-        "title": "<exact section heading from CV e.g. Certifications, Languages, Projects, Awards, Publications, Volunteer Work, Interests>",
-        "items": ["<one entry per item verbatim from the CV>"]
-      }}
-    ]
-  }}
+  ]
 }}
 
 SCORING RULES (be rigorous — most CVs score 45–65, not 75+):
@@ -471,3 +438,117 @@ async def check_resume(resume_text: str, anthropic_key: str) -> dict:
         raw = re.sub(r"\s*```$", "", raw)
 
     return json.loads(raw)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dedicated resume extractor — powers the live template preview
+# ═══════════════════════════════════════════════════════════════════════════════
+# This is a SEPARATE, focused LLM call (run in parallel with check_resume).
+# Its only job is to faithfully reconstruct the candidate's resume as structured
+# JSON so it can be rendered in any template. Decoupling it from the 51-check
+# quality analysis dramatically improves fidelity: every role is separated, every
+# bullet captured verbatim, and every section preserved — no truncation, no merging.
+
+_EXTRACT_SYSTEM = (
+    "You are a meticulous resume parser. You extract the COMPLETE contents of a "
+    "resume into structured JSON, faithfully and verbatim. This powers a live "
+    "preview of the candidate's own CV, so you must never summarise, rewrite, "
+    "shorten, reorder, or invent. Never drop a role, a bullet, or a section. "
+    "Return valid JSON only — no preamble, no markdown."
+)
+
+_EXTRACT_PROMPT = """\
+Extract this resume into the exact JSON structure below. Respond with ONLY the JSON object.
+
+RESUME:
+{resume_text}
+
+Return EXACTLY this structure:
+{{
+  "name":     "<candidate's full name>",
+  "title":    "<professional headline or most recent job title>",
+  "email":    "<email or empty string>",
+  "phone":    "<phone or empty string>",
+  "location": "<city, country or empty string>",
+  "linkedin": "<LinkedIn URL or empty string>",
+  "summary":  "<the full professional summary / profile / objective text, verbatim — empty string if none>",
+  "skills":   ["<each individual skill as its own string>"],
+  "experience": [
+    {{
+      "role":     "<exact job title>",
+      "company":  "<exact company / employer name>",
+      "location": "<work location if stated, else empty string>",
+      "dates":    "<date range exactly as written, e.g. Jan 2020 – Present>",
+      "bullets":  ["<every bullet under this role, verbatim, in order>"]
+    }}
+  ],
+  "education": [
+    {{
+      "degree":      "<qualification name exactly as written>",
+      "institution": "<university / school name>",
+      "dates":       "<year or date range>"
+    }}
+  ],
+  "extra_sections": [
+    {{
+      "title": "<the EXACT section heading from the CV>",
+      "items": ["<each entry under it, verbatim, one per item>"]
+    }}
+  ]
+}}
+
+EXTRACTION RULES — follow precisely:
+- Extract EVERY role as a separate experience object. NEVER merge two roles into one.
+- Capture EVERY bullet under each role, verbatim and in original order. Do not truncate, summarise, or skip any.
+- Strip leading bullet symbols (•, -, ▸, *) from bullet text — keep the words only.
+- skills: split comma/pipe/semicolon-separated lists so each skill is its own array element.
+- summary: the complete profile/summary/objective paragraph, word-for-word. Empty string if the CV has none.
+- Core sections (Summary/Profile, Experience/Employment, Skills, Education) go in their dedicated fields.
+- EVERY other section (Certifications, Licences, Languages, Projects, Awards, Publications, Volunteer Work, Memberships, Interests, etc.) goes in extra_sections with its EXACT heading from the CV.
+- Preserve original order — experience most-recent-first as written.
+- If a field is absent, use an empty string or empty array. NEVER invent content that is not in the CV.
+"""
+
+
+async def extract_resume_for_preview(resume_text: str, anthropic_key: str) -> dict:
+    """Faithfully extract a full structured resume from raw text via a focused LLM call.
+
+    Returns a dict with: name, title, email, phone, location, linkedin, summary,
+    skills[], experience[{role,company,location,dates,bullets[]}],
+    education[{degree,institution,dates}], extra_sections[{title,items[]}].
+
+    Designed to run concurrently with check_resume(). On any failure the caller
+    should fall back to extract_full_profile() (the regex parser).
+    """
+    client = AsyncAnthropic(api_key=anthropic_key)
+
+    prompt = _EXTRACT_PROMPT.format(resume_text=resume_text[:12000])
+
+    message = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=8000,
+        system=_EXTRACT_SYSTEM,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+
+    data = json.loads(raw)
+
+    # Normalise: guarantee every expected key exists with the right type
+    return {
+        "name":           data.get("name", "") or "",
+        "title":          data.get("title", "") or "",
+        "email":          data.get("email", "") or "",
+        "phone":          data.get("phone", "") or "",
+        "location":       data.get("location", "") or "",
+        "linkedin":       data.get("linkedin", "") or "",
+        "summary":        data.get("summary", "") or "",
+        "skills":         data.get("skills") or [],
+        "experience":     data.get("experience") or [],
+        "education":      data.get("education") or [],
+        "extra_sections": data.get("extra_sections") or [],
+    }

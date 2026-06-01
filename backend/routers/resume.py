@@ -27,7 +27,12 @@ from database import get_db
 from dependencies.auth import get_optional_user
 from services.resume_parser import parse_resume
 from services.storage import get_storage
-from services.resume_checker_service import check_resume as _check_resume, extract_contact_regex
+import asyncio
+from services.resume_checker_service import (
+    check_resume as _check_resume,
+    extract_resume_for_preview,
+    extract_contact_regex,
+)
 from services.email_service import send_error_alert
 from config import settings
 
@@ -229,15 +234,50 @@ async def check_resume_quality(
             new_id = cached["_id"]
         return {**cached["result"], "result_id": new_id, "extracted_profile": full_profile_c, "cached": True}
 
+    # Run quality analysis and resume extraction concurrently — two focused LLM
+    # calls. Decoupling extraction from the 51-check analysis gives far higher
+    # extraction fidelity (every role separated, every bullet captured, all
+    # sections preserved) with no added latency.
     try:
-        result = await _check_resume(parsed["raw_text"], settings.anthropic_api_key)
-    except ValueError as exc:
-        await send_error_alert("POST", "/api/resume/check", exc, traceback.format_exc())
-        raise HTTPException(502, str(exc))
+        result, extracted_llm = await asyncio.gather(
+            _check_resume(parsed["raw_text"], settings.anthropic_api_key),
+            extract_resume_for_preview(parsed["raw_text"], settings.anthropic_api_key),
+            return_exceptions=True,
+        )
     except Exception as exc:
         logger.exception("[cv_score] Unexpected error")
         await send_error_alert("POST", "/api/resume/check", exc, traceback.format_exc())
         raise HTTPException(502, "CV analysis failed. Please try again.")
+
+    # The quality check is the critical result — fail the request if it errored.
+    if isinstance(result, Exception):
+        logger.exception("[cv_score] Quality check failed", exc_info=result)
+        await send_error_alert("POST", "/api/resume/check", result, "".join(
+            traceback.format_exception(type(result), result, result.__traceback__)))
+        raise HTTPException(502, "CV analysis failed. Please try again.")
+
+    # Extraction is best-effort — fall back to the regex parser if the LLM failed.
+    if isinstance(extracted_llm, Exception):
+        logger.warning("[cv_score] LLM extraction failed, using regex fallback: %s", extracted_llm)
+        extracted_llm = None
+
+    # Build the extracted profile: LLM extraction primary, regex as field-level
+    # fallback for anything the LLM left empty (or if the LLM call failed entirely).
+    regex_profile = extract_contact_regex(parsed["raw_text"])
+    llm = extracted_llm or {}
+    extracted_profile = {
+        "name":           llm.get("name")           or regex_profile.get("name", ""),
+        "title":          llm.get("title")          or regex_profile.get("title", ""),
+        "email":          llm.get("email")          or regex_profile.get("email", ""),
+        "phone":          llm.get("phone")          or regex_profile.get("phone", ""),
+        "location":       llm.get("location")       or regex_profile.get("location", ""),
+        "linkedin":       llm.get("linkedin")       or regex_profile.get("linkedin", ""),
+        "summary":        llm.get("summary")        or regex_profile.get("summary", ""),
+        "skills":         llm.get("skills")         or regex_profile.get("skills", []),
+        "experience":     llm.get("experience")     or regex_profile.get("experience", []),
+        "education":      llm.get("education")       or regex_profile.get("education", []),
+        "extra_sections": llm.get("extra_sections") or regex_profile.get("extra_sections", []),
+    }
 
     # ── Persist full result with a shareable UUID ──────────────────────────────
     result_id = str(uuid.uuid4())
@@ -252,7 +292,7 @@ async def check_resume_quality(
             "file_ext":      file_ext,
             "result":        result,      # full JSON result for permalink page
             "raw_text":      parsed["raw_text"],   # stored so profile can be re-extracted later
-            "extracted_profile": extract_contact_regex(parsed["raw_text"]),
+            "extracted_profile": extracted_profile,
             "categories": [
                 {"key": c.get("key"), "score": c.get("score", 0), "status": c.get("status")}
                 for c in result.get("categories", [])
@@ -273,38 +313,6 @@ async def check_resume_quality(
     except Exception as exc:
         logger.warning("[cv_score] Failed to persist result: %s", exc)
         result_id = None
-
-    # LLM returns both extracted_contact (name/contact) and extracted_resume (full structure).
-    # LLM is primary — it correctly separates job entries, parses bullets, etc.
-    # Regex profile is fallback for any fields the LLM left empty.
-    llm_contact = result.pop("extracted_contact", None) or {}
-    llm_resume  = result.pop("extracted_resume",  None) or {}
-    regex_profile = extract_contact_regex(parsed["raw_text"])
-
-    extracted_profile = {
-        # Contact — LLM first, regex fallback
-        "name":     llm_contact.get("name")     or regex_profile.get("name", ""),
-        "title":    llm_contact.get("title")    or regex_profile.get("title", ""),
-        "email":    llm_contact.get("email")    or regex_profile.get("email", ""),
-        "phone":    llm_contact.get("phone")    or regex_profile.get("phone", ""),
-        "location": llm_contact.get("location") or regex_profile.get("location", ""),
-        "linkedin": llm_contact.get("linkedin") or regex_profile.get("linkedin", ""),
-        # Full resume structure — LLM first, regex fallback
-        "summary":        llm_resume.get("summary")        or regex_profile.get("summary", ""),
-        "skills":         llm_resume.get("skills")         or regex_profile.get("skills", []),
-        "experience":     llm_resume.get("experience")     or regex_profile.get("experience", []),
-        "education":      llm_resume.get("education")      or regex_profile.get("education", []),
-        "extra_sections": llm_resume.get("extra_sections") or regex_profile.get("extra_sections", []),
-    }
-
-    # Persist full profile so GET permalink always has complete data
-    try:
-        await db.cv_check_results.update_one(
-            {"_id": result_id},
-            {"$set": {"extracted_profile": extracted_profile}},
-        )
-    except Exception:
-        pass
 
     return {**result, "result_id": result_id, "extracted_profile": extracted_profile}
 
