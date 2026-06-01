@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { useDropzone } from "react-dropzone";
@@ -16,21 +16,20 @@ import Link from "next/link";
 import clsx from "clsx";
 import {
   FiUploadCloud, FiCheckCircle, FiFile, FiLock, FiZap,
-  FiDownload, FiRefreshCw, FiBookmark, FiAward,
+  FiDownload, FiRefreshCw, FiBookmark, FiAward, FiArrowLeft,
 } from "react-icons/fi";
 import {
-  ALL_TEMPLATES, LargeTemplatePreview, TemplateThumbnail, SAMPLE,
+  ALL_TEMPLATES, LargeTemplatePreview, SAMPLE, CATEGORY_COLORS,
   type PreviewData, type TemplateInfo,
 } from "@/components/TemplatePreviews";
 
-// ── Convert generated resume → PreviewData for live template preview ──────────
+// ── Convert generated resume → PreviewData ────────────────────────────────────
 
 function toPreviewData(resume: GeneratedResume): PreviewData {
   const skills: string[] =
     resume.skills?.length
       ? resume.skills
       : (resume.sections?.find(s => s.title.toLowerCase().includes("skill"))?.items ?? SAMPLE.skills);
-
   return {
     name:     resume.name     || SAMPLE.name,
     title:    resume.experience?.[0]?.role || SAMPLE.title,
@@ -49,16 +48,62 @@ function toPreviewData(resume: GeneratedResume): PreviewData {
   };
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function getResumeFilename(resume: GeneratedResume | null): string {
-  if (resume?.name) {
-    return resume.name.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
-  }
+function getFilename(resume: GeneratedResume | null): string {
+  if (resume?.name) return resume.name.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
   return "resume";
 }
 
 type ExportResult = { docx_file_id?: string; pdf_file_id?: string; pdf_error?: string };
+
+// ── Template selector card (no iframe — just text info) ───────────────────────
+
+function TemplateCard({
+  info, isSelected, locked, onClick,
+}: {
+  info: TemplateInfo & { _id: string };
+  isSelected: boolean;
+  locked: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={locked}
+      className={clsx(
+        "relative flex flex-col text-left rounded-xl border-2 px-3 py-2.5 transition",
+        locked
+          ? "opacity-50 cursor-not-allowed border-slate-200"
+          : isSelected
+          ? "border-brand-500 bg-brand-50 shadow-sm"
+          : "border-slate-200 hover:border-brand-300 hover:bg-slate-50",
+      )}
+    >
+      {isSelected && !locked && (
+        <div className="absolute top-2 right-2">
+          <FiCheckCircle className="w-3.5 h-3.5 text-brand-500" />
+        </div>
+      )}
+      {locked && (
+        <div className="absolute top-2 right-2">
+          <FiLock className="w-3 h-3 text-slate-400" />
+        </div>
+      )}
+      <div className="flex items-center gap-1.5 mb-1 pr-4">
+        <span className="text-xs font-semibold text-slate-900 truncate">{info.name}</span>
+        <span className={clsx("text-[9px] font-semibold px-1 py-0.5 rounded shrink-0", CATEGORY_COLORS[info.category])}>
+          {info.category}
+        </span>
+      </div>
+      <span className={clsx(
+        "text-[10px] font-semibold px-1.5 py-0.5 rounded w-fit mb-1",
+        info.pages === 1 ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"
+      )}>
+        {info.pages}-page
+      </span>
+      <p className="text-[10px] text-slate-400 leading-snug line-clamp-2">{info.bestFor}</p>
+    </button>
+  );
+}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -78,31 +123,25 @@ export default function TemplatePage() {
   const [evalSummary, setEvalSummary]         = useState<EvalSummary | null>(null);
   const [previewData, setPreviewData]         = useState<PreviewData>(SAMPLE);
 
-  // Export / download state
   const [exporting, setExporting] = useState(false);
   const [files, setFiles]         = useState<ExportResult | null>(null);
   const [saving, setSaving]       = useState(false);
   const [saved, setSaved]         = useState(false);
 
   // Sample CV (Pro)
-  const [sampleFile, setSampleFile]         = useState<File | null>(null);
+  const [sampleFile, setSampleFile]           = useState<File | null>(null);
   const [uploadingSample, setUploadingSample] = useState(false);
-  const [sampleUploaded, setSampleUploaded] = useState(false);
+  const [sampleUploaded, setSampleUploaded]   = useState(false);
 
-  // Merge DB templates with local preview metadata
   const templatesWithPreview: (TemplateInfo & { _id: string })[] = ALL_TEMPLATES.map(info => {
     const dbMatch = dbTemplates.find(t => t.name === info.key || t.name === info.name);
     return { ...info, _id: dbMatch?._id ?? info.key };
   });
 
-  const selectedInfo = selected
-    ? (templatesWithPreview.find(t => t._id === selected) ?? null)
-    : null;
+  const selectedInfo = selected ? (templatesWithPreview.find(t => t._id === selected) ?? null) : null;
 
   useEffect(() => {
     listTemplates().then(setDbTemplates).catch(() => {});
-
-    // Load generated resume from localStorage
     try {
       const storedResume = localStorage.getItem("tailormycv_generated");
       const storedEval   = localStorage.getItem("tailormycv_eval_summary");
@@ -113,19 +152,14 @@ export default function TemplatePage() {
       }
       if (storedEval) setEvalSummary(JSON.parse(storedEval));
     } catch { /* ignore */ }
-
-    // Restore previously selected template
     const savedTemplate = localStorage.getItem("tailormycv_template_id");
     if (savedTemplate) setSelected(savedTemplate);
   }, []);
 
-  // ── Sample CV dropzone ────────────────────────────────────────────────────
+  // ── Sample CV ─────────────────────────────────────────────────────────────
 
-  const onDropSample = useCallback((files: File[]) => {
-    if (files[0]) setSampleFile(files[0]);
-  }, []);
-
-  const { getRootProps: getSampleRootProps, getInputProps: getSampleInputProps, isDragActive: isSampleDrag } = useDropzone({
+  const onDropSample = useCallback((files: File[]) => { if (files[0]) setSampleFile(files[0]); }, []);
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: onDropSample,
     accept: {
       "application/pdf": [".pdf"],
@@ -137,28 +171,23 @@ export default function TemplatePage() {
   async function handleUploadSample() {
     if (!sampleFile) return;
     const sessionId = getSessionId();
-    if (!sessionId) { toast.error("No session — please start from Step 1."); return; }
+    if (!sessionId) { toast.error("No session."); return; }
     setUploadingSample(true);
     try {
       const res = await uploadSampleCv(sessionId, sampleFile);
       setSampleUploaded(true);
       toast.success(`Formatting reference saved (${res.characters.toLocaleString()} chars)`);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Upload failed.";
-      toast.error(msg);
+      toast.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Upload failed.");
     } finally { setUploadingSample(false); }
   }
 
-  // ── Generate + download ───────────────────────────────────────────────────
+  // ── Generate ──────────────────────────────────────────────────────────────
 
   async function handleGenerate() {
-    if (!selected && !sampleUploaded) {
-      toast.error("Select a template to continue.");
-      return;
-    }
+    if (!selected && !sampleUploaded) { toast.error("Select a template to continue."); return; }
     const sessionId = getSessionId();
     if (!sessionId) { toast.error("No session found."); return; }
-
     setExporting(true);
     try {
       if (selected) {
@@ -168,36 +197,92 @@ export default function TemplatePage() {
       const boldKeywords = localStorage.getItem("tailormycv_bold_keywords") !== "false";
       const result = await exportResume(sessionId, canExportPdf, boldKeywords);
       setFiles(result);
-      if (result.pdf_error) {
-        toast(`PDF note: ${result.pdf_error}`, { icon: "⚠️", duration: 6000 });
-      } else {
-        toast.success("Resume ready to download!");
-      }
+      if (result.pdf_error) toast(`PDF note: ${result.pdf_error}`, { icon: "⚠️", duration: 6000 });
+      else toast.success("Resume ready to download!");
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Export failed.";
-      toast.error(msg);
-    } finally {
-      setExporting(false);
-    }
+      toast.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Export failed.");
+    } finally { setExporting(false); }
   }
 
   async function handleSaveToLibrary() {
     const sessionId = getSessionId();
     if (!sessionId) return;
-    const name = getResumeFilename(generatedResume).replace(/_/g, " ");
+    const name = getFilename(generatedResume).replace(/_/g, " ");
     setSaving(true);
     try {
       await saveResumeFromSession(sessionId, `Tailored — ${name}`);
       setSaved(true);
       toast.success("Saved to your Resume Library.");
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(msg ?? "Could not save to library.");
+      toast.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Could not save.");
     } finally { setSaving(false); }
   }
 
-  const filename = getResumeFilename(generatedResume);
+  const filename = getFilename(generatedResume);
   const hasFiles = !!(files?.docx_file_id || files?.pdf_file_id);
+
+  // ── After download: show download panel, not template picker ─────────────
+
+  if (hasFiles) {
+    return (
+      <div className="max-w-lg mx-auto space-y-5">
+        <div className="text-center">
+          <div className="text-4xl mb-3">🎉</div>
+          <h1 className="text-2xl font-bold text-slate-900">Your Resume is Ready!</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {selectedInfo ? `Generated with the ${selectedInfo.name} template.` : "Your tailored resume is ready to download."}
+          </p>
+        </div>
+
+        {evalSummary && <QualityPanel evalSummary={evalSummary} />}
+
+        <div className="card p-5 space-y-3">
+          {files?.docx_file_id && (
+            <a href={downloadUrl(files.docx_file_id)} download={`${filename}.docx`}
+              className="w-full flex items-center justify-center gap-2 btn-primary py-3 text-base">
+              <FiDownload className="w-5 h-5" /> Download Word (.docx)
+            </a>
+          )}
+          {files?.pdf_file_id && (
+            <a href={downloadUrl(files.pdf_file_id)} download={`${filename}.pdf`}
+              className="w-full flex items-center justify-center gap-2 btn-secondary py-3">
+              <FiDownload className="w-4 h-4" /> Download PDF
+            </a>
+          )}
+          {!canExportPdf && (
+            <Link href="/settings/plan"
+              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl py-3 text-sm text-brand-600 font-medium hover:border-brand-300 transition">
+              <FiLock className="w-4 h-4" /> PDF export — Plus / Pro
+            </Link>
+          )}
+          {canSaveLibrary && (
+            <button onClick={handleSaveToLibrary} disabled={saving || saved}
+              className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2">
+              {saved ? <><FiCheckCircle className="w-4 h-4 text-teal-500" /> Saved to Library</>
+                : saving ? <><FiRefreshCw className="w-4 h-4 animate-spin" /> Saving…</>
+                : <><FiBookmark className="w-4 h-4" /> Save to Resume Library</>}
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {/* Choose a different template */}
+          <button
+            onClick={() => { setFiles(null); setSaved(false); }}
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 transition"
+          >
+            <FiArrowLeft className="w-4 h-4" /> Different template
+          </button>
+          <Link href="/builder/upload"
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 transition">
+            Start New Resume →
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Template selection view ───────────────────────────────────────────────
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -206,34 +291,40 @@ export default function TemplatePage() {
         <h1 className="text-2xl font-bold text-slate-900">Choose a Template</h1>
         <p className="text-sm text-slate-500 mt-0.5">
           {canUseAll
-            ? `All ${ALL_TEMPLATES.length} templates available. Your tailored CV will be applied to the chosen design.`
+            ? `All ${ALL_TEMPLATES.length} templates available. Select one to preview, then generate your resume.`
             : `5 templates on Free — upgrade to Plus or Pro for all ${ALL_TEMPLATES.length}.`}
         </p>
       </div>
 
-      {/* Large preview of selected template */}
-      {selectedInfo && (
+      {/* Large live preview — only one iframe, updates on selection */}
+      {selectedInfo ? (
         <LargeTemplatePreview info={selectedInfo} data={previewData} />
+      ) : (
+        <div className="card border-dashed border-slate-200 flex items-center justify-center py-12 text-slate-400 text-sm">
+          Select a template below to preview it with your CV
+        </div>
       )}
 
-      {/* Template gallery — all 15 */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-        {templatesWithPreview.map((info) => {
-          const locked = !canUseAll && info.tier === "plus";
-          return (
-            <TemplateThumbnail
-              key={info._id}
-              info={info}
-              isSelected={selected === info._id}
-              locked={locked}
-              onClick={() => !locked && setSelected(info._id)}
-              data={previewData}
-            />
-          );
-        })}
+      {/* Template selector — text cards only, no iframes */}
+      <div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">All Templates</p>
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+          {templatesWithPreview.map((info) => {
+            const locked = !canUseAll && info.tier === "plus";
+            return (
+              <TemplateCard
+                key={info._id}
+                info={info}
+                isSelected={selected === info._id}
+                locked={locked}
+                onClick={() => !locked && setSelected(info._id)}
+              />
+            );
+          })}
+        </div>
       </div>
 
-      {/* Upgrade nudge for free users */}
+      {/* Upgrade nudge */}
       {!canUseAll && (
         <Link href="/settings/plan"
           className="card flex items-center gap-3 hover:border-brand-300 transition p-4">
@@ -257,16 +348,16 @@ export default function TemplatePage() {
           <div className="flex items-center gap-1.5 mb-2">
             <FiFile className="w-3.5 h-3.5 text-brand-500" />
             <span className="text-sm font-semibold text-slate-800">Formatting Reference</span>
-            <span className="text-xs text-slate-400 ml-1">(optional)</span>
+            <span className="text-xs text-slate-400 ml-1">(optional — overrides template)</span>
           </div>
-          <p className="text-xs text-slate-500 mb-3">Upload your own CV as a layout guide. The AI will mirror its section structure — without copying any content.</p>
+          <p className="text-xs text-slate-500 mb-3">Upload your own CV as a layout guide. The AI mirrors its section structure without copying content.</p>
           {!sampleFile ? (
-            <div {...getSampleRootProps()}
+            <div {...getRootProps()}
               className={clsx("border-2 border-dashed rounded-lg py-4 text-center cursor-pointer transition",
-                isSampleDrag ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:border-brand-400")}>
-              <input {...getSampleInputProps()} />
+                isDragActive ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:border-brand-400")}>
+              <input {...getInputProps()} />
               <FiUploadCloud className="w-5 h-5 mx-auto text-slate-400 mb-1" />
-              <p className="text-sm font-medium text-slate-600">{isSampleDrag ? "Drop it here!" : "Drag & drop a CV"}</p>
+              <p className="text-sm font-medium text-slate-600">{isDragActive ? "Drop it here!" : "Drag & drop a CV"}</p>
               <p className="text-xs text-slate-400 mt-0.5">PDF or DOCX · max 5 MB</p>
             </div>
           ) : (
@@ -283,7 +374,8 @@ export default function TemplatePage() {
               ) : (
                 <div className="flex gap-2 shrink-0">
                   <button onClick={() => setSampleFile(null)} className="text-xs text-slate-400 hover:text-red-500">Remove</button>
-                  <button onClick={handleUploadSample} disabled={uploadingSample} className="btn-secondary text-xs py-1 px-2.5 disabled:opacity-50">
+                  <button onClick={handleUploadSample} disabled={uploadingSample}
+                    className="btn-secondary text-xs py-1 px-2.5 disabled:opacity-50">
                     {uploadingSample ? "Saving…" : "Use as reference"}
                   </button>
                 </div>
@@ -293,79 +385,22 @@ export default function TemplatePage() {
         </div>
       )}
 
-      {/* Quality score (from preview step) */}
       {evalSummary && <QualityPanel evalSummary={evalSummary} />}
 
-      {/* ── Generate + Download ── */}
-      {hasFiles ? (
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center gap-2 text-green-700">
-            <FiCheckCircle className="w-5 h-5 shrink-0" />
-            <p className="font-semibold">Your resume is ready to download!</p>
-          </div>
+      {/* Generate button */}
+      <button
+        onClick={handleGenerate}
+        disabled={exporting || (!selected && !sampleUploaded)}
+        className="w-full btn-primary py-4 text-base flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {exporting
+          ? <><FiRefreshCw className="w-5 h-5 animate-spin" /> Generating files…</>
+          : <><FiDownload className="w-5 h-5" /> Generate &amp; Download</>}
+      </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {files?.docx_file_id && (
-              <a href={downloadUrl(files.docx_file_id)} download={`${filename}.docx`}
-                className="flex items-center justify-center gap-2 btn-primary py-3">
-                <FiDownload className="w-4 h-4" /> Download DOCX
-              </a>
-            )}
-            {files?.pdf_file_id && (
-              <a href={downloadUrl(files.pdf_file_id)} download={`${filename}.pdf`}
-                className="flex items-center justify-center gap-2 btn-secondary py-3">
-                <FiDownload className="w-4 h-4" /> Download PDF
-              </a>
-            )}
-            {!canExportPdf && (
-              <Link href="/settings/plan"
-                className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl py-3 text-sm text-brand-600 font-medium hover:border-brand-300 transition">
-                <FiLock className="w-4 h-4" /> PDF — Plus / Pro
-              </Link>
-            )}
-          </div>
-
-          {canSaveLibrary && (
-            <button onClick={handleSaveToLibrary} disabled={saving || saved}
-              className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2">
-              {saved
-                ? <><FiCheckCircle className="w-4 h-4 text-teal-500" /> Saved to Library</>
-                : saving
-                ? <><FiRefreshCw className="w-4 h-4 animate-spin" /> Saving…</>
-                : <><FiBookmark className="w-4 h-4" /> Save to Resume Library</>}
-            </button>
-          )}
-
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <button onClick={handleGenerate} disabled={exporting}
-              className="flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-brand-600 border border-slate-200 rounded-xl py-2.5 transition disabled:opacity-50">
-              <FiRefreshCw className={`w-3.5 h-3.5 ${exporting ? "animate-spin" : ""}`} />
-              Regenerate
-            </button>
-            <Link href="/builder/upload"
-              className="flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-brand-600 border border-slate-200 rounded-xl py-2.5 transition">
-              Start New Resume →
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={handleGenerate}
-          disabled={exporting || (!selected && !sampleUploaded)}
-          className="w-full btn-primary py-4 text-base flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {exporting
-            ? <><FiRefreshCw className="w-5 h-5 animate-spin" /> Generating files…</>
-            : <><FiDownload className="w-5 h-5" /> Generate &amp; Download</>}
-        </button>
-      )}
-
-      {/* Back */}
-      {!hasFiles && (
-        <div className="flex justify-start pb-2">
-          <button onClick={() => router.back()} className="btn-secondary">← Back</button>
-        </div>
-      )}
+      <div className="flex justify-start pb-2">
+        <button onClick={() => router.back()} className="btn-secondary">← Back</button>
+      </div>
 
     </div>
   );
@@ -378,12 +413,12 @@ function QualityPanel({ evalSummary }: { evalSummary: EvalSummary }) {
   const delta = min_score - pass_threshold;
   const label  = delta >= 30 ? "Excellent" : delta >= 10 ? "Strong" : delta >= 0 ? "Good" : "Reviewed";
   const colors = delta >= 30
-    ? { bg: "bg-green-50",  border: "border-green-200", badge: "bg-green-100 text-green-700",  bar: "bg-green-500"  }
+    ? { bg: "bg-green-50", border: "border-green-200", badge: "bg-green-100 text-green-700", bar: "bg-green-500" }
     : delta >= 10
-    ? { bg: "bg-teal-50",   border: "border-teal-200",  badge: "bg-teal-100  text-teal-700",   bar: "bg-teal-500"   }
+    ? { bg: "bg-teal-50",  border: "border-teal-200",  badge: "bg-teal-100 text-teal-700",   bar: "bg-teal-500"  }
     : delta >= 0
-    ? { bg: "bg-blue-50",   border: "border-blue-200",  badge: "bg-blue-100  text-blue-700",   bar: "bg-blue-500"   }
-    : { bg: "bg-slate-50",  border: "border-slate-200", badge: "bg-slate-100 text-slate-600",  bar: "bg-slate-400"  };
+    ? { bg: "bg-blue-50",  border: "border-blue-200",  badge: "bg-blue-100 text-blue-700",   bar: "bg-blue-500"  }
+    : { bg: "bg-slate-50", border: "border-slate-200", badge: "bg-slate-100 text-slate-600", bar: "bg-slate-400" };
 
   return (
     <div className={`rounded-2xl border ${colors.border} ${colors.bg} p-4`}>
@@ -398,13 +433,9 @@ function QualityPanel({ evalSummary }: { evalSummary: EvalSummary }) {
         </div>
         <span className="text-sm font-bold text-slate-700 shrink-0">{min_score}<span className="text-xs font-normal text-slate-400">/100</span></span>
       </div>
-      <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-        <span>{evaluator_results.length} evaluator{evaluator_results.length !== 1 ? "s" : ""}</span>
-        <span>·</span>
-        <span>{cycles} cycle{cycles !== 1 ? "s" : ""}</span>
-        <span>·</span>
-        <span>{all_passed ? "All evaluators passed" : "Best version selected"}</span>
-      </div>
+      <p className="text-xs text-slate-500">
+        {evaluator_results.length} evaluator{evaluator_results.length !== 1 ? "s" : ""} · {cycles} cycle{cycles !== 1 ? "s" : ""} · {all_passed ? "All passed" : "Best version selected"}
+      </p>
     </div>
   );
 }
