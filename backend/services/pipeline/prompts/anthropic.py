@@ -80,19 +80,8 @@ Forbidden phrases: "results-driven", "passionate about", "detail-oriented", "tea
 - Write exactly 3 bullets per role. For the single most recent or most relevant role only, write 4 bullets if there are 4 genuinely distinct strong achievements. Never exceed 4 bullets for any role.
 - Prefer fewer, stronger bullets over padding with weak ones
 
-## PAGE COUNT — CRITICAL CONSTRAINT
-The resume MUST fit within these hard limits:
-- Candidates with < 7 years experience: target 1 A4 page
-- Candidates with 7–15 years experience: target 2 A4 pages
-- Candidates with 15+ years experience: maximum 2 A4 pages
-
-To achieve this, apply ruthless curation:
-- Roles older than 12 years: reduce to 2 bullets or omit entirely if not relevant
-- Include only the most recent 4 experience entries for candidates with 5+ roles
-- Skills section: list at most 12 skills (the strongest and most relevant)
-- Summary: exactly 3 sentences — never 4
-
-A recruiter spends 7 seconds on first scan. A tight, well-curated 2-page CV always beats a padded 3-page one.
+## PAGE COUNT — HARD TEMPLATE CONSTRAINT
+{page_rules}
 
 The exact JSON output format and section structure will be specified in the user message."""
 
@@ -177,10 +166,39 @@ async def _get_anthropic_evaluator_base() -> str:
         return _ANTHROPIC_EVALUATOR_BASE
 
 
-async def _build_generator_system(tone: str, profession_config: dict, locked_facts: list) -> str:
+def _page_rules(pages: int) -> str:
+    """Return hard page-count rules for the generator based on the selected template."""
+    if pages == 1:
+        return (
+            "The selected template fits exactly **1 A4 page**. This is a non-negotiable hard limit.\n"
+            "You are a senior CV writer — curate content ruthlessly so everything fits on one page:\n"
+            "- Summary: 2 sentences maximum — every word must earn its place\n"
+            "- Experience: at most 3 roles (most recent and most relevant only)\n"
+            "- Bullets: exactly 2 per role; 3 only for the most recent role if space allows\n"
+            "- Each bullet: maximum 12 words — cut ruthlessly, no padding\n"
+            "- Skills: maximum 8 skills — strongest and most relevant only\n"
+            "- Omit optional sections (certifications, languages, interests) unless critical\n"
+            "A 1-page CV that fits perfectly is worth far more than one that spills to a second page."
+        )
+    else:
+        return (
+            "The selected template fits exactly **2 A4 pages**. This is a non-negotiable hard limit.\n"
+            "You are a senior CV writer — curate content so it fills 2 pages but never spills to a 3rd:\n"
+            "- Summary: exactly 3 sentences — no more, no less\n"
+            "- Experience: at most 5 roles; for 6+ role careers keep only the most recent 5\n"
+            "- Bullets: exactly 3 per role; 4 only for the most recent role with genuinely distinct achievements\n"
+            "- Each bullet: maximum 20 words — be concise and impactful\n"
+            "- Skills: maximum 12 skills — strongest and most relevant\n"
+            "- Roles older than 12 years: reduce to 2 bullets or omit entirely if not relevant\n"
+            "A tight, well-curated 2-page CV always outperforms a padded 3-page one."
+        )
+
+
+async def _build_generator_system(tone: str, profession_config: dict, locked_facts: list,
+                                   template_pages: int = 2) -> str:
     """Compose the full generator system prompt from base + profession context + locked facts."""
     base = await _get_generator_base()
-    system = TOON_LEGEND + "\n\n" + base.replace("{tone}", tone)
+    system = TOON_LEGEND + "\n\n" + base.replace("{tone}", tone).replace("{page_rules}", _page_rules(template_pages))
     ctx = profession_config.get("generator_context", "")
     if ctx:
         system += f"\n\n## {ctx}"
@@ -205,9 +223,10 @@ async def generator_messages(
     locked_facts: list,
     key_skills: list,
     sample_cv_text: str | None = None,
+    template_pages: int = 2,
 ) -> list:
     """Build the full message list for a generator run (full resume generation)."""
-    system = await _build_generator_system(tone, profession_config, locked_facts)
+    system = await _build_generator_system(tone, profession_config, locked_facts, template_pages)
     parts = [
         f"## EXISTING RESUME\n{resume_text}",
         f"## CANDIDATE PROFILE\n{toon_encode(user_profile)}",

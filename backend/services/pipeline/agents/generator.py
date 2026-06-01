@@ -41,10 +41,12 @@ class GeneratorAgent(BaseAgent):
         key_skills: list | None = None,
         sample_cv_text: str | None = None,
         feedback: str | None = None,
+        template_pages: int = 2,
     ) -> dict:
         messages = await generator_messages(
             resume_text, user_profile, job_description, tone, feedback,
             profession_config, locked_facts or [], key_skills or [], sample_cv_text,
+            template_pages=template_pages,
         )
         response = await self._model().ainvoke(messages)
         return parse_json_response(response.content)

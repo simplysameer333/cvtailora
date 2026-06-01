@@ -42,6 +42,7 @@ async def generate_node(state: PipelineState) -> dict:
         key_skills=state.get("key_skills") or [],
         sample_cv_text=state.get("sample_cv_text"),
         feedback=state.get("feedback"),
+        template_pages=state.get("template_pages", 2),
     )
     return {"resume_json": resume_json}
 

@@ -49,3 +49,7 @@ class PipelineState(TypedDict):
     # Minimum score all evaluators must reach before exiting the loop.
     # Free=75, Plus=83, Pro=92 — higher tiers run more refinement cycles.
     pass_threshold: int
+    # ── template page constraint ──────────────────────────────────────────────
+    # Number of A4 pages the selected template is designed for (1 or 2).
+    # The generator uses this as a hard content-length constraint.
+    template_pages: int

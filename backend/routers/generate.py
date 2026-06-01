@@ -34,6 +34,17 @@ from config import settings
 from dependencies.auth import get_optional_user
 from services.pipeline import pipeline, generator
 from services.pipeline.agents.job_analyzer import JobAnalyzerAgent
+
+# Maps template key → number of A4 pages the template is designed for.
+# Used to give the LLM a hard content-length constraint during generation.
+_TEMPLATE_PAGES: dict[str, int] = {
+    "Cambridge":   1, "Swift":      1, "Catalyst":  1, "Canvas":    1,
+    "TechModern":  1, "SalesImpact":1,
+    "Horizon":     2, "Prestige":   2, "Admiral":   2, "Jade":      2,
+    "Prism":       2, "Vivid":      2, "Chronicle": 2, "Summit":    2,
+    "Symmetry":    2, "Scholar":    2, "Luxe":      2, "Pulse":     2,
+    "HexagonPro":  2, "Healthcare": 2,
+}
 from services.profession_service import resolve_profession_for_role
 from services.email_service import send_quality_alert, send_error_alert
 
@@ -266,6 +277,8 @@ async def generate(
     active_evaluator_count = sum(enabled_evaluators.values())
     await _check_cost_limit(db, session_id)
 
+    template_pages = _TEMPLATE_PAGES.get(template_id, 2)
+
     initial_state = {
         "resume_text": resume_text,
         "user_profile": user_profile,
@@ -277,6 +290,7 @@ async def generate(
         "sample_cv_text": sample_cv_text,
         "enabled_evaluators": enabled_evaluators,
         "pass_threshold": pass_threshold,
+        "template_pages": template_pages,
         "cycle": 0,
         "feedback": None,
         "resume_json": None,
