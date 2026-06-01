@@ -941,9 +941,7 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
 
 // CV Score — 4 template suggestions with large preview + clickable thumbnails
 export function TemplateSuggestions({ extractedProfile }: {
-  extractedProfile?: {
-    name?: string; title?: string; email?: string; phone?: string; linkedin?: string;
-  };
+  extractedProfile?: import("@/lib/api").ExtractedProfile;
 }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
 
@@ -956,17 +954,35 @@ export function TemplateSuggestions({ extractedProfile }: {
     ALL_TEMPLATES.find(t => t.key === "Swift")!,     // 1-page: dark header, ultra-dense
   ];
 
-  // Only show a real preview when we have an actual name from the uploaded CV.
-  // When no profile data is available we show thumbnails only (no large preview)
-  // so we never display generic placeholder content as if it were the user's CV.
+  // Build full PreviewData from the extracted profile so every section
+  // shows the user's actual CV content, not demo data.
   const hasRealProfile = !!(extractedProfile?.name && extractedProfile.name.trim());
   const previewData: PreviewData = hasRealProfile ? {
-    ...SAMPLE_THUMB,
     name:     extractedProfile!.name     || SAMPLE_THUMB.name,
     title:    extractedProfile!.title    || SAMPLE_THUMB.title,
     email:    extractedProfile!.email    || SAMPLE_THUMB.email,
     phone:    extractedProfile!.phone    || SAMPLE_THUMB.phone,
+    location: SAMPLE_THUMB.location,
     linkedin: extractedProfile!.linkedin || SAMPLE_THUMB.linkedin,
+    summary:  extractedProfile!.summary  || SAMPLE_THUMB.summary,
+    skills:   extractedProfile!.skills?.length
+                ? extractedProfile!.skills
+                : SAMPLE_THUMB.skills,
+    experience: extractedProfile!.experience?.length
+                ? extractedProfile!.experience.map(e => ({
+                    title:   e.role,
+                    company: e.company,
+                    date:    e.dates,
+                    bullets: e.bullets,
+                  }))
+                : SAMPLE_THUMB.experience,
+    education: extractedProfile!.education?.length
+                ? extractedProfile!.education.map(e => ({
+                    degree: e.degree,
+                    school: e.institution,
+                    year:   e.dates,
+                  }))
+                : SAMPLE_THUMB.education,
   } : SAMPLE_THUMB;
 
   const selected = shown[selectedIdx];

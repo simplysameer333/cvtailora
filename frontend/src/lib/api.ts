@@ -136,6 +136,10 @@ export interface ExtractedProfile {
   email: string;
   phone: string;
   linkedin: string;
+  summary?: string;
+  skills?: string[];
+  experience?: { role: string; company: string; dates: string; bullets: string[] }[];
+  education?: { degree: string; institution: string; dates: string }[];
 }
 
 export interface ResumeCheckResult {

@@ -181,7 +181,24 @@ Return this exact JSON structure with ALL 51 checks populated:
     "title":    "<current or most recent job title from the CV>",
     "email":    "<email address if present, else empty string>",
     "phone":    "<phone number if present, else empty string>",
-    "linkedin": "<LinkedIn URL if present, else empty string>"
+    "linkedin": "<LinkedIn URL if present, else empty string>",
+    "summary":  "<professional summary from the CV — copy it verbatim, 2-4 sentences — or empty string if none>",
+    "skills":   ["<skill 1>", "<skill 2>", "<skill 3>"],
+    "experience": [
+      {{
+        "role":    "<job title>",
+        "company": "<company name>",
+        "dates":   "<date range e.g. Jan 2020 – Present>",
+        "bullets": ["<achievement or responsibility>", "<achievement or responsibility>"]
+      }}
+    ],
+    "education": [
+      {{
+        "degree":      "<degree or qualification name>",
+        "institution": "<university or school name>",
+        "dates":       "<graduation year or date range>"
+      }}
+    ]
   }}
 }}
 
