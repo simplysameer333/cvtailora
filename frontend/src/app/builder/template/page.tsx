@@ -12,7 +12,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { FiUploadCloud, FiCheckCircle, FiFile, FiFileText, FiLayers, FiLock, FiZap } from "react-icons/fi";
 import {
-  ALL_TEMPLATES, LargeTemplatePreview, TemplateThumbnail, type TemplateInfo,
+  ALL_TEMPLATES, LargeTemplatePreview, TemplateThumbnail, type PreviewData,
 } from "@/components/TemplatePreviews";
 
 type OutputFormat = "docx" | "pdf" | "both";
@@ -35,9 +35,22 @@ export default function TemplatePage() {
   const isPdfEnabled = hasFeature(tier, "pdf_export");
   const canUseAllTemplates = tier === "plus" || tier === "pro";
 
-  // Live preview: use authenticated user's name when available
-  const previewName  = session?.user?.name ?? undefined;
-  const previewTitle = undefined; // title not in session; preview uses default
+  // Build preview data from session — fills user's name; rest uses sample content
+  const previewData: PreviewData | undefined = session?.user?.name ? {
+    name:     session.user.name,
+    title:    "Senior Professional",
+    email:    session.user.email ?? "your@email.com",
+    phone:    "+44 7700 900 000",
+    location: "London, UK",
+    linkedin: "linkedin.com/in/yourprofile",
+    summary:  "Results-driven professional with 8+ years of experience delivering high-impact projects. Consistently exceeded targets and led cross-functional teams to success.",
+    skills:   ["Leadership", "Strategy", "Project Management", "Communication", "Analysis", "Python", "SQL", "AWS"],
+    experience: [
+      { title: "Senior Manager", company: "Your Company", date: "2021 – Present", bullets: ["Led team of 8 delivering 40% efficiency improvements", "Managed $2M budget with 15% cost savings"] },
+      { title: "Manager", company: "Previous Company", date: "2018 – 2021", bullets: ["Delivered 3 major projects on time and under budget", "Grew team from 3 to 7 people"] },
+    ],
+    education: [{ degree: "Bachelor's Degree", school: "University", year: "2017" }],
+  } : undefined;
 
   const [dbTemplates, setDbTemplates] = useState<Template[]>([]);
   const [selected, setSelected]       = useState<string | null>(null);
@@ -117,17 +130,13 @@ export default function TemplatePage() {
           {canUseAllTemplates
             ? `All ${ALL_TEMPLATES.length} templates available on your plan.`
             : `5 templates on Free — upgrade to Plus or Pro for all ${ALL_TEMPLATES.length}.`}
-          {previewName && <span className="ml-1 text-brand-600">Previewing with your name.</span>}
+          {previewData && <span className="ml-1 text-brand-600">Previewing with your details.</span>}
         </p>
       </div>
 
       {/* Large preview of selected template */}
       {selectedInfo && (
-        <LargeTemplatePreview
-          info={selectedInfo}
-          previewName={previewName}
-          previewTitle={previewTitle}
-        />
+        <LargeTemplatePreview info={selectedInfo} data={previewData} />
       )}
 
       {/* Template gallery */}
@@ -141,8 +150,7 @@ export default function TemplatePage() {
               isSelected={selected === info._id}
               locked={locked}
               onClick={() => !locked && setSelected(info._id)}
-              previewName={previewName}
-              previewTitle={previewTitle}
+              data={previewData}
             />
           );
         })}

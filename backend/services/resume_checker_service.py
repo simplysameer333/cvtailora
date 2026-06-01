@@ -16,15 +16,15 @@ _SYSTEM = (
 )
 
 _PROMPT = """\
-Analyse this CV and return a JSON evaluation. Respond with ONLY the JSON object, no extra text.
+Analyse this CV rigorously and return a JSON evaluation. Respond with ONLY the JSON object, no extra text.
 
 CV:
 {resume_text}
 
-Return this exact JSON structure:
+Return this exact JSON structure with ALL 51 checks populated:
 {{
   "overall_score": <integer 0-100>,
-  "summary": "<2-sentence overall assessment>",
+  "summary": "<2-sentence overall assessment mentioning the strongest and weakest area>",
   "categories": [
     {{
       "key": "contact",
@@ -32,13 +32,15 @@ Return this exact JSON structure:
       "score": <integer 0-100>,
       "status": <"excellent"|"good"|"needs_work"|"missing">,
       "checks": [
-        {{"label": "Full name present", "passed": <bool>}},
-        {{"label": "Email address", "passed": <bool>}},
-        {{"label": "Phone number", "passed": <bool>}},
-        {{"label": "LinkedIn URL", "passed": <bool>}},
-        {{"label": "Location / city", "passed": <bool>}}
+        {{"label": "Full name clearly displayed", "passed": <bool>}},
+        {{"label": "Professional email address", "passed": <bool>}},
+        {{"label": "Phone number with country code", "passed": <bool>}},
+        {{"label": "LinkedIn profile URL", "passed": <bool>}},
+        {{"label": "City / location listed", "passed": <bool>}},
+        {{"label": "GitHub or portfolio URL", "passed": <bool>}},
+        {{"label": "No unprofessional email domain (e.g. hotmail, yahoo)", "passed": <bool>}}
       ],
-      "improvements": ["<specific actionable suggestion>"]
+      "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
     }},
     {{
       "key": "summary",
@@ -46,13 +48,16 @@ Return this exact JSON structure:
       "score": <integer 0-100>,
       "status": <"excellent"|"good"|"needs_work"|"missing">,
       "checks": [
-        {{"label": "Summary section present", "passed": <bool>}},
+        {{"label": "Summary or objective section present", "passed": <bool>}},
         {{"label": "Appropriate length (3–6 sentences)", "passed": <bool>}},
-        {{"label": "Mentions years of experience", "passed": <bool>}},
-        {{"label": "Highlights core expertise", "passed": <bool>}},
-        {{"label": "Avoids generic phrases (e.g. 'hard-working')", "passed": <bool>}}
+        {{"label": "States years of experience", "passed": <bool>}},
+        {{"label": "Names current or target role/industry", "passed": <bool>}},
+        {{"label": "Highlights a key achievement or value", "passed": <bool>}},
+        {{"label": "Avoids clichés ('hard-working', 'team player', 'passionate')", "passed": <bool>}},
+        {{"label": "Written in third person or omits personal pronouns", "passed": <bool>}},
+        {{"label": "Tailored to apparent target role (not generic)", "passed": <bool>}}
       ],
-      "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
+      "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>", "<specific actionable suggestion>"]
     }},
     {{
       "key": "experience",
@@ -60,13 +65,17 @@ Return this exact JSON structure:
       "score": <integer 0-100>,
       "status": <"excellent"|"good"|"needs_work"|"missing">,
       "checks": [
-        {{"label": "At least 2 roles listed", "passed": <bool>}},
-        {{"label": "Company names and dates present", "passed": <bool>}},
-        {{"label": "Quantified achievements (numbers, %, $)", "passed": <bool>}},
-        {{"label": "Strong action verbs used", "passed": <bool>}},
-        {{"label": "Reverse chronological order", "passed": <bool>}}
+        {{"label": "At least 2 relevant roles listed", "passed": <bool>}},
+        {{"label": "Company name and job title for every role", "passed": <bool>}},
+        {{"label": "Start and end dates for every role", "passed": <bool>}},
+        {{"label": "Reverse chronological order (most recent first)", "passed": <bool>}},
+        {{"label": "Uses quantified achievements (numbers, %, $, scale)", "passed": <bool>}},
+        {{"label": "Starts bullet points with strong action verbs", "passed": <bool>}},
+        {{"label": "At least 3 bullet points per recent role", "passed": <bool>}},
+        {{"label": "No unexplained employment gaps longer than 6 months", "passed": <bool>}},
+        {{"label": "Current role described in present tense, past roles in past tense", "passed": <bool>}}
       ],
-      "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
+      "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>", "<specific actionable suggestion>"]
     }},
     {{
       "key": "skills",
@@ -75,11 +84,14 @@ Return this exact JSON structure:
       "status": <"excellent"|"good"|"needs_work"|"missing">,
       "checks": [
         {{"label": "Dedicated skills section present", "passed": <bool>}},
-        {{"label": "Technical / hard skills listed", "passed": <bool>}},
-        {{"label": "Skills organised by category", "passed": <bool>}},
-        {{"label": "Relevant to apparent target role", "passed": <bool>}}
+        {{"label": "At least 8 technical or hard skills listed", "passed": <bool>}},
+        {{"label": "Skills organised by category or type", "passed": <bool>}},
+        {{"label": "No generic soft skills only (e.g. 'communication')", "passed": <bool>}},
+        {{"label": "Skills relevant to apparent target role", "passed": <bool>}},
+        {{"label": "Programming languages or tools included (if technical role)", "passed": <bool>}},
+        {{"label": "No outdated or irrelevant technologies listed", "passed": <bool>}}
       ],
-      "improvements": ["<specific actionable suggestion>"]
+      "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
     }},
     {{
       "key": "education",
@@ -87,12 +99,14 @@ Return this exact JSON structure:
       "score": <integer 0-100>,
       "status": <"excellent"|"good"|"needs_work"|"missing">,
       "checks": [
-        {{"label": "Degree(s) listed", "passed": <bool>}},
-        {{"label": "Institution names present", "passed": <bool>}},
-        {{"label": "Graduation years included", "passed": <bool>}},
-        {{"label": "Certifications listed", "passed": <bool>}}
+        {{"label": "Highest degree / qualification listed", "passed": <bool>}},
+        {{"label": "Institution name present", "passed": <bool>}},
+        {{"label": "Graduation year included", "passed": <bool>}},
+        {{"label": "Relevant certifications or licences listed", "passed": <bool>}},
+        {{"label": "Certification issuer mentioned", "passed": <bool>}},
+        {{"label": "Field of study specified", "passed": <bool>}}
       ],
-      "improvements": ["<specific actionable suggestion>"]
+      "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
     }},
     {{
       "key": "ats",
@@ -100,13 +114,16 @@ Return this exact JSON structure:
       "score": <integer 0-100>,
       "status": <"excellent"|"good"|"needs_work"|"missing">,
       "checks": [
-        {{"label": "Standard section headings used", "passed": <bool>}},
-        {{"label": "Consistent date formatting", "passed": <bool>}},
-        {{"label": "Industry keywords present", "passed": <bool>}},
-        {{"label": "No excessive jargon or filler phrases", "passed": <bool>}},
-        {{"label": "Clean, parseable structure", "passed": <bool>}}
+        {{"label": "Standard section headings (e.g. 'Experience', not 'My Journey')", "passed": <bool>}},
+        {{"label": "Consistent date format throughout (e.g. MM/YYYY)", "passed": <bool>}},
+        {{"label": "Industry-specific keywords present", "passed": <bool>}},
+        {{"label": "No tables, columns, or text boxes (ATS cannot parse these)", "passed": <bool>}},
+        {{"label": "No headers or footers with critical contact info", "passed": <bool>}},
+        {{"label": "No embedded images or graphics", "passed": <bool>}},
+        {{"label": "Role title appears in summary or title line", "passed": <bool>}},
+        {{"label": "No excessive use of abbreviations without spelling out first", "passed": <bool>}}
       ],
-      "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
+      "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>", "<specific actionable suggestion>"]
     }},
     {{
       "key": "design",
@@ -114,23 +131,27 @@ Return this exact JSON structure:
       "score": <integer 0-100>,
       "status": <"excellent"|"good"|"needs_work"|"missing">,
       "checks": [
-        {{"label": "Appropriate CV length (1–2 pages)", "passed": <bool>}},
-        {{"label": "Consistent structure and section order", "passed": <bool>}},
-        {{"label": "Clear visual hierarchy (headers, bullets)", "passed": <bool>}},
-        {{"label": "No excessive special characters or symbols", "passed": <bool>}},
-        {{"label": "Dates and locations consistently formatted", "passed": <bool>}}
+        {{"label": "Appropriate CV length (1–2 pages for <10 years; up to 3 for 15+ years)", "passed": <bool>}},
+        {{"label": "Consistent font and text size throughout", "passed": <bool>}},
+        {{"label": "Clear visual hierarchy (headings larger than body)", "passed": <bool>}},
+        {{"label": "Adequate white space — not cluttered", "passed": <bool>}},
+        {{"label": "Bullet points used consistently (not mixed with paragraphs)", "passed": <bool>}},
+        {{"label": "Consistent alignment and indentation", "passed": <bool>}},
+        {{"label": "No spelling errors detected in section headings", "passed": <bool>}}
       ],
       "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
     }}
   ]
 }}
 
-Scoring rules:
-- overall_score = weighted average: experience 25%, skills 20%, ats 15%, summary 15%, design 10%, contact 10%, education 5%
-- status thresholds: 80-100 = excellent, 60-79 = good, 40-59 = needs_work, 0-39 = missing
-- improvements: 1-3 specific, actionable suggestions (even for high-scoring categories)
-- Be concrete, not generic (e.g. "Add GitHub profile URL" not "Add more contact info")
-- For design: infer from text structure — consistent indentation, date formats, bullet style, section naming, approximate length
+SCORING RULES (be rigorous — most CVs score 45–65, not 75+):
+- overall_score = weighted average: experience 25%, skills 20%, ats 20%, summary 15%, design 10%, contact 7%, education 3%
+- Be conservative: a CV needs to pass 80%+ of checks in a category to score above 75
+- status thresholds: 85-100 = excellent (rare), 65-84 = good, 40-64 = needs_work, 0-39 = missing/poor
+- Every failed check MUST reduce the score meaningfully — failing 2 checks should not still give 80+
+- improvements: 2-3 specific, actionable suggestions per category — even for high scorers
+- Be concrete and critical: "Your summary contains the cliché 'passionate about' — remove it" not "Improve your summary"
+- Assume the CV needs improvement unless the evidence is overwhelming
 """
 
 

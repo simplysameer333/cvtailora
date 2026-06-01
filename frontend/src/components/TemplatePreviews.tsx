@@ -4,505 +4,768 @@ import Link from "next/link";
 import { FiCheckCircle, FiArrowRight, FiLock } from "react-icons/fi";
 import clsx from "clsx";
 
-// ── Preview props ─────────────────────────────────────────────────────────────
+// ── Preview data ──────────────────────────────────────────────────────────────
 
-export interface PreviewProps {
-  name?: string;
-  title?: string;
+export interface PreviewData {
+  name: string;
+  title: string;
+  email: string;
+  phone: string;
+  location: string;
+  linkedin: string;
+  summary: string;
+  skills: string[];
+  experience: { title: string; company: string; date: string; bullets: string[] }[];
+  education: { degree: string; school: string; year: string }[];
 }
 
-const DEFAULT_NAME  = "Alex Johnson";
-const DEFAULT_TITLE = "Senior Software Engineer";
+export const SAMPLE: PreviewData = {
+  name:     "Alex Johnson",
+  title:    "Senior Software Engineer",
+  email:    "alex@email.com",
+  phone:    "+44 7700 900 123",
+  location: "London, UK",
+  linkedin: "linkedin.com/in/alexj",
+  summary:  "Results-driven Software Engineer with 8+ years designing scalable distributed systems. Led teams delivering 40% latency improvements serving 50M daily users.",
+  skills:   ["Python", "TypeScript", "AWS", "Kubernetes", "PostgreSQL", "Redis", "React", "System Design"],
+  experience: [
+    { title: "Senior Software Engineer", company: "Google DeepMind", date: "2021 – Present",
+      bullets: ["Re-architected ML serving pipeline, reducing P99 latency by 40%", "Mentored 4 engineers; introduced weekly design reviews", "Built feature store serving 50M predictions/day"] },
+    { title: "Software Engineer", company: "Stripe", date: "2018 – 2021",
+      bullets: ["Built payment reconciliation processing $2B+ annually", "Improved test coverage from 45% to 92% across core modules"] },
+  ],
+  education: [{ degree: "BSc Computer Science", school: "University College London", year: "2018" }],
+};
 
-// ── 15 template preview components ───────────────────────────────────────────
+const W = 600; // base template width in px
 
-export function CleanPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
+// ── Scaling wrapper ───────────────────────────────────────────────────────────
+
+function Scaled({ children, scale }: { children: React.ReactNode; scale: number }) {
+  const w = Math.round(W * scale);
+  const h = Math.round(W * 1.414 * scale); // A4 ratio
   return (
-    <div className="w-full h-full bg-white p-2.5 flex flex-col gap-1.5 font-sans text-[5px] leading-tight select-none overflow-hidden">
-      <div className="font-bold text-[8px] text-gray-900">{name}</div>
-      <div className="text-gray-500 text-[4.5px]">alex@email.com · +44 7700 900000 · London</div>
-      <div className="border-t border-gray-300 mt-0.5" />
-      <div className="font-bold text-gray-800 uppercase tracking-wide text-[5px] mt-0.5">Professional Summary</div>
-      <div className="border-t border-gray-300" />
-      <div className="text-gray-600">{title} with 8+ years building scalable distributed systems. Led teams delivering $500K+ savings.</div>
-      <div className="font-bold text-gray-800 uppercase tracking-wide text-[5px] mt-1">Experience</div>
-      <div className="border-t border-gray-300" />
-      <div className="flex justify-between"><span className="font-semibold text-gray-700">{title} — Google</span><span className="text-gray-400">2020–Present</span></div>
-      <div className="text-gray-600 pl-1">• Led migration reducing latency by 40%</div>
-      <div className="text-gray-600 pl-1">• Built systems serving 50M+ daily users</div>
-      <div className="font-bold text-gray-800 uppercase tracking-wide text-[5px] mt-1">Skills</div>
-      <div className="border-t border-gray-300" />
-      <div className="text-gray-600">Python · TypeScript · AWS · PostgreSQL · Kubernetes</div>
+    <div style={{ width: w, height: h, overflow: "hidden", position: "relative", flexShrink: 0 }}>
+      <div style={{ width: W, position: "absolute", top: 0, left: 0,
+        transform: `scale(${scale})`, transformOrigin: "top left" }}>
+        {children}
+      </div>
     </div>
   );
 }
 
-export function ModernPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
+// ── Shared section heading styles ─────────────────────────────────────────────
+
+const contact = (d: PreviewData) =>
+  [d.email, d.phone, d.location, d.linkedin].filter(Boolean).join("  ·  ");
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 15 TEMPLATE COMPONENTS
+// Each renders at W=600px width, no height constraint (scales with content)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// 1. CAMBRIDGE — Classic single-column, clean dividers
+export function Cambridge({ data = SAMPLE }: { data?: PreviewData }) {
+  const h2 = { fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 1.5, color: "#374151", margin: "18px 0 4px" };
   return (
-    <div className="w-full h-full bg-white p-2.5 flex flex-col gap-1 font-sans text-[5px] leading-tight select-none overflow-hidden">
-      <div className="font-bold text-[10px] text-[#2B579A]">{name}</div>
-      <div className="text-[#0D9488] text-[4.5px]">alex@email.com · +44 7700 900000 · London · linkedin.com/in/alex</div>
-      <div className="border-t-2 border-[#2B579A] mt-1 mb-0.5" />
-      <div className="font-bold text-[#2B579A] text-[5.5px]">Professional Summary</div>
-      <div className="border-t border-[#2B579A] mb-0.5" />
-      <div className="text-gray-700">{title} · 8+ years building scalable distributed systems.</div>
-      <div className="font-bold text-[#2B579A] text-[5.5px] mt-1">Experience</div>
-      <div className="border-t border-[#2B579A] mb-0.5" />
-      <div className="flex justify-between text-[4.5px]"><span className="font-semibold text-gray-800">{title} · Google</span><span className="text-gray-400 italic">2020–Present</span></div>
-      <div className="text-gray-700 pl-1">• Led migration reducing latency 40%</div>
-      <div className="text-gray-700 pl-1">• Systems serving 50M+ daily users</div>
-      <div className="font-bold text-[#2B579A] text-[5.5px] mt-1">Skills</div>
-      <div className="border-t border-[#2B579A] mb-0.5" />
-      <div className="text-gray-700">Python · TypeScript · AWS · PostgreSQL · Kubernetes</div>
+    <div style={{ width: W, background: "#fff", padding: "48px 52px", fontFamily: "'Calibri',system-ui,sans-serif", color: "#1f2937", lineHeight: 1.5 }}>
+      <div style={{ fontSize: 28, fontWeight: 700, color: "#111827" }}>{data.name}</div>
+      <div style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>{data.title}</div>
+      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>{contact(data)}</div>
+      <div style={{ borderTop: "1.5px solid #d1d5db", margin: "14px 0" }} />
+      <div style={h2}>Professional Summary</div>
+      <div style={{ borderTop: "1px solid #d1d5db", marginBottom: 6 }} />
+      <div style={{ fontSize: 12, color: "#374151" }}>{data.summary}</div>
+      <div style={h2}>Work Experience</div>
+      <div style={{ borderTop: "1px solid #d1d5db", marginBottom: 8 }} />
+      {data.experience.map((e, i) => (
+        <div key={i} style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{e.title} — {e.company}</span>
+            <span style={{ fontSize: 11, color: "#6b7280" }}>{e.date}</span>
+          </div>
+          {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, color: "#4b5563", paddingLeft: 14, marginTop: 3 }}>• {b}</div>)}
+        </div>
+      ))}
+      <div style={h2}>Skills</div>
+      <div style={{ borderTop: "1px solid #d1d5db", marginBottom: 6 }} />
+      <div style={{ fontSize: 12, color: "#374151" }}>{data.skills.join("  ·  ")}</div>
+      <div style={h2}>Education</div>
+      <div style={{ borderTop: "1px solid #d1d5db", marginBottom: 6 }} />
+      {data.education.map((e, i) => (
+        <div key={i} style={{ fontSize: 12, color: "#374151" }}>{e.degree}  ·  {e.school}  ·  {e.year}</div>
+      ))}
     </div>
   );
 }
 
-export function ExecutivePreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
+// 2. HORIZON — Blue header, bold section headings
+export function Horizon({ data = SAMPLE }: { data?: PreviewData }) {
+  const blue = "#1d4ed8";
   return (
-    <div className="w-full h-full bg-white p-2.5 flex flex-col gap-1 font-serif text-[5px] leading-tight select-none overflow-hidden">
-      <div className="border-t-2 border-gray-900 mb-0.5" />
-      <div className="font-bold text-[8px] text-gray-900 text-center tracking-widest uppercase">{name}</div>
-      <div className="text-gray-500 text-center text-[4.5px]">alex@email.com — +44 7700 900000 — London</div>
-      <div className="border-t-2 border-gray-900 mt-1 mb-0.5" />
-      <div className="font-bold text-gray-900 uppercase tracking-widest text-[4.5px]">Professional Summary</div>
-      <div className="border-t border-b border-gray-600 py-0.5 mb-0.5" />
-      <div className="text-gray-700">{title}. 8+ years in high-stakes enterprise environments. Led teams delivering $500K+ savings.</div>
-      <div className="font-bold text-gray-900 uppercase tracking-widest text-[4.5px] mt-1">Professional Experience</div>
-      <div className="border-t border-b border-gray-600 py-0.5 mb-0.5" />
-      <div className="font-bold text-gray-800 text-[5px]">{title} — Google</div>
-      <div className="text-gray-500 italic text-[4.5px]">2020 – Present</div>
-      <div className="text-gray-700 pl-1">• Led 50TB database migration, zero downtime</div>
-      <div className="text-gray-700 pl-1">• Reduced regional latency by 40%</div>
+    <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", color: "#1f2937" }}>
+      <div style={{ background: blue, padding: "36px 48px 28px" }}>
+        <div style={{ fontSize: 30, fontWeight: 800, color: "#fff", letterSpacing: -0.5 }}>{data.name}</div>
+        <div style={{ fontSize: 14, color: "#bfdbfe", marginTop: 4 }}>{data.title}</div>
+        <div style={{ fontSize: 11, color: "#93c5fd", marginTop: 6 }}>{contact(data)}</div>
+      </div>
+      <div style={{ padding: "24px 48px" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: blue, textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 4 }}>Profile</div>
+        <div style={{ borderTop: `2px solid ${blue}`, marginBottom: 8 }} />
+        <div style={{ fontSize: 12, lineHeight: 1.6 }}>{data.summary}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: blue, textTransform: "uppercase" as const, letterSpacing: 1.5, margin: "18px 0 4px" }}>Experience</div>
+        <div style={{ borderTop: `2px solid ${blue}`, marginBottom: 8 }} />
+        {data.experience.map((e, i) => (
+          <div key={i} style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{e.title} · {e.company}</span>
+              <span style={{ fontSize: 11, color: "#6b7280", fontStyle: "italic" }}>{e.date}</span>
+            </div>
+            {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, color: "#4b5563", paddingLeft: 12, marginTop: 2 }}>• {b}</div>)}
+          </div>
+        ))}
+        <div style={{ fontSize: 11, fontWeight: 700, color: blue, textTransform: "uppercase" as const, letterSpacing: 1.5, margin: "18px 0 4px" }}>Skills</div>
+        <div style={{ borderTop: `2px solid ${blue}`, marginBottom: 8 }} />
+        <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+          {data.skills.map(s => <span key={s} style={{ background: "#eff6ff", color: blue, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 500 }}>{s}</span>)}
+        </div>
+      </div>
     </div>
   );
 }
 
-export function BoldPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
+// 3. PRESTIGE — Formal serif, centered header, double rules
+export function Prestige({ data = SAMPLE }: { data?: PreviewData }) {
   return (
-    <div className="w-full h-full bg-white p-2.5 flex flex-col gap-1.5 font-sans text-[5px] leading-tight select-none overflow-hidden">
-      <div className="font-black text-[10px] text-gray-950 tracking-tight uppercase">{name}</div>
-      <div className="h-0.5 w-8 bg-orange-500 mb-0.5" />
-      <div className="text-gray-500 text-[4.5px]">{title} · alex@email.com · London</div>
-      <div className="font-bold text-orange-500 uppercase text-[5px] mt-1 tracking-widest">Summary</div>
-      <div className="text-gray-700">High-impact {title.toLowerCase()} · 8+ years · Led 4 engineering teams.</div>
-      <div className="font-bold text-orange-500 uppercase text-[5px] mt-1 tracking-widest">Experience</div>
-      <div className="flex justify-between text-[4.5px] mt-0.5"><span className="font-bold text-gray-800">{title}</span><span className="text-gray-400">Google · 2020–Now</span></div>
-      <div className="text-gray-600 pl-1">• Improved latency 40%, 50M users served</div>
-      <div className="text-gray-600 pl-1">• Saved $500K in infrastructure costs</div>
-      <div className="font-bold text-orange-500 uppercase text-[5px] mt-1 tracking-widest">Skills</div>
-      <div className="flex flex-wrap gap-1">
-        {["Python","AWS","TypeScript","Kubernetes"].map(s => (
-          <span key={s} className="bg-orange-50 text-orange-700 border border-orange-200 rounded px-1 text-[4px]">{s}</span>
+    <div style={{ width: W, background: "#fff", padding: "48px 52px", fontFamily: "Georgia,serif", color: "#1c1c1c" }}>
+      <div style={{ borderTop: "2.5px solid #1c1c1c", marginBottom: 10 }} />
+      <div style={{ textAlign: "center" as const }}>
+        <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase" as const }}>{data.name}</div>
+        <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>{data.title}</div>
+        <div style={{ fontSize: 11, color: "#777", marginTop: 4 }}>{contact(data)}</div>
+      </div>
+      <div style={{ borderTop: "2.5px solid #1c1c1c", marginTop: 10, marginBottom: 2 }} />
+      <div style={{ borderTop: "1px solid #1c1c1c", marginBottom: 16 }} />
+      {[
+        { label: "Professional Summary", content: <div style={{ fontSize: 12, lineHeight: 1.7, fontStyle: "italic" }}>{data.summary}</div> },
+      ].map(({ label, content }) => (
+        <div key={label} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase" as const, color: "#111" }}>{label}</div>
+          <div style={{ borderTop: "1px solid #bbb", borderBottom: "1px solid #bbb", padding: "6px 0", margin: "4px 0" }}>{content}</div>
+        </div>
+      ))}
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase" as const }}>Professional Experience</div>
+      <div style={{ borderTop: "1px solid #bbb", borderBottom: "1px solid #bbb", padding: "8px 0", margin: "4px 0 16px" }}>
+        {data.experience.map((e, i) => (
+          <div key={i} style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>{e.title}</span>
+              <span style={{ fontSize: 11, fontStyle: "italic", color: "#666" }}>{e.date}</span>
+            </div>
+            <div style={{ fontSize: 11, color: "#555", marginBottom: 3 }}>{e.company}</div>
+            {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 14, color: "#444" }}>• {b}</div>)}
+          </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-export function MinimalPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
-  return (
-    <div className="w-full h-full bg-white px-2.5 pt-3 flex flex-col gap-2 font-sans text-[5px] leading-tight select-none overflow-hidden">
-      <div className="font-semibold text-[7px] text-gray-800 tracking-tight">{name}</div>
-      <div className="text-gray-400 text-[4.5px]">alex@email.com · London · linkedin.com/in/alex</div>
-      <div className="mt-1">
-        <div className="text-gray-300 uppercase text-[4px] tracking-widest mb-0.5">About</div>
-        <div className="text-gray-600">{title}. 8+ years. Distributed systems, cloud architecture.</div>
-      </div>
-      <div>
-        <div className="text-gray-300 uppercase text-[4px] tracking-widest mb-0.5">Work</div>
-        <div className="flex justify-between text-[4.5px]"><span className="text-gray-700">Google · {title}</span><span className="text-gray-300">2020–</span></div>
-        <div className="text-gray-500 text-[4.5px] pl-1">Latency −40% · 50M users · $500K saved</div>
-      </div>
-      <div>
-        <div className="text-gray-300 uppercase text-[4px] tracking-widest mb-0.5">Skills</div>
-        <div className="text-gray-600">Python · AWS · TypeScript · PostgreSQL</div>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase" as const }}>Core Competencies</div>
+      <div style={{ borderTop: "1px solid #bbb", borderBottom: "1px solid #bbb", padding: "6px 0", margin: "4px 0", fontSize: 11, lineHeight: 2 }}>
+        {data.skills.join("   ·   ")}
       </div>
     </div>
   );
 }
 
-export function NavyPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
+// 4. CATALYST — Bold orange accent, strong typography
+export function Catalyst({ data = SAMPLE }: { data?: PreviewData }) {
+  const orange = "#ea580c";
   return (
-    <div className="w-full h-full bg-white p-2.5 flex flex-col gap-1 font-sans text-[5px] leading-tight select-none overflow-hidden">
-      <div className="font-bold text-[8px] text-[#1e3a5f]">{name}</div>
-      <div className="text-[#1e3a5f] opacity-70 text-[4.5px]">{title} · alex@email.com · London</div>
-      <div className="border-t-2 border-[#1e3a5f] mt-1 mb-0.5" />
-      <div className="font-bold text-[#1e3a5f] uppercase text-[4.5px] tracking-wide">Profile</div>
-      <div className="text-gray-700">Results-driven {title.toLowerCase()} with 8+ years of enterprise experience.</div>
-      <div className="font-bold text-[#1e3a5f] uppercase text-[4.5px] tracking-wide mt-1">Career History</div>
-      <div className="border-t border-[#1e3a5f] mb-0.5" />
-      <div className="flex justify-between"><span className="font-semibold text-gray-800 text-[4.5px]">Google · {title}</span><span className="text-gray-400 text-[4px]">2020–date</span></div>
-      <div className="text-gray-600 pl-1">• Built low-latency infra for 50M users</div>
-      <div className="text-gray-600 pl-1">• Saved $500K in cloud costs</div>
-      <div className="font-bold text-[#1e3a5f] uppercase text-[4.5px] tracking-wide mt-1">Core Skills</div>
-      <div className="border-t border-[#1e3a5f] mb-0.5" />
-      <div className="text-gray-600">Python · AWS · TypeScript · Docker · Kubernetes</div>
-    </div>
-  );
-}
-
-export function TealPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
-  return (
-    <div className="w-full h-full bg-white p-2.5 flex flex-col gap-1 font-sans text-[5px] leading-tight select-none overflow-hidden">
-      <div className="font-bold text-[9px] text-[#0d9488]">{name}</div>
-      <div className="text-gray-500 text-[4.5px]">{title} · alex@email.com · London</div>
-      <div className="h-0.5 bg-[#0d9488] mt-1 mb-1" />
-      <div className="font-semibold text-[#0d9488] text-[5px]">SUMMARY</div>
-      <div className="text-gray-700">Versatile {title.toLowerCase()} delivering scalable cloud solutions for 8+ years.</div>
-      <div className="font-semibold text-[#0d9488] text-[5px] mt-1">EXPERIENCE</div>
-      <div className="h-px bg-[#0d9488] opacity-30 mb-0.5" />
-      <div className="flex justify-between text-[4.5px]"><span className="font-semibold text-gray-800">{title} — Google</span><span className="text-gray-400">2020–Present</span></div>
-      <div className="text-gray-600 pl-1">• Latency reduced 40%, 50M users served daily</div>
-      <div className="text-gray-600 pl-1">• $500K infrastructure cost savings</div>
-      <div className="font-semibold text-[#0d9488] text-[5px] mt-1">SKILLS</div>
-      <div className="h-px bg-[#0d9488] opacity-30 mb-0.5" />
-      <div className="flex flex-wrap gap-1">
-        {["Python","AWS","TypeScript","K8s","Postgres"].map(s => (
-          <span key={s} className="bg-teal-50 text-teal-700 rounded px-1 text-[4px]">{s}</span>
+    <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif", color: "#111" }}>
+      <div style={{ fontSize: 32, fontWeight: 900, color: "#0f172a", lineHeight: 1, letterSpacing: -1 }}>{data.name.toUpperCase()}</div>
+      <div style={{ height: 4, width: 56, background: orange, margin: "10px 0" }} />
+      <div style={{ fontSize: 13, color: "#475569" }}>{data.title}  ·  {data.location}</div>
+      <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>{data.email}  ·  {data.phone}</div>
+      {[
+        { title: "About", content: <div style={{ fontSize: 12, lineHeight: 1.6 }}>{data.summary}</div> },
+      ].map(({ title, content }) => (
+        <div key={title} style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: orange, textTransform: "uppercase" as const, letterSpacing: 2 }}>{title}</div>
+          <div style={{ height: 1, background: "#fed7aa", margin: "4px 0 8px" }} />
+          {content}
+        </div>
+      ))}
+      <div style={{ marginTop: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: orange, textTransform: "uppercase" as const, letterSpacing: 2 }}>Experience</div>
+        <div style={{ height: 1, background: "#fed7aa", margin: "4px 0 8px" }} />
+        {data.experience.map((e, i) => (
+          <div key={i} style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{e.title}</span>
+              <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>{e.company}  ·  {e.date}</span>
+            </div>
+            {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 12, marginTop: 2, color: "#334155" }}>→ {b}</div>)}
+          </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-export function SidebarPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
-  return (
-    <div className="w-full h-full bg-white flex text-[5px] leading-tight select-none overflow-hidden font-sans">
-      {/* Left sidebar */}
-      <div className="w-[35%] bg-[#f8fafc] border-r border-gray-200 p-2 flex flex-col gap-1.5">
-        <div className="font-bold text-[7px] text-gray-900 leading-tight">{name}</div>
-        <div className="h-0.5 w-6 bg-brand-500" />
-        <div className="text-gray-500 text-[4px]">alex@email.com</div>
-        <div className="text-gray-500 text-[4px]">+44 7700 900000</div>
-        <div className="text-gray-500 text-[4px]">London, UK</div>
-        <div className="font-semibold text-gray-700 uppercase text-[4px] tracking-wide mt-1">Skills</div>
-        <div className="border-t border-gray-300" />
-        {["Python","TypeScript","AWS","Docker","Kubernetes","PostgreSQL"].map(s=>(
-          <div key={s} className="text-gray-600 text-[4px]">• {s}</div>
-        ))}
-        <div className="font-semibold text-gray-700 uppercase text-[4px] tracking-wide mt-1">Education</div>
-        <div className="border-t border-gray-300" />
-        <div className="text-gray-600 text-[4px]">BSc Computer Science</div>
-        <div className="text-gray-400 text-[4px]">UCL · 2015</div>
-      </div>
-      {/* Main content */}
-      <div className="flex-1 p-2 flex flex-col gap-1.5">
-        <div className="text-gray-500 text-[4.5px]">{title}</div>
-        <div className="font-bold text-gray-700 uppercase text-[4.5px] tracking-wide">Profile</div>
-        <div className="border-t border-gray-200" />
-        <div className="text-gray-600">8+ years building scalable distributed systems for global enterprises.</div>
-        <div className="font-bold text-gray-700 uppercase text-[4.5px] tracking-wide mt-0.5">Experience</div>
-        <div className="border-t border-gray-200" />
-        <div className="font-semibold text-gray-800">{title} — Google</div>
-        <div className="text-gray-400 text-[4px]">Sep 2020 – Present</div>
-        <div className="text-gray-600">• Latency −40% · 50M users daily</div>
-        <div className="text-gray-600">• $500K infra savings</div>
-      </div>
-    </div>
-  );
-}
-
-export function CreativePreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
-  return (
-    <div className="w-full h-full bg-white flex text-[5px] leading-tight select-none overflow-hidden font-sans">
-      {/* Purple sidebar */}
-      <div className="w-[32%] bg-[#7c3aed] p-2 flex flex-col gap-1.5">
-        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-[8px]">
-          {name.charAt(0)}
+      <div style={{ marginTop: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: orange, textTransform: "uppercase" as const, letterSpacing: 2 }}>Skills</div>
+        <div style={{ height: 1, background: "#fed7aa", margin: "4px 0 8px" }} />
+        <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+          {data.skills.map(s => <span key={s} style={{ background: "#fff7ed", border: "1px solid #fed7aa", color: orange, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>{s}</span>)}
         </div>
-        <div className="font-bold text-[6px] text-white leading-tight">{name}</div>
-        <div className="text-purple-200 text-[4px]">{title}</div>
-        <div className="h-px bg-white/20 mt-0.5" />
-        <div className="text-purple-200 text-[4px]">alex@email.com</div>
-        <div className="text-purple-200 text-[4px]">London, UK</div>
-        <div className="font-semibold text-white text-[4px] uppercase tracking-wide mt-1">Skills</div>
-        <div className="h-px bg-white/20" />
-        {["Python","TypeScript","AWS","Docker"].map(s=>(
-          <div key={s} className="text-purple-100 text-[4px]">▸ {s}</div>
+      </div>
+    </div>
+  );
+}
+
+// 5. CANVAS — Ultra-minimal, whitespace-first
+export function Canvas({ data = SAMPLE }: { data?: PreviewData }) {
+  return (
+    <div style={{ width: W, background: "#fff", padding: "56px 60px", fontFamily: "'Helvetica Neue',system-ui,sans-serif", color: "#374151" }}>
+      <div style={{ fontSize: 24, fontWeight: 300, color: "#111827", letterSpacing: -0.5 }}>{data.name}</div>
+      <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4, fontStyle: "italic" }}>{data.title}</div>
+      <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 6, letterSpacing: 0.5 }}>{contact(data)}</div>
+      <div style={{ marginTop: 28 }}>
+        <div style={{ fontSize: 9, color: "#9ca3af", textTransform: "uppercase" as const, letterSpacing: 2.5, marginBottom: 8 }}>About</div>
+        <div style={{ fontSize: 12, lineHeight: 1.8, color: "#4b5563" }}>{data.summary}</div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <div style={{ fontSize: 9, color: "#9ca3af", textTransform: "uppercase" as const, letterSpacing: 2.5, marginBottom: 8 }}>Work</div>
+        {data.experience.map((e, i) => (
+          <div key={i} style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{e.title}</span>
+              <span style={{ fontSize: 10, color: "#9ca3af" }}>{e.date}</span>
+            </div>
+            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{e.company}</div>
+            {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, color: "#6b7280", paddingLeft: 12, marginTop: 2 }}>— {b}</div>)}
+          </div>
         ))}
       </div>
-      {/* Main content */}
-      <div className="flex-1 p-2 flex flex-col gap-1.5">
-        <div className="font-bold text-[#7c3aed] text-[6px]">Profile</div>
-        <div className="h-0.5 bg-[#7c3aed] opacity-30" />
-        <div className="text-gray-700">Creative {title.toLowerCase()} delivering impact at scale. 8+ years.</div>
-        <div className="font-bold text-[#7c3aed] text-[6px] mt-1">Experience</div>
-        <div className="h-0.5 bg-[#7c3aed] opacity-30" />
-        <div className="font-semibold text-gray-800">{title} — Google</div>
-        <div className="text-gray-400 text-[4px]">2020–Present</div>
-        <div className="text-gray-600">• Latency −40%, 50M users</div>
-        <div className="text-gray-600">• $500K cost savings</div>
-        <div className="font-bold text-[#7c3aed] text-[6px] mt-1">Education</div>
-        <div className="h-0.5 bg-[#7c3aed] opacity-30" />
-        <div className="text-gray-700">BSc Computer Science · UCL · 2015</div>
+      <div style={{ marginTop: 24 }}>
+        <div style={{ fontSize: 9, color: "#9ca3af", textTransform: "uppercase" as const, letterSpacing: 2.5, marginBottom: 8 }}>Skills</div>
+        <div style={{ fontSize: 12, color: "#4b5563", lineHeight: 2 }}>{data.skills.join("   ·   ")}</div>
       </div>
     </div>
   );
 }
 
-export function TimelinePreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
+// 6. ADMIRAL — Navy blue, formal two-tone
+export function Admiral({ data = SAMPLE }: { data?: PreviewData }) {
+  const navy = "#1e3a5f";
   return (
-    <div className="w-full h-full bg-white p-2.5 flex flex-col gap-1.5 font-sans text-[5px] leading-tight select-none overflow-hidden">
-      <div className="font-bold text-[8px] text-gray-900">{name}</div>
-      <div className="text-gray-500 text-[4.5px]">{title} · alex@email.com · London</div>
-      <div className="border-t border-gray-200 mt-0.5" />
-      <div className="font-bold text-gray-700 uppercase text-[4.5px] tracking-wide">Experience</div>
-      {/* Timeline items */}
-      <div className="flex gap-1.5 mt-0.5">
-        <div className="flex flex-col items-center">
-          <div className="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0" />
-          <div className="w-px flex-1 bg-gray-200" />
+    <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: navy }}>{data.name}</div>
+          <div style={{ fontSize: 13, color: "#3b5998", marginTop: 3 }}>{data.title}</div>
         </div>
-        <div className="flex-1 pb-1">
-          <div className="font-semibold text-gray-800">{title} — Google</div>
-          <div className="text-gray-400 text-[4px]">2020 – Present</div>
-          <div className="text-gray-600">• Latency −40% · 50M users</div>
+        <div style={{ textAlign: "right" as const, fontSize: 11, color: "#6b7280", lineHeight: 1.7 }}>
+          <div>{data.email}</div><div>{data.phone}</div><div>{data.location}</div>
         </div>
       </div>
-      <div className="flex gap-1.5">
-        <div className="flex flex-col items-center">
-          <div className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
+      <div style={{ borderTop: `2px solid ${navy}`, margin: "14px 0 8px" }} />
+      <div style={{ fontSize: 10, fontWeight: 700, color: navy, textTransform: "uppercase" as const, letterSpacing: 2, marginBottom: 6 }}>Career Profile</div>
+      <div style={{ fontSize: 12, lineHeight: 1.6, color: "#374151", marginBottom: 18 }}>{data.summary}</div>
+      <div style={{ borderTop: `1px solid ${navy}`, margin: "0 0 6px" }} />
+      <div style={{ fontSize: 10, fontWeight: 700, color: navy, textTransform: "uppercase" as const, letterSpacing: 2, marginBottom: 10 }}>Career History</div>
+      {data.experience.map((e, i) => (
+        <div key={i} style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{e.title}</span>
+            <span style={{ fontSize: 11, color: "#6b7280" }}>{e.date}</span>
+          </div>
+          <div style={{ fontSize: 11, color: navy, fontWeight: 600, marginBottom: 3 }}>{e.company}</div>
+          {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 14, color: "#4b5563", marginTop: 2 }}>• {b}</div>)}
         </div>
-        <div className="flex-1">
-          <div className="font-semibold text-gray-800">Senior Dev — Stripe</div>
-          <div className="text-gray-400 text-[4px]">2017 – 2020</div>
-          <div className="text-gray-600">• Built payment infra · 99.99% uptime</div>
-        </div>
-      </div>
-      <div className="border-t border-gray-200 mt-0.5" />
-      <div className="font-bold text-gray-700 uppercase text-[4.5px] tracking-wide">Skills</div>
-      <div className="text-gray-600">Python · AWS · TypeScript · PostgreSQL · Docker</div>
+      ))}
+      <div style={{ borderTop: `1px solid ${navy}`, margin: "12px 0 6px" }} />
+      <div style={{ fontSize: 10, fontWeight: 700, color: navy, textTransform: "uppercase" as const, letterSpacing: 2, marginBottom: 6 }}>Core Skills</div>
+      <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.9 }}>{data.skills.join("  ·  ")}</div>
     </div>
   );
 }
 
-export function BlockHeaderPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
+// 7. JADE — Teal left accent bar + teal headings
+export function Jade({ data = SAMPLE }: { data?: PreviewData }) {
+  const teal = "#0d9488";
   return (
-    <div className="w-full h-full bg-white flex flex-col font-sans text-[5px] leading-tight select-none overflow-hidden">
-      {/* Full-width header block */}
-      <div className="bg-[#1e293b] px-2.5 py-2 flex flex-col gap-0.5">
-        <div className="font-bold text-[8px] text-white">{name}</div>
-        <div className="text-slate-300 text-[4.5px]">{title}</div>
-        <div className="text-slate-400 text-[4px]">alex@email.com · +44 7700 900000 · London</div>
-      </div>
-      <div className="px-2.5 pt-1.5 flex flex-col gap-1">
-        <div className="font-bold text-[#1e293b] uppercase text-[4.5px] tracking-wide">Summary</div>
-        <div className="h-px bg-[#1e293b] opacity-20" />
-        <div className="text-gray-700">{title} · 8+ years · Enterprise cloud & distributed systems.</div>
-        <div className="font-bold text-[#1e293b] uppercase text-[4.5px] tracking-wide mt-0.5">Experience</div>
-        <div className="h-px bg-[#1e293b] opacity-20" />
-        <div className="flex justify-between text-[4.5px]"><span className="font-semibold text-gray-800">{title} — Google</span><span className="text-gray-400">2020–Now</span></div>
-        <div className="text-gray-600 pl-1">• Latency −40% · 50M daily users</div>
-        <div className="text-gray-600 pl-1">• $500K infrastructure savings</div>
-        <div className="font-bold text-[#1e293b] uppercase text-[4.5px] tracking-wide mt-0.5">Skills</div>
-        <div className="h-px bg-[#1e293b] opacity-20" />
-        <div className="text-gray-600">Python · TypeScript · AWS · Docker · Kubernetes</div>
-      </div>
-    </div>
-  );
-}
-
-export function SplitPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
-  return (
-    <div className="w-full h-full bg-white p-2 flex flex-col font-sans text-[5px] leading-tight select-none overflow-hidden">
-      <div className="font-bold text-[9px] text-gray-900 text-center">{name}</div>
-      <div className="text-center text-gray-500 text-[4.5px] mb-1">{title} · alex@email.com · London</div>
-      <div className="border-t border-gray-300 mb-1" />
-      <div className="flex gap-2 flex-1">
-        {/* Left column */}
-        <div className="flex-1 flex flex-col gap-1">
-          <div className="font-bold text-gray-700 uppercase text-[4.5px] tracking-wide">Experience</div>
-          <div className="font-semibold text-gray-800">{title}</div>
-          <div className="text-gray-400 text-[4px]">Google · 2020–Now</div>
-          <div className="text-gray-600">• Latency −40%</div>
-          <div className="text-gray-600">• 50M users daily</div>
-          <div className="font-semibold text-gray-800 mt-0.5">Senior Dev</div>
-          <div className="text-gray-400 text-[4px]">Stripe · 2017–2020</div>
-          <div className="text-gray-600">• Payment infra</div>
-        </div>
-        {/* Divider */}
-        <div className="w-px bg-gray-200" />
-        {/* Right column */}
-        <div className="flex-1 flex flex-col gap-1">
-          <div className="font-bold text-gray-700 uppercase text-[4.5px] tracking-wide">Skills</div>
-          {["Python","TypeScript","AWS","Docker","K8s","PostgreSQL"].map(s=>(
-            <div key={s} className="flex items-center gap-1">
-              <div className="w-1 h-1 rounded-full bg-brand-400" />
-              <span className="text-gray-600">{s}</span>
+    <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex" }}>
+      <div style={{ width: 6, background: teal, flexShrink: 0 }} />
+      <div style={{ padding: "44px 48px", flex: 1 }}>
+        <div style={{ fontSize: 27, fontWeight: 700, color: "#0f172a" }}>{data.name}</div>
+        <div style={{ fontSize: 13, color: teal, marginTop: 3 }}>{data.title}</div>
+        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>{contact(data)}</div>
+        <div style={{ height: 1, background: "#ccfbf1", margin: "16px 0" }} />
+        <SectionTeal label="Summary" teal={teal}>
+          <div style={{ fontSize: 12, lineHeight: 1.6 }}>{data.summary}</div>
+        </SectionTeal>
+        <SectionTeal label="Experience" teal={teal}>
+          {data.experience.map((e, i) => (
+            <div key={i} style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{e.title} — {e.company}</span>
+                <span style={{ fontSize: 11, color: "#64748b" }}>{e.date}</span>
+              </div>
+              {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 12, marginTop: 2, color: "#475569" }}>• {b}</div>)}
             </div>
           ))}
-          <div className="font-bold text-gray-700 uppercase text-[4.5px] tracking-wide mt-1">Education</div>
-          <div className="text-gray-700">BSc CS · UCL</div>
-          <div className="text-gray-400 text-[4px]">2015</div>
+        </SectionTeal>
+        <SectionTeal label="Skills" teal={teal}>
+          <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+            {data.skills.map(s => <span key={s} style={{ background: "#f0fdfa", border: `1px solid ${teal}`, color: teal, borderRadius: 4, padding: "2px 8px", fontSize: 11 }}>{s}</span>)}
+          </div>
+        </SectionTeal>
+      </div>
+    </div>
+  );
+}
+function SectionTeal({ label, teal, children }: { label: string; teal: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: teal, textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 6 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+// 8. PRISM — Two-column: gray sidebar | main
+export function Prism({ data = SAMPLE }: { data?: PreviewData }) {
+  return (
+    <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex", minHeight: 848 }}>
+      <div style={{ width: 200, background: "#f1f5f9", padding: "40px 22px", flexShrink: 0 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b", lineHeight: 1.2 }}>{data.name}</div>
+        <div style={{ fontSize: 11, color: "#2563eb", marginTop: 4 }}>{data.title}</div>
+        <div style={{ height: 2, width: 32, background: "#2563eb", margin: "10px 0" }} />
+        <div style={{ fontSize: 10, color: "#475569", lineHeight: 1.9 }}>
+          <div>{data.email}</div><div>{data.phone}</div><div>{data.location}</div><div>{data.linkedin}</div>
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#1e293b", textTransform: "uppercase" as const, letterSpacing: 1.5, margin: "20px 0 8px" }}>Skills</div>
+        <div style={{ height: 1, background: "#cbd5e1", marginBottom: 8 }} />
+        {data.skills.map(s => (
+          <div key={s} style={{ fontSize: 11, color: "#334155", marginBottom: 4 }}>
+            <span style={{ color: "#2563eb", marginRight: 6 }}>▸</span>{s}
+          </div>
+        ))}
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#1e293b", textTransform: "uppercase" as const, letterSpacing: 1.5, margin: "20px 0 8px" }}>Education</div>
+        <div style={{ height: 1, background: "#cbd5e1", marginBottom: 8 }} />
+        {data.education.map((e, i) => (
+          <div key={i} style={{ fontSize: 11, color: "#334155", lineHeight: 1.6 }}>
+            <div style={{ fontWeight: 600 }}>{e.degree}</div>
+            <div style={{ color: "#64748b" }}>{e.school}</div>
+            <div style={{ color: "#94a3b8" }}>{e.year}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ flex: 1, padding: "40px 32px" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#334155", textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 6 }}>Profile</div>
+        <div style={{ height: 1, background: "#e2e8f0", marginBottom: 10 }} />
+        <div style={{ fontSize: 12, lineHeight: 1.6, color: "#374151", marginBottom: 20 }}>{data.summary}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#334155", textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 6 }}>Experience</div>
+        <div style={{ height: 1, background: "#e2e8f0", marginBottom: 10 }} />
+        {data.experience.map((e, i) => (
+          <div key={i} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{e.title}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 11, color: "#2563eb" }}>{e.company}</span>
+              <span style={{ fontSize: 10, color: "#94a3b8" }}>{e.date}</span>
+            </div>
+            {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 12, color: "#475569", marginTop: 2 }}>• {b}</div>)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 9. VIVID — Purple sidebar, creative
+export function Vivid({ data = SAMPLE }: { data?: PreviewData }) {
+  const purple = "#7c3aed";
+  return (
+    <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex", minHeight: 848 }}>
+      <div style={{ width: 190, background: purple, padding: "40px 20px", flexShrink: 0 }}>
+        <div style={{ width: 60, height: 60, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+          <span style={{ fontSize: 22, fontWeight: 700, color: "#fff" }}>{data.name.charAt(0)}</span>
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", lineHeight: 1.3 }}>{data.name}</div>
+        <div style={{ fontSize: 11, color: "#c4b5fd", marginTop: 4 }}>{data.title}</div>
+        <div style={{ height: 1, background: "rgba(255,255,255,0.2)", margin: "14px 0" }} />
+        <div style={{ fontSize: 10, color: "#ddd6fe", lineHeight: 2 }}>
+          <div>{data.email}</div><div>{data.phone}</div><div>{data.location}</div>
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#fff", textTransform: "uppercase" as const, letterSpacing: 1.5, margin: "18px 0 8px" }}>Skills</div>
+        {data.skills.map(s => <div key={s} style={{ fontSize: 11, color: "#ede9fe", marginBottom: 4 }}>▸ {s}</div>)}
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#fff", textTransform: "uppercase" as const, letterSpacing: 1.5, margin: "18px 0 8px" }}>Education</div>
+        {data.education.map((e, i) => (
+          <div key={i} style={{ fontSize: 10, color: "#ddd6fe", lineHeight: 1.7 }}>
+            <div style={{ fontWeight: 600, color: "#fff" }}>{e.degree}</div>
+            <div>{e.school} · {e.year}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ flex: 1, padding: "40px 30px" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: purple, textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 6 }}>Profile</div>
+        <div style={{ height: 1.5, background: "#ede9fe", marginBottom: 10 }} />
+        <div style={{ fontSize: 12, lineHeight: 1.6, color: "#374151", marginBottom: 20 }}>{data.summary}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: purple, textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 6 }}>Experience</div>
+        <div style={{ height: 1.5, background: "#ede9fe", marginBottom: 10 }} />
+        {data.experience.map((e, i) => (
+          <div key={i} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{e.title}</div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 11, color: purple }}>{e.company}</span>
+              <span style={{ fontSize: 10, color: "#94a3b8" }}>{e.date}</span>
+            </div>
+            {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 12, color: "#475569", marginTop: 2 }}>• {b}</div>)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 10. CHRONICLE — Timeline with left border dots
+export function Chronicle({ data = SAMPLE }: { data?: PreviewData }) {
+  const brand = "#2563eb";
+  return (
+    <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif" }}>
+      <div style={{ fontSize: 27, fontWeight: 700, color: "#0f172a" }}>{data.name}</div>
+      <div style={{ fontSize: 13, color: brand, marginTop: 3 }}>{data.title}</div>
+      <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>{contact(data)}</div>
+      <div style={{ height: 1, background: "#e2e8f0", margin: "14px 0" }} />
+      <div style={{ fontSize: 12, lineHeight: 1.6, color: "#374151", marginBottom: 18 }}>{data.summary}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#334155", textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 12 }}>Experience</div>
+      {data.experience.map((e, i) => (
+        <div key={i} style={{ display: "flex", gap: 14, marginBottom: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", width: 12, flexShrink: 0 }}>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: brand, border: "2px solid #fff", boxShadow: `0 0 0 2px ${brand}`, flexShrink: 0 }} />
+            {i < data.experience.length - 1 && <div style={{ flex: 1, width: 1.5, background: "#cbd5e1", marginTop: 4 }} />}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{e.title}</span>
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>{e.date}</span>
+            </div>
+            <div style={{ fontSize: 11, color: brand, marginBottom: 4 }}>{e.company}</div>
+            {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 10, color: "#475569", marginTop: 2 }}>• {b}</div>)}
+          </div>
+        </div>
+      ))}
+      <div style={{ height: 1, background: "#e2e8f0", margin: "4px 0 10px" }} />
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#334155", textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 8 }}>Skills</div>
+      <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+        {data.skills.map(s => <span key={s} style={{ background: "#eff6ff", color: brand, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 500 }}>{s}</span>)}
+      </div>
+    </div>
+  );
+}
+
+// 11. SUMMIT — Dark charcoal header block
+export function Summit({ data = SAMPLE }: { data?: PreviewData }) {
+  const dark = "#1e293b";
+  return (
+    <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif" }}>
+      <div style={{ background: dark, padding: "36px 48px 28px" }}>
+        <div style={{ fontSize: 28, fontWeight: 800, color: "#fff", letterSpacing: -0.5 }}>{data.name}</div>
+        <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>{data.title}</div>
+        <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" as const }}>
+          {[data.email, data.phone, data.location].map(v => (
+            <span key={v} style={{ fontSize: 10, color: "#64748b", background: "rgba(255,255,255,0.07)", padding: "2px 8px", borderRadius: 3 }}>{v}</span>
+          ))}
+        </div>
+      </div>
+      <div style={{ padding: "24px 48px" }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: dark, textTransform: "uppercase" as const, letterSpacing: 2, marginBottom: 6 }}>Summary</div>
+        <div style={{ height: 1, background: "#e2e8f0", marginBottom: 10 }} />
+        <div style={{ fontSize: 12, lineHeight: 1.6, color: "#374151", marginBottom: 20 }}>{data.summary}</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: dark, textTransform: "uppercase" as const, letterSpacing: 2, marginBottom: 6 }}>Experience</div>
+        <div style={{ height: 1, background: "#e2e8f0", marginBottom: 10 }} />
+        {data.experience.map((e, i) => (
+          <div key={i} style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{e.title} — {e.company}</span>
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>{e.date}</span>
+            </div>
+            {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 12, color: "#475569", marginTop: 2 }}>• {b}</div>)}
+          </div>
+        ))}
+        <div style={{ fontSize: 10, fontWeight: 700, color: dark, textTransform: "uppercase" as const, letterSpacing: 2, margin: "16px 0 8px" }}>Skills</div>
+        <div style={{ height: 1, background: "#e2e8f0", marginBottom: 10 }} />
+        <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
+          {data.skills.map(s => <span key={s} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", color: dark, borderRadius: 4, padding: "2px 8px", fontSize: 11 }}>{s}</span>)}
         </div>
       </div>
     </div>
   );
 }
 
-export function AcademicPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
+// 12. SYMMETRY — Equal two columns
+export function Symmetry({ data = SAMPLE }: { data?: PreviewData }) {
   return (
-    <div className="w-full h-full bg-white p-2.5 flex flex-col gap-1.5 font-serif text-[5px] leading-tight select-none overflow-hidden">
-      <div className="text-center">
-        <div className="font-bold text-[7px] text-gray-900 tracking-wide">{name}</div>
-        <div className="text-gray-600 text-[4.5px]">{title}</div>
-        <div className="text-gray-500 text-[4px]">alex@email.com · London · linkedin.com/in/alex</div>
+    <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif" }}>
+      <div style={{ padding: "36px 48px 16px", borderBottom: "2px solid #0f172a" }}>
+        <div style={{ textAlign: "center" as const }}>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "#0f172a" }}>{data.name}</div>
+          <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{data.title}  ·  {contact(data)}</div>
+        </div>
       </div>
-      <div className="border-t-2 border-b border-gray-900 py-0.5 mt-0.5">
-        <div className="font-bold text-gray-900 uppercase tracking-wider text-[4.5px] text-center">Research & Professional Summary</div>
-      </div>
-      <div className="text-gray-700 text-justify">Accomplished {title.toLowerCase()} with 8+ years of industry research and engineering. Published 3 white papers.</div>
-      <div className="border-t border-gray-400 mt-0.5">
-        <div className="font-bold text-gray-900 uppercase tracking-wider text-[4.5px] mt-0.5">Professional Experience</div>
-      </div>
-      <div className="font-bold text-gray-800 text-[4.5px]">{title} · Google · 2020–Present</div>
-      <div className="text-gray-700 pl-1">• Led distributed systems research reducing P99 latency 40%</div>
-      <div className="border-t border-gray-400 mt-0.5">
-        <div className="font-bold text-gray-900 uppercase tracking-wider text-[4.5px] mt-0.5">Education</div>
-      </div>
-      <div className="text-gray-800">MSc · Computer Science · Imperial College · 2015</div>
-      <div className="text-gray-800">BSc · Computer Science · UCL · 2013</div>
-    </div>
-  );
-}
-
-export function CompactPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
-  return (
-    <div className="w-full h-full bg-white p-2 flex flex-col gap-0.5 font-sans text-[4.5px] leading-snug select-none overflow-hidden">
-      <div className="flex items-baseline justify-between border-b border-gray-400 pb-0.5 mb-0.5">
-        <div className="font-bold text-[7px] text-gray-900">{name}</div>
-        <div className="text-gray-500">alex@email.com · +44 7700 · London</div>
-      </div>
-      <div className="font-bold text-gray-800 uppercase text-[4px] tracking-widest">Summary</div>
-      <div className="text-gray-700">{title} · 8yr · Cloud · Distributed systems · Led 4 teams · $500K savings</div>
-      <div className="font-bold text-gray-800 uppercase text-[4px] tracking-widest mt-0.5">Experience</div>
-      <div className="text-gray-700"><span className="font-semibold">Google</span> · {title} · 2020–date · Latency −40%, 50M users, $500K saved</div>
-      <div className="text-gray-700"><span className="font-semibold">Stripe</span> · Sr Dev · 2017–2020 · Payment infra, 99.99% uptime, 200M tx/day</div>
-      <div className="text-gray-700"><span className="font-semibold">Genpact</span> · Dev · 2015–2017 · Cloud migration, microservices, $1M saving</div>
-      <div className="font-bold text-gray-800 uppercase text-[4px] tracking-widest mt-0.5">Skills</div>
-      <div className="text-gray-700">Python · TypeScript · Java · AWS · GCP · Docker · K8s · PostgreSQL · MongoDB · Kafka</div>
-      <div className="font-bold text-gray-800 uppercase text-[4px] tracking-widest mt-0.5">Education</div>
-      <div className="text-gray-700">MSc CS · Imperial · 2015 · BSc CS · UCL · 2013</div>
-    </div>
-  );
-}
-
-export function ElegantPreview({ name = DEFAULT_NAME, title = DEFAULT_TITLE }: PreviewProps) {
-  return (
-    <div className="w-full h-full bg-[#fefcf3] p-2.5 flex flex-col gap-1.5 font-serif text-[5px] leading-tight select-none overflow-hidden">
-      <div className="text-center">
-        <div className="font-bold text-[9px] text-gray-800 tracking-widest">{name.toUpperCase()}</div>
-        <div className="text-[#b45309] text-[4.5px] tracking-wide">{title}</div>
-      </div>
-      <div className="flex items-center gap-1 my-0.5">
-        <div className="flex-1 h-px bg-[#b45309] opacity-40" />
-        <div className="w-1 h-1 rounded-full bg-[#b45309] opacity-60" />
-        <div className="flex-1 h-px bg-[#b45309] opacity-40" />
-      </div>
-      <div className="text-center text-gray-500 text-[4px]">alex@email.com · London · linkedin.com/in/alex</div>
-      <div className="mt-0.5">
-        <div className="font-bold text-[#b45309] text-[5px] uppercase tracking-widest mb-0.5">Professional Profile</div>
-        <div className="text-gray-700 text-justify">Distinguished {title.toLowerCase()} with 8+ years of expertise in enterprise architecture.</div>
-      </div>
-      <div>
-        <div className="font-bold text-[#b45309] text-[5px] uppercase tracking-widest mb-0.5">Career History</div>
-        <div className="flex items-center gap-1"><div className="flex-1 h-px bg-[#b45309] opacity-20" /></div>
-        <div className="font-semibold text-gray-800">{title} · Google · 2020–Present</div>
-        <div className="text-gray-600 pl-1">• Architected systems serving 50M+ users</div>
-        <div className="text-gray-600 pl-1">• Delivered $500K in annualised savings</div>
+      <div style={{ display: "flex", padding: "20px 32px", gap: 24 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#0f172a", textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 6 }}>Experience</div>
+          {data.experience.map((e, i) => (
+            <div key={i} style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{e.title}</div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 11, color: "#2563eb" }}>{e.company}</span>
+                <span style={{ fontSize: 10, color: "#94a3b8" }}>{e.date}</span>
+              </div>
+              {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 10, marginTop: 2, color: "#475569" }}>• {b}</div>)}
+            </div>
+          ))}
+          <div style={{ fontSize: 12, lineHeight: 1.6, color: "#374151" }}>{data.summary}</div>
+        </div>
+        <div style={{ width: 1, background: "#e2e8f0" }} />
+        <div style={{ width: 200, flexShrink: 0 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#0f172a", textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 6 }}>Skills</div>
+          {data.skills.map(s => (
+            <div key={s} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#2563eb" }} />
+              <span style={{ fontSize: 11, color: "#374151" }}>{s}</span>
+            </div>
+          ))}
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#0f172a", textTransform: "uppercase" as const, letterSpacing: 1.5, margin: "16px 0 6px" }}>Education</div>
+          {data.education.map((e, i) => (
+            <div key={i} style={{ fontSize: 11, color: "#374151", lineHeight: 1.6 }}>
+              <div style={{ fontWeight: 600 }}>{e.degree}</div>
+              <div style={{ color: "#6b7280" }}>{e.school}</div>
+              <div style={{ color: "#9ca3af" }}>{e.year}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Template metadata ─────────────────────────────────────────────────────────
+// 13. SCHOLAR — Academic, formal structure
+export function Scholar({ data = SAMPLE }: { data?: PreviewData }) {
+  return (
+    <div style={{ width: W, background: "#fff", padding: "48px 56px", fontFamily: "Georgia,serif", color: "#1c1c1c", lineHeight: 1.6 }}>
+      <div style={{ textAlign: "center" as const, marginBottom: 20 }}>
+        <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 1 }}>{data.name}</div>
+        <div style={{ fontSize: 12, color: "#555", marginTop: 3 }}>{data.title}</div>
+        <div style={{ fontSize: 11, color: "#777", marginTop: 3 }}>{contact(data)}</div>
+      </div>
+      <div style={{ borderTop: "2px solid #333", borderBottom: "1px solid #333", padding: "8px 0", marginBottom: 16, textAlign: "center" as const }}>
+        <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase" as const, color: "#333" }}>Research & Professional Summary</div>
+      </div>
+      <div style={{ fontSize: 12, lineHeight: 1.8, marginBottom: 20, textAlign: "justify" as const }}>{data.summary}</div>
+      <div style={{ borderTop: "1px solid #999", paddingTop: 8, marginBottom: 12 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" as const }}>Professional Experience</div>
+      </div>
+      {data.experience.map((e, i) => (
+        <div key={i} style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>{e.title}</span>
+            <span style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>{e.date}</span>
+          </div>
+          <div style={{ fontSize: 11, fontStyle: "italic", color: "#555", marginBottom: 4 }}>{e.company}</div>
+          {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 18, color: "#333" }}>• {b}</div>)}
+        </div>
+      ))}
+      <div style={{ borderTop: "1px solid #999", paddingTop: 8, margin: "16px 0 10px" }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" as const }}>Education</div>
+      </div>
+      {data.education.map((e, i) => (
+        <div key={i} style={{ fontSize: 12, color: "#1c1c1c" }}>{e.degree}  ·  {e.school}  ·  {e.year}</div>
+      ))}
+      <div style={{ borderTop: "1px solid #999", paddingTop: 8, margin: "16px 0 10px" }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" as const }}>Technical Competencies</div>
+      </div>
+      <div style={{ fontSize: 12, lineHeight: 2 }}>{data.skills.join("   ·   ")}</div>
+    </div>
+  );
+}
+
+// 14. SWIFT — Ultra-compact, maximises content on one page
+export function Swift({ data = SAMPLE }: { data?: PreviewData }) {
+  return (
+    <div style={{ width: W, background: "#fff", padding: "32px 44px", fontFamily: "system-ui,sans-serif", fontSize: 11 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: "1.5px solid #374151", paddingBottom: 8, marginBottom: 8 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#0f172a" }}>{data.name}</div>
+        <div style={{ color: "#64748b", fontSize: 10 }}>{data.email}  ·  {data.phone}  ·  {data.location}</div>
+      </div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#374151", textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 4 }}>Summary</div>
+      <div style={{ color: "#4b5563", marginBottom: 10, lineHeight: 1.5 }}>{data.summary}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#374151", textTransform: "uppercase" as const, letterSpacing: 1.5, marginBottom: 4 }}>Experience</div>
+      {data.experience.map((e, i) => (
+        <div key={i} style={{ marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontWeight: 600, color: "#1e293b" }}>{e.title}  —  {e.company}</span>
+            <span style={{ color: "#94a3b8", fontSize: 10 }}>{e.date}</span>
+          </div>
+          {e.bullets.map((b, j) => <div key={j} style={{ paddingLeft: 12, color: "#475569", marginTop: 1 }}>• {b}</div>)}
+        </div>
+      ))}
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#374151", textTransform: "uppercase" as const, letterSpacing: 1.5, margin: "8px 0 4px" }}>Skills</div>
+      <div style={{ color: "#4b5563", lineHeight: 1.8 }}>{data.skills.join("  ·  ")}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#374151", textTransform: "uppercase" as const, letterSpacing: 1.5, margin: "8px 0 4px" }}>Education</div>
+      {data.education.map((e, i) => <div key={i} style={{ color: "#4b5563" }}>{e.degree}  ·  {e.school}  ·  {e.year}</div>)}
+    </div>
+  );
+}
+
+// 15. LUXE — Warm gold accents, cream background
+export function Luxe({ data = SAMPLE }: { data?: PreviewData }) {
+  const gold = "#b45309";
+  return (
+    <div style={{ width: W, background: "#fffdf5", padding: "52px 56px", fontFamily: "Georgia,serif", color: "#292524" }}>
+      <div style={{ textAlign: "center" as const, marginBottom: 8 }}>
+        <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: 2, color: "#1c1917" }}>{data.name.toUpperCase()}</div>
+        <div style={{ fontSize: 12, color: gold, letterSpacing: 1.5, marginTop: 4 }}>{data.title}</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0" }}>
+        <div style={{ flex: 1, height: 1, background: gold, opacity: 0.4 }} />
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: gold }} />
+        <div style={{ flex: 1, height: 1, background: gold, opacity: 0.4 }} />
+      </div>
+      <div style={{ textAlign: "center" as const, fontSize: 10, color: "#78716c", marginBottom: 24 }}>{contact(data)}</div>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: gold, textTransform: "uppercase" as const, letterSpacing: 3, marginBottom: 6 }}>Professional Profile</div>
+        <div style={{ height: 1, background: gold, opacity: 0.3, marginBottom: 10 }} />
+        <div style={{ fontSize: 12, lineHeight: 1.8, color: "#44403c", fontStyle: "italic" }}>{data.summary}</div>
+      </div>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: gold, textTransform: "uppercase" as const, letterSpacing: 3, marginBottom: 6 }}>Career History</div>
+        <div style={{ height: 1, background: gold, opacity: 0.3, marginBottom: 10 }} />
+        {data.experience.map((e, i) => (
+          <div key={i} style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#1c1917" }}>{e.title}  ·  {e.company}</span>
+              <span style={{ fontSize: 11, fontStyle: "italic", color: "#78716c" }}>{e.date}</span>
+            </div>
+            {e.bullets.map((b, j) => <div key={j} style={{ fontSize: 11, paddingLeft: 14, color: "#57534e", marginTop: 3 }}>• {b}</div>)}
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: gold, textTransform: "uppercase" as const, letterSpacing: 3, marginBottom: 6 }}>Core Expertise</div>
+      <div style={{ height: 1, background: gold, opacity: 0.3, marginBottom: 10 }} />
+      <div style={{ fontSize: 12, color: "#44403c", lineHeight: 2 }}>{data.skills.join("   ·   ")}</div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEMPLATE REGISTRY
+// ══════════════════════════════════════════════════════════════════════════════
 
 export type PageCount = 1 | 2;
 
 export interface TemplateInfo {
   key: string;
   name: string;
-  component: React.FC<PreviewProps>;
+  component: React.FC<{ data?: PreviewData }>;
+  category: "Classic" | "Modern" | "Creative" | "Executive" | "ATS";
   traits: string[];
   bestFor: string;
   description: string;
   pages: PageCount;
-  tier: "free" | "plus";   // "free" = visible to all, "plus" = Plus/Pro only
+  tier: "free" | "plus";
 }
 
 export const ALL_TEMPLATES: TemplateInfo[] = [
-  // ── Free tier (first 5) ──
-  { key: "Clean",        name: "Clean",         component: CleanPreview,       traits: ["ATS-safe","Monochrome","All industries"], bestFor: "All industries",         description: "Minimal single-column layout maximising ATS compatibility.",                    pages: 1, tier: "free" },
-  { key: "Modern",       name: "Modern",        component: ModernPreview,      traits: ["Blue accents","Contemporary","Tech"],     bestFor: "Tech, product, design",  description: "Bold blue section headers with strong visual hierarchy.",                      pages: 2, tier: "free" },
-  { key: "Executive",    name: "Executive",     component: ExecutivePreview,   traits: ["Serif","Centred","Senior roles"],         bestFor: "Finance, law, C-suite",  description: "Authoritative serif typeface with centred name block.",                        pages: 2, tier: "free" },
-  { key: "Navy",         name: "Navy Pro",      component: NavyPreview,        traits: ["Navy blue","Formal","Professional"],      bestFor: "Banking, consulting",    description: "Navy blue accents with a polished, formal presentation.",                      pages: 2, tier: "free" },
-  { key: "Compact",      name: "Compact",       component: CompactPreview,     traits: ["Dense","1-page","High experience"],       bestFor: "Senior / 1-page CVs",    description: "Ultra-dense layout fitting maximum experience on one page.",                   pages: 1, tier: "free" },
-  // ── Plus/Pro tier ──
-  { key: "Bold",         name: "Bold Impact",   component: BoldPreview,        traits: ["Orange accent","Strong","Standout"],      bestFor: "Sales, startups",        description: "High-contrast design with strong orange accents that commands attention.",    pages: 1, tier: "plus" },
-  { key: "Minimal",      name: "Minimal",       component: MinimalPreview,     traits: ["Whitespace","Ultra-clean","Modern"],      bestFor: "UX, design, research",   description: "Sparse layout with abundant whitespace — lets content speak for itself.",     pages: 1, tier: "plus" },
-  { key: "Teal",         name: "Teal Fresh",    component: TealPreview,        traits: ["Teal","Contemporary","Approachable"],     bestFor: "Healthcare, education",  description: "Fresh teal colour scheme that feels modern and approachable.",                pages: 2, tier: "plus" },
-  { key: "Sidebar",      name: "Sidebar Pro",   component: SidebarPreview,     traits: ["Two-column","Sidebar","Skills-first"],    bestFor: "Tech, data science",     description: "Left sidebar for contact & skills with main experience panel.",              pages: 2, tier: "plus" },
-  { key: "Creative",     name: "Creative",      component: CreativePreview,    traits: ["Purple","Sidebar","Distinctive"],         bestFor: "Design, marketing",      description: "Bold purple sidebar for a creative first impression.",                        pages: 2, tier: "plus" },
-  { key: "Timeline",     name: "Timeline",      component: TimelinePreview,    traits: ["Dot timeline","Modern","Narrative"],      bestFor: "Product, operations",    description: "Left-side timeline dots make career progression immediately clear.",          pages: 2, tier: "plus" },
-  { key: "BlockHeader",  name: "Block Header",  component: BlockHeaderPreview, traits: ["Dark header","Contrast","Impactful"],     bestFor: "Engineering, fintech",   description: "Full-width dark header block creates strong immediate contrast.",            pages: 2, tier: "plus" },
-  { key: "Split",        name: "Two Column",    component: SplitPreview,       traits: ["Equal columns","Balanced","Structured"],  bestFor: "PM, strategy",           description: "Equal left/right columns balancing experience and skills.",                   pages: 2, tier: "plus" },
-  { key: "Academic",     name: "Academic",      component: AcademicPreview,    traits: ["Serif","Formal","Research"],              bestFor: "Academia, research",     description: "Traditional academic formatting for research and scholarly roles.",           pages: 2, tier: "plus" },
-  { key: "Elegant",      name: "Elegant",       component: ElegantPreview,     traits: ["Gold accent","Warm","Distinctive"],       bestFor: "Legal, luxury, arts",    description: "Warm gold decorative accents with cream background — memorable and refined.", pages: 2, tier: "plus" },
+  // ── Free (first 5) ──────────────────────────────────────────────────────────
+  { key: "Cambridge",  name: "Cambridge",    component: Cambridge,  category: "Classic",   traits: ["ATS-safe","Monochrome","Timeless"],     bestFor: "All industries",        description: "Clean single-column layout trusted by recruiters at any firm.",         pages: 1, tier: "free" },
+  { key: "Horizon",    name: "Horizon",      component: Horizon,    category: "Modern",    traits: ["Blue header","Bold","Tech-ready"],      bestFor: "Tech, product, design", description: "Bold blue header with strong visual hierarchy and skill chips.",        pages: 2, tier: "free" },
+  { key: "Prestige",   name: "Prestige",     component: Prestige,   category: "Executive", traits: ["Serif","Centred","Formal"],             bestFor: "Finance, law, C-suite", description: "Authoritative serif typeface with formal centred header.",              pages: 2, tier: "free" },
+  { key: "Admiral",    name: "Admiral",      component: Admiral,    category: "Classic",   traits: ["Navy","Professional","Two-tone"],       bestFor: "Banking, consulting",   description: "Navy blue accents with name and contact in a refined two-tone layout.", pages: 2, tier: "free" },
+  { key: "Swift",      name: "Swift",        component: Swift,      category: "ATS",       traits: ["Compact","1-page","Content-rich"],      bestFor: "Senior / 1-page CVs",   description: "Ultra-dense layout fitting maximum experience on a single page.",       pages: 1, tier: "free" },
+  // ── Plus / Pro ──────────────────────────────────────────────────────────────
+  { key: "Catalyst",   name: "Catalyst",     component: Catalyst,   category: "Modern",    traits: ["Orange accent","Bold","Standout"],      bestFor: "Sales, startups",       description: "High-contrast orange accents that demand attention on a recruiter's desk.", pages: 1, tier: "plus" },
+  { key: "Canvas",     name: "Canvas",       component: Canvas,     category: "Classic",   traits: ["Minimal","Whitespace","Refined"],       bestFor: "UX, design, research",  description: "Abundant whitespace and restrained typography — lets content lead.",    pages: 1, tier: "plus" },
+  { key: "Jade",       name: "Jade",         component: Jade,       category: "Modern",    traits: ["Teal","Left accent","Fresh"],           bestFor: "Healthcare, education", description: "Teal left accent bar and section headers with skill chip badges.",      pages: 2, tier: "plus" },
+  { key: "Prism",      name: "Prism",        component: Prism,      category: "Modern",    traits: ["Two-column","Sidebar","Structured"],    bestFor: "Tech, data science",    description: "Gray sidebar organises contact and skills; main column for experience.", pages: 2, tier: "plus" },
+  { key: "Vivid",      name: "Vivid",        component: Vivid,      category: "Creative",  traits: ["Purple","Sidebar","Distinctive"],       bestFor: "Design, marketing",     description: "Rich purple sidebar with monogram initial — makes an instant impression.", pages: 2, tier: "plus" },
+  { key: "Chronicle",  name: "Chronicle",    component: Chronicle,  category: "Modern",    traits: ["Timeline","Dots","Narrative"],          bestFor: "Product, operations",   description: "Timeline dots make your career progression immediately legible.",       pages: 2, tier: "plus" },
+  { key: "Summit",     name: "Summit",       component: Summit,     category: "Executive", traits: ["Dark header","Contrast","Impact"],      bestFor: "Engineering, fintech",  description: "Full-width charcoal header block creates commanding first impression.", pages: 2, tier: "plus" },
+  { key: "Symmetry",   name: "Symmetry",     component: Symmetry,   category: "Modern",    traits: ["Two-column","Balanced","Structured"],   bestFor: "PM, strategy, ops",     description: "Balanced equal columns — experience left, skills and education right.", pages: 2, tier: "plus" },
+  { key: "Scholar",    name: "Scholar",      component: Scholar,    category: "Classic",   traits: ["Serif","Academic","Formal"],            bestFor: "Academia, research",    description: "Traditional academic formatting for scholarly and research roles.",     pages: 2, tier: "plus" },
+  { key: "Luxe",       name: "Luxe",         component: Luxe,       category: "Executive", traits: ["Gold","Warm","Distinctive"],            bestFor: "Legal, luxury, arts",   description: "Warm gold decorative accents on cream — memorable and refined.",       pages: 2, tier: "plus" },
 ];
 
-export const FREE_TEMPLATES  = ALL_TEMPLATES.filter(t => t.tier === "free");
-export const PLUS_TEMPLATES  = ALL_TEMPLATES.filter(t => t.tier === "plus");
+export const CATEGORY_COLORS: Record<string, string> = {
+  Classic:   "bg-slate-100 text-slate-700",
+  Modern:    "bg-blue-50 text-blue-700",
+  Creative:  "bg-purple-50 text-purple-700",
+  Executive: "bg-amber-50 text-amber-700",
+  ATS:       "bg-green-50 text-green-700",
+};
 
-// ── Thumbnail card ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// REUSABLE UI COMPONENTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Thumbnail scale: fits ~196px wide card
+const THUMB_SCALE = 0.295;
 
 export function TemplateThumbnail({
-  info, isSelected, onClick, locked = false, previewName, previewTitle,
+  info, isSelected, onClick, locked = false, data,
 }: {
   info: TemplateInfo; isSelected: boolean; onClick: () => void;
-  locked?: boolean; previewName?: string; previewTitle?: string;
+  locked?: boolean; data?: PreviewData;
 }) {
-  const Preview = info.component;
+  const Template = info.component;
+  const containerW = Math.round(W * THUMB_SCALE);
+  const containerH = Math.round(W * 1.414 * THUMB_SCALE);
+
   return (
     <button
       onClick={onClick}
       disabled={locked}
       className={clsx(
-        "relative card p-0 text-left transition overflow-hidden",
-        locked ? "opacity-60 cursor-not-allowed" : "hover:shadow-lg",
-        isSelected ? "ring-2 ring-brand-500 border-brand-400 shadow-md" : "border-slate-200 hover:border-brand-300",
+        "relative flex flex-col text-left transition rounded-2xl overflow-hidden border bg-white",
+        locked ? "opacity-60 cursor-not-allowed" : "hover:shadow-xl hover:-translate-y-0.5",
+        isSelected ? "ring-2 ring-brand-500 border-brand-400 shadow-lg" : "border-slate-200 hover:border-brand-300",
       )}
     >
       {isSelected && !locked && (
-        <div className="absolute top-2 right-2 z-10 bg-brand-500 rounded-full p-0.5">
+        <div className="absolute top-2 right-2 z-10 bg-brand-500 rounded-full p-0.5 shadow">
           <FiCheckCircle className="w-3.5 h-3.5 text-white" />
         </div>
       )}
       {locked && (
-        <div className="absolute top-2 right-2 z-10 bg-slate-700/80 rounded-full p-1">
+        <div className="absolute top-2 right-2 z-10 bg-slate-800/70 rounded-full p-1">
           <FiLock className="w-3 h-3 text-white" />
         </div>
       )}
-      {/* Mini preview */}
-      <div className="h-44 border-b border-slate-100 overflow-hidden bg-white">
-        <Preview name={previewName} title={previewTitle} />
+
+      {/* Scaled preview */}
+      <div style={{ width: "100%", height: containerH + 20, overflow: "hidden", position: "relative", background: "#f8fafc" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", overflow: "hidden" }}>
+          <div style={{ transform: `scale(${THUMB_SCALE})`, transformOrigin: "top left", width: W, position: "absolute", top: 0, left: 0 }}>
+            <Template data={data} />
+          </div>
+        </div>
       </div>
+
       {/* Footer */}
-      <div className="p-3">
-        <div className="flex items-center gap-1.5 mb-0.5">
+      <div className="p-3 border-t border-slate-100 flex-1">
+        <div className="flex items-start justify-between gap-2 mb-1.5">
           <p className="font-semibold text-sm text-slate-900">{info.name}</p>
-          <span className={clsx("text-[9px] px-1.5 py-0.5 rounded-full font-semibold",
-            info.pages === 1 ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"
-          )}>
-            {info.pages === 1 ? "1-page" : "2-page"}
+          <span className={clsx("text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 whitespace-nowrap", CATEGORY_COLORS[info.category])}>
+            {info.category}
           </span>
         </div>
-        <p className="text-xs text-slate-500 mt-0.5 leading-snug text-left">{info.description}</p>
-        <div className="flex flex-wrap gap-1 mt-2">
-          {info.traits.map(t => (
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className={clsx("text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+            info.pages === 1 ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"
+          )}>
+            {info.pages}-page
+          </span>
+          {info.traits.slice(0, 2).map(t => (
             <span key={t} className="text-[10px] bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">{t}</span>
           ))}
         </div>
+        <p className="text-[11px] text-slate-500 leading-snug line-clamp-2">{info.description}</p>
         {locked && (
           <Link href="/settings/plan" onClick={e => e.stopPropagation()}
             className="mt-2 text-[10px] font-semibold text-brand-600 hover:underline flex items-center gap-1">
@@ -514,60 +777,68 @@ export function TemplateThumbnail({
   );
 }
 
-// ── Large selected-template preview panel ─────────────────────────────────────
+// Large selected-template preview (Layer 1 — instant, shown above gallery)
+const LARGE_SCALE = 0.54;
 
-export function LargeTemplatePreview({ info, previewName, previewTitle }: {
-  info: TemplateInfo; previewName?: string; previewTitle?: string;
-}) {
-  const Preview = info.component;
+export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?: PreviewData }) {
+  const Template = info.component;
+  const previewW = Math.round(W * LARGE_SCALE);
+  const previewH = Math.round(W * 1.414 * LARGE_SCALE);
+
   return (
-    <div className="flex flex-col sm:flex-row gap-5 items-start card border-brand-200 bg-brand-50/30 p-4">
-      {/* A4-ratio scaled preview */}
-      <div className="shrink-0 w-full sm:w-44">
-        <div className="relative w-full rounded-lg border border-slate-200 bg-white shadow-md overflow-hidden" style={{ paddingTop: "141%" }}>
-          <div className="absolute inset-0">
-            <div className="w-full h-full" style={{ transform: "scale(1.5)", transformOrigin: "top left", width: "66.6%", height: "66.6%" }}>
-              <Preview name={previewName} title={previewTitle} />
-            </div>
-          </div>
+    <div className="flex flex-col sm:flex-row gap-5 items-start card border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4 shadow-sm">
+      {/* Scaled preview */}
+      <div className="shrink-0 mx-auto sm:mx-0 rounded-xl shadow-lg overflow-hidden border border-slate-200"
+           style={{ width: previewW, height: previewH, position: "relative", background: "#f8fafc" }}>
+        <div style={{ transform: `scale(${LARGE_SCALE})`, transformOrigin: "top left",
+          width: W, position: "absolute", top: 0, left: 0 }}>
+          <Template data={data} />
         </div>
       </div>
+
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-1">
-          <h3 className="font-bold text-slate-900 text-lg">{info.name}</h3>
+        <div className="flex items-center gap-2 flex-wrap mb-2">
+          <h3 className="font-bold text-slate-900 text-xl">{info.name}</h3>
+          <span className={clsx("text-xs font-semibold px-2 py-0.5 rounded-full", CATEGORY_COLORS[info.category])}>
+            {info.category}
+          </span>
           <span className="flex items-center gap-1 text-xs font-semibold text-brand-600 bg-brand-100 rounded-full px-2 py-0.5">
             <FiCheckCircle className="w-3 h-3" /> Selected
           </span>
           <span className={clsx("text-xs font-semibold px-2 py-0.5 rounded-full",
             info.pages === 1 ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"
           )}>
-            {info.pages === 1 ? "1-page" : "2-page"}
+            {info.pages}-page
           </span>
         </div>
-        <p className="text-sm text-slate-600 mb-2">{info.description}</p>
+        <p className="text-sm text-slate-600 mb-2 leading-relaxed">{info.description}</p>
         <p className="text-xs text-slate-500 mb-3">
-          <span className="font-semibold">Best for:</span> {info.bestFor}
+          <span className="font-semibold text-slate-600">Best for:</span> {info.bestFor}
         </p>
         <div className="flex flex-wrap gap-1.5">
           {info.traits.map(t => (
-            <span key={t} className="text-xs bg-white border border-slate-200 text-slate-600 rounded-full px-2.5 py-0.5">{t}</span>
+            <span key={t} className="text-xs bg-white border border-slate-200 text-slate-600 rounded-full px-2.5 py-0.5 shadow-sm">{t}</span>
           ))}
         </div>
+        {data?.name && data.name !== SAMPLE.name && (
+          <p className="mt-3 text-xs text-brand-600 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block" />
+            Previewing with your details
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
-// ── CV Score template suggestions (3 shown: mix 1-page + 2-page) ─────────────
-
+// CV Score — 4 template suggestions (2 one-page + 2 two-page)
 export function TemplateSuggestions() {
-  // Show 4: the 2 one-page templates + 2 two-page templates
   const shown = [
-    ALL_TEMPLATES.find(t => t.key === "Clean")!,
-    ALL_TEMPLATES.find(t => t.key === "Compact")!,
-    ALL_TEMPLATES.find(t => t.key === "Modern")!,
-    ALL_TEMPLATES.find(t => t.key === "Sidebar")!,
+    ALL_TEMPLATES.find(t => t.key === "Cambridge")!,
+    ALL_TEMPLATES.find(t => t.key === "Swift")!,
+    ALL_TEMPLATES.find(t => t.key === "Horizon")!,
+    ALL_TEMPLATES.find(t => t.key === "Prism")!,
   ];
 
   return (
@@ -575,16 +846,19 @@ export function TemplateSuggestions() {
       <div>
         <h3 className="font-bold text-slate-900 text-lg">See your CV in our templates</h3>
         <p className="text-sm text-slate-500 mt-1">
-          Choose between 1-page and 2-page layouts. Our AI builder applies your template when tailoring for a specific job.
+          Choose from 1-page or 2-page layouts. Our AI builder applies your chosen template when tailoring for a job.
         </p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {shown.map((info) => {
-          const Preview = info.component;
+          const Template = info.component;
+          const thumbH = Math.round(W * 1.414 * 0.23);
           return (
-            <div key={info.key} className="card p-0 overflow-hidden hover:shadow-lg hover:border-brand-300 transition">
-              <div className="h-40 border-b border-slate-100 overflow-hidden bg-white relative">
-                <Preview />
+            <div key={info.key} className="card p-0 overflow-hidden hover:shadow-lg hover:border-brand-300 transition cursor-pointer rounded-2xl">
+              <div style={{ height: thumbH + 12, overflow: "hidden", position: "relative", background: "#f8fafc" }}>
+                <div style={{ transform: "scale(0.23)", transformOrigin: "top left", width: W, position: "absolute", top: 0, left: 0 }}>
+                  <Template />
+                </div>
                 <div className={clsx(
                   "absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full",
                   info.pages === 1 ? "bg-blue-500 text-white" : "bg-slate-700 text-white"
@@ -592,7 +866,7 @@ export function TemplateSuggestions() {
                   {info.pages === 1 ? "1-Page" : "2-Page"}
                 </div>
               </div>
-              <div className="p-2.5">
+              <div className="px-3 py-2.5 border-t border-slate-100">
                 <p className="font-semibold text-xs text-slate-900">{info.name}</p>
                 <p className="text-[10px] text-slate-500 mt-0.5">{info.bestFor}</p>
               </div>

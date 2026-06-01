@@ -70,7 +70,7 @@ const WHY_CHECK = [
   { icon: FiShield, stat: "98%", label: "of employers use ATS",    desc: "Most CVs are filtered out before a human ever reads them." },
   { icon: FiTarget, stat: "3×",  label: "more interview callbacks", desc: "Tailored, well-structured CVs get significantly more responses." },
   { icon: FiZap,    stat: "20s", label: "instant analysis",         desc: "Get the feedback a professional writer charges £100+ for — free." },
-  { icon: FiStar,   stat: "7",   label: "quality categories",       desc: "Contact, summary, experience, skills, education, ATS, and design." },
+  { icon: FiStar,   stat: "51",  label: "individual checks",        desc: "7 categories · 51 checks across contact, summary, experience, skills, ATS, design." },
 ];
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -389,15 +389,15 @@ export default function CvScorePage() {
         </div>
         <h1 className="text-4xl font-bold text-slate-900 mb-3">Free CV Score</h1>
         <p className="text-slate-500 text-base max-w-xl mx-auto">
-          Get an instant AI-powered quality score across 6 categories — ATS compatibility, content quality,
-          skills, experience and more. No sign-in required.
+          Get an instant AI-powered quality score across 7 categories and 51 checks — ATS compatibility,
+          content quality, design, skills, experience and more. No sign-in required.
         </p>
 
         {/* Stats row */}
         <div className="flex items-center justify-center gap-8 mt-6 flex-wrap">
           {[
-            { val: "6",    label: "quality checks" },
-            { val: "20s",  label: "analysis time"  },
+            { val: "51",   label: "checks run"      },
+            { val: "7",    label: "categories"      },
             { val: "Free", label: "no credit card"  },
           ].map(({ val, label }) => (
             <div key={label} className="text-center">
