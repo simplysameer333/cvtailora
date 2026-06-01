@@ -233,7 +233,7 @@ async def generate(
 
     cached_gen = await db.generation_cache.find_one({
         "input_hash": input_hash,
-        "created_at": {"$gt": datetime.utcnow() - timedelta(hours=24)},
+        "created_at": {"$gt": datetime.utcnow() - timedelta(days=7)},
     })
     cached_score = (cached_gen or {}).get("eval_summary", {}).get("min_score", 0)
     if cached_gen and cached_score >= pass_threshold:

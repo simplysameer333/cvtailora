@@ -206,7 +206,7 @@ async def check_resume_quality(
     text_hash = hashlib.sha256(parsed["raw_text"][:8000].encode()).hexdigest()
     db = get_db()
     cached = await db.cv_check_results.find_one(
-        {"text_hash": text_hash, "created_at": {"$gt": datetime.utcnow() - timedelta(hours=48)}},
+        {"text_hash": text_hash, "created_at": {"$gt": datetime.utcnow() - timedelta(days=7)}},
         sort=[("created_at", -1)],
     )
     if cached and cached.get("result"):

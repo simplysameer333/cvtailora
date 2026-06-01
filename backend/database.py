@@ -53,6 +53,16 @@ async def _ensure_indexes():
     await db.audit_log.create_index([("created_at", -1)])
     await db.audit_log.create_index([("user_id", 1), ("created_at", -1)])
     await db.prompt_overrides.create_index("key", unique=True)
+    # LLM output caches ─────────────────────────────────────────────────────
+    # CV Score: index on text_hash for fast lookup; no TTL (results are permalinks)
+    await db.cv_check_results.create_index("text_hash", sparse=True)
+    await db.cv_check_results.create_index([("text_hash", 1), ("created_at", -1)])
+    # Generation cache: unique index on input_hash prevents duplicate entries;
+    # TTL index auto-deletes entries older than 30 days to keep the collection lean
+    await db.generation_cache.create_index("input_hash", unique=True)
+    await db.generation_cache.create_index(
+        "created_at", expireAfterSeconds=30 * 86400  # 30 days
+    )
 
 
 def get_db():
