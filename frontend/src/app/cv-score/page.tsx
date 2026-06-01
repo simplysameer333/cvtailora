@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import {
   FiUploadCloud, FiFile, FiCheckCircle, FiXCircle, FiLock,
   FiChevronDown, FiChevronUp, FiArrowRight, FiUser, FiFileText,
-  FiBriefcase, FiTag, FiAward, FiCpu, FiZap, FiShield, FiTarget, FiStar,
+  FiBriefcase, FiTag, FiAward, FiCpu, FiZap, FiShield, FiTarget, FiStar, FiLayout,
 } from "react-icons/fi";
 import { checkResume, type ResumeCheckResult, type CheckCategory } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
@@ -49,21 +49,27 @@ const CATEGORIES_INFO = [
     key: "ats",
     icon: FiCpu,
     name: "ATS Compatibility",
-    desc: "We analyse structure, section headings, date formatting, and keyword density to ensure your resume passes applicant tracking systems used by 98% of major employers.",
+    desc: "We analyse structure, section headings, date formatting, and keyword density to ensure your CV passes applicant tracking systems used by 98% of major employers.",
+  },
+  {
+    key: "design",
+    icon: FiLayout,
+    name: "Design & Format",
+    desc: "We assess your CV's structure, length, visual hierarchy, and formatting consistency — and suggest which of our templates would best suit your profile.",
   },
 ];
 
 const HOW_IT_WORKS = [
   { step: "1", title: "Upload your CV", desc: "PDF or DOCX, up to 5 MB. No account needed." },
-  { step: "2", title: "AI analyses instantly", desc: "Our AI reviews 6 quality categories in under 20 seconds." },
+  { step: "2", title: "AI analyses instantly", desc: "Our AI reviews 7 quality categories in under 20 seconds." },
   { step: "3", title: "Review your score", desc: "Get a full breakdown with specific, actionable improvements." },
 ];
 
 const WHY_CHECK = [
-  { icon: FiShield, stat: "98%", label: "of employers use ATS", desc: "Most resumes are filtered out before a human ever reads them." },
-  { icon: FiTarget, stat: "3×", label: "more interview callbacks", desc: "Tailored, well-structured resumes get significantly more responses." },
-  { icon: FiZap,    stat: "20s", label: "instant analysis",       desc: "Get the feedback a professional writer charges £100+ for — free." },
-  { icon: FiStar,   stat: "6",   label: "quality categories",     desc: "Contact, summary, experience, skills, education, and ATS checks." },
+  { icon: FiShield, stat: "98%", label: "of employers use ATS",    desc: "Most CVs are filtered out before a human ever reads them." },
+  { icon: FiTarget, stat: "3×",  label: "more interview callbacks", desc: "Tailored, well-structured CVs get significantly more responses." },
+  { icon: FiZap,    stat: "20s", label: "instant analysis",         desc: "Get the feedback a professional writer charges £100+ for — free." },
+  { icon: FiStar,   stat: "7",   label: "quality categories",       desc: "Contact, summary, experience, skills, education, ATS, and design." },
 ];
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -228,16 +234,83 @@ function UploadZone({
       >
         {loading
           ? <><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Analysing…</>
-          : <>Check My Resume — It&apos;s Free</>}
+          : <>Score My CV — It&apos;s Free</>}
       </button>
       <p className="text-center text-xs text-slate-400 mt-2">No sign-in required · Results in under 20 seconds</p>
     </div>
   );
 }
 
+// ── FAQ accordion item ────────────────────────────────────────────────────────
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-slate-50 transition"
+      >
+        <span className="font-medium text-slate-800 text-sm pr-4">{q}</span>
+        {open
+          ? <FiChevronUp   className="w-4 h-4 text-slate-400 shrink-0" />
+          : <FiChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-3 text-sm text-slate-600 leading-relaxed border-t border-slate-100">
+          {a}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const FAQS = [
+  {
+    q: "Is the CV Score really free?",
+    a: "Yes — the full analysis across all 6 categories, with scores and pass/fail checks, is completely free with no account required. Detailed improvement suggestions per category are unlocked for Plus and Pro subscribers.",
+  },
+  {
+    q: "Do I need to create an account?",
+    a: "No account is needed to use the CV Score. Simply upload your CV and get your results instantly. An account is only required if you want to save results or access improvement suggestions.",
+  },
+  {
+    q: "What file formats are supported?",
+    a: "We accept PDF and DOCX files up to 5 MB. For best results, use a plain text-based PDF rather than a heavily designed or image-based one — design-heavy CVs can confuse text extraction.",
+  },
+  {
+    q: "How long does the analysis take?",
+    a: "Typically 10–20 seconds. The AI reads your full CV and evaluates it across all 6 quality categories in a single pass using Claude AI.",
+  },
+  {
+    q: "Does the CV Score need a job description?",
+    a: "No — the CV Score analyses your CV on its own merits (completeness, structure, ATS compatibility, content quality) without needing a job description. If you want to tailor your CV to a specific role, use the CV Builder instead.",
+  },
+  {
+    q: "How is this different from the CV Builder?",
+    a: "The CV Score analyses your existing CV and tells you what's strong and what needs improving. The CV Builder takes your CV plus a job description and rewrites it using multi-model AI to maximise your match for that specific role. Use the Checker first, then the Builder to act on the findings.",
+  },
+  {
+    q: "What is ATS and why does it matter?",
+    a: "ATS (Applicant Tracking System) is software used by 98% of large employers to automatically filter CVs before a human sees them. CVs with poor formatting, missing keywords, or non-standard sections are often rejected automatically. Our ATS check ensures your CV can be parsed and ranked correctly.",
+  },
+  {
+    q: "What do the improvement suggestions include?",
+    a: "Specific, actionable recommendations per category — for example: 'Add a GitHub profile URL to your contact section' or 'Start your summary with your job title and years of experience rather than a generic phrase'. These are unlocked for Plus and Pro subscribers.",
+  },
+  {
+    q: "Can I check my CV multiple times?",
+    a: "Yes, as many times as you like. Each upload is a fresh analysis — there are no limits on how many times you can use the CV Score.",
+  },
+  {
+    q: "Is my CV data stored or shared?",
+    a: "Your CV is parsed for analysis only and is not stored beyond the current session. We do not retain your personal data, share it with third parties, or use it to train AI models.",
+  },
+];
+
 // ── main page ─────────────────────────────────────────────────────────────────
 
-export default function ResumeCheckerPage() {
+export default function CvScorePage() {
   const { data: session } = useAuth();
   const tier = session?.user?.tier ?? "free";
   const canSeeImprovements = hasFeature(tier, "pdf_export"); // Plus+
@@ -287,7 +360,7 @@ export default function ResumeCheckerPage() {
         <div className="inline-flex items-center gap-2 bg-brand-50 text-brand-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">
           Free · No sign-in required
         </div>
-        <h1 className="text-4xl font-bold text-slate-900 mb-3">Free CV Checker</h1>
+        <h1 className="text-4xl font-bold text-slate-900 mb-3">Free CV Score</h1>
         <p className="text-slate-500 text-base max-w-xl mx-auto">
           Get an instant AI-powered quality score across 6 categories — ATS compatibility, content quality,
           skills, experience and more. No sign-in required.
@@ -397,7 +470,7 @@ export default function ResumeCheckerPage() {
       {/* ── Why it matters ── */}
       <div className="bg-slate-50 rounded-3xl p-8">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">Why check your resume?</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Why check your CV?</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {WHY_CHECK.map(({ icon: Icon, stat, label, desc }) => (
@@ -419,62 +492,13 @@ export default function ResumeCheckerPage() {
           <h2 className="text-2xl font-bold text-slate-900">Frequently asked questions</h2>
         </div>
         <div className="space-y-3 max-w-2xl mx-auto">
-          {[
-            {
-              q: "Is this really free?",
-              a: "Yes. The full resume analysis — all 6 categories with scores and pass/fail checks — is completely free with no account required. Detailed improvement suggestions are unlocked for Plus and Pro subscribers.",
-            },
-            {
-              q: "What file formats are supported?",
-              a: "We accept PDF and DOCX files up to 5 MB. For best results use a plain, text-based PDF rather than a heavily designed or image-based one.",
-            },
-            {
-              q: "How long does the analysis take?",
-              a: "Typically 10–20 seconds. The AI reads your full resume and evaluates it across all 6 quality categories in a single pass.",
-            },
-            {
-              q: "What do the improvement suggestions include?",
-              a: "Specific, actionable recommendations per category — for example 'Add a GitHub profile URL' or 'Open your summary with your job title and years of experience rather than a generic phrase.' These are unlocked for Plus and Pro subscribers.",
-            },
-            {
-              q: "Is my resume data stored?",
-              a: "Your resume is parsed for analysis and not stored beyond the session. We do not retain your personal data or share it with third parties.",
-            },
-          ].map(({ q, a }) => (
+          {FAQS.map(({ q, a }) => (
             <FaqItem key={q} q={q} a={a} />
           ))}
         </div>
       </div>
 
-      {/* ── Bottom CTA ── */}
-      <div className="text-center">
-        <UploadZone
-          file={file} isDragActive={isDragActive}
-          getRootProps={getRootProps} getInputProps={getInputProps}
-          loading={loading} onCheck={handleCheck}
-        />
-      </div>
-
     </div>
   );
 }
 
-function FaqItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-slate-50 transition"
-      >
-        <span className="font-medium text-slate-800 text-sm">{q}</span>
-        {open ? <FiChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <FiChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
-      </button>
-      {open && (
-        <div className="px-4 pb-4 text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-3">
-          {a}
-        </div>
-      )}
-    </div>
-  );
-}

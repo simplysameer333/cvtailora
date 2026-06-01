@@ -16,13 +16,13 @@ import {
   FiUsers, FiActivity, FiCpu, FiRefreshCw, FiSave, FiRotateCcw,
   FiChevronLeft, FiChevronRight, FiBriefcase, FiPlus, FiTrash2,
   FiChevronDown, FiChevronUp, FiToggleLeft, FiToggleRight, FiClock,
-  FiLayout, FiDownload, FiUploadCloud, FiEdit2, FiX, FiSliders, FiAlertCircle, FiSearch,
+  FiLayout, FiDownload, FiUploadCloud, FiEdit2, FiX, FiSliders, FiAlertCircle, FiSearch, FiCheckSquare,
 } from "react-icons/fi";
 import { adminUpdateTierConfig, fetchTierConfig, type TierConfigPayload } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Tab = "users" | "audit" | "prompts" | "professions" | "templates" | "tier_config";
+type Tab = "users" | "audit" | "prompts" | "professions" | "templates" | "tier_config" | "cv_score";
 
 interface CacheEntry<T> {
   data: T;
@@ -1162,6 +1162,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "professions", label: "Professions", icon: <FiBriefcase className="w-4 h-4" /> },
   { id: "templates",   label: "Templates",   icon: <FiLayout className="w-4 h-4" /> },
   { id: "tier_config", label: "Tier Config", icon: <FiSliders className="w-4 h-4" /> },
+  { id: "cv_score",    label: "CV Score",    icon: <FiCheckSquare className="w-4 h-4" /> },
 ];
 
 // ── TierConfigTab ──────────────────────────────────────────────────────────────
@@ -1687,6 +1688,118 @@ function ZoneCard({
   );
 }
 
+// ── CvScoreTab ────────────────────────────────────────────────────────────────
+
+interface CvScoreStats {
+  total: number;
+  checks_today: number;
+  checks_week: number;
+  authenticated: number;
+  anonymous: number;
+  avg_score: number;
+  category_averages: { key: string; avg_score: number; count: number }[];
+  recent: { id: string; created_at: string; overall_score: number; file_ext: string; authenticated: boolean }[];
+}
+
+function CvScoreTab() {
+  const [stats, setStats] = useState<CvScoreStats | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      try {
+        const { data } = await api.get("/api/admin/cv-score/stats");
+        setStats(data);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    contact: "Contact Info", summary: "Summary", experience: "Experience",
+    skills: "Skills", education: "Education", ats: "ATS", design: "Design",
+  };
+
+  const scoreColor = (s: number) =>
+    s >= 80 ? "text-green-600" : s >= 60 ? "text-amber-600" : s >= 40 ? "text-orange-600" : "text-red-600";
+  const barColor = (s: number) =>
+    s >= 80 ? "bg-green-500" : s >= 60 ? "bg-amber-500" : s >= 40 ? "bg-orange-500" : "bg-red-500";
+
+  if (loading) return <div className="py-16 text-center text-slate-400">Loading CV Score stats…</div>;
+  if (!stats)  return <div className="py-16 text-center text-slate-400">No data yet.</div>;
+
+  return (
+    <div className="space-y-6">
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: "Total Checks",    value: stats.total },
+          { label: "Today",           value: stats.checks_today },
+          { label: "This Week",       value: stats.checks_week },
+          { label: "Avg Score",       value: `${stats.avg_score}/100` },
+        ].map(({ label, value }) => (
+          <div key={label} className="card text-center py-4">
+            <div className="text-2xl font-bold text-slate-900">{value}</div>
+            <div className="text-xs text-slate-500 mt-1">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Auth breakdown */}
+      <div className="card">
+        <h3 className="font-semibold text-slate-700 mb-3 text-sm">User Breakdown</h3>
+        <div className="flex gap-6 text-sm">
+          <div><span className="font-semibold text-brand-600">{stats.authenticated}</span> <span className="text-slate-500">authenticated</span></div>
+          <div><span className="font-semibold text-slate-600">{stats.anonymous}</span> <span className="text-slate-500">anonymous</span></div>
+        </div>
+      </div>
+
+      {/* Category averages */}
+      <div className="card">
+        <h3 className="font-semibold text-slate-700 mb-4 text-sm">Average Score by Category</h3>
+        <div className="space-y-3">
+          {stats.category_averages.map(({ key, avg_score }) => (
+            <div key={key} className="flex items-center gap-3">
+              <span className="text-xs text-slate-500 w-24 shrink-0">{CATEGORY_LABELS[key] ?? key}</span>
+              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${barColor(avg_score)}`} style={{ width: `${avg_score}%` }} />
+              </div>
+              <span className={`text-xs font-semibold w-10 text-right ${scoreColor(avg_score)}`}>{avg_score}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent checks */}
+      <div className="card">
+        <h3 className="font-semibold text-slate-700 mb-3 text-sm">Recent Checks</h3>
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-100">
+              {["Date", "Score", "Format", "User"].map(h => (
+                <th key={h} className="pb-2 text-left text-xs font-semibold text-slate-400 uppercase">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {stats.recent.map(r => (
+              <tr key={r.id} className="border-b border-slate-50">
+                <td className="py-2 text-slate-500 text-xs">{new Date(r.created_at).toLocaleDateString()}</td>
+                <td className={`py-2 font-semibold ${scoreColor(r.overall_score)}`}>{r.overall_score}</td>
+                <td className="py-2 text-slate-500 uppercase text-xs">{r.file_ext}</td>
+                <td className="py-2 text-xs">{r.authenticated ? <span className="text-brand-600">Auth</span> : <span className="text-slate-400">Anon</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { data: session, status } = useAuth();
   const router = useRouter();
@@ -1702,8 +1815,8 @@ export default function AdminPage() {
   const [prompts, setPrompts] = useState<PromptOverride[]>([]);
   const [professions, setProfessions] = useState<AdminProfession[]>([]);
   const [templates, setTemplates] = useState<AdminTemplate[]>([]);
-  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, prompts: false, professions: false, templates: false, tier_config: false });
-  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, prompts: null, professions: null, templates: null, tier_config: null });
+  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, prompts: false, professions: false, templates: false, tier_config: false, cv_score: false });
+  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, prompts: null, professions: null, templates: null, tier_config: null, cv_score: null });
 
   function setLoad(t: Tab, v: boolean) { setLoading(prev => ({ ...prev, [t]: v })); }
   function setFetched(t: Tab, d: Date) { setFetchedAt(prev => ({ ...prev, [t]: d })); }
@@ -1908,6 +2021,7 @@ export default function AdminPage() {
             />
           )}
           {tab === "tier_config" && <TierConfigTab />}
+          {tab === "cv_score"    && <CvScoreTab />}
         </div>
       </div>
     </main>

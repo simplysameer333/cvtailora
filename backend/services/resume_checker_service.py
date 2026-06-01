@@ -1,4 +1,4 @@
-"""Resume checker — AI-powered analysis across 6 quality categories."""
+"""CV Score — AI-powered analysis across 7 quality categories."""
 from __future__ import annotations
 
 import json
@@ -10,15 +10,15 @@ from anthropic import AsyncAnthropic
 logger = logging.getLogger("tailormycv")
 
 _SYSTEM = (
-    "You are an expert resume reviewer and ATS specialist with 10+ years of experience "
-    "evaluating resumes for top-tier companies. Analyse resumes rigorously but fairly — "
-    "most strong professional resumes score 65–85. Always return valid JSON only."
+    "You are an expert CV reviewer and ATS specialist with 10+ years of experience "
+    "evaluating CVs for top-tier companies. Analyse CVs rigorously but fairly — "
+    "most strong professional CVs score 65–85. Always return valid JSON only."
 )
 
 _PROMPT = """\
-Analyse this resume and return a JSON evaluation. Respond with ONLY the JSON object, no extra text.
+Analyse this CV and return a JSON evaluation. Respond with ONLY the JSON object, no extra text.
 
-RESUME:
+CV:
 {resume_text}
 
 Return this exact JSON structure:
@@ -107,41 +107,54 @@ Return this exact JSON structure:
         {{"label": "Clean, parseable structure", "passed": <bool>}}
       ],
       "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
+    }},
+    {{
+      "key": "design",
+      "name": "Design & Format",
+      "score": <integer 0-100>,
+      "status": <"excellent"|"good"|"needs_work"|"missing">,
+      "checks": [
+        {{"label": "Appropriate CV length (1–2 pages)", "passed": <bool>}},
+        {{"label": "Consistent structure and section order", "passed": <bool>}},
+        {{"label": "Clear visual hierarchy (headers, bullets)", "passed": <bool>}},
+        {{"label": "No excessive special characters or symbols", "passed": <bool>}},
+        {{"label": "Dates and locations consistently formatted", "passed": <bool>}}
+      ],
+      "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
     }}
   ]
 }}
 
 Scoring rules:
-- overall_score = weighted average: experience 30%, skills 20%, ats 20%, summary 15%, contact 10%, education 5%
+- overall_score = weighted average: experience 25%, skills 20%, ats 15%, summary 15%, design 10%, contact 10%, education 5%
 - status thresholds: 80-100 = excellent, 60-79 = good, 40-59 = needs_work, 0-39 = missing
 - improvements: 1-3 specific, actionable suggestions (even for high-scoring categories)
-- Be concrete, not generic (e.g. "Add GitHub profile URL at github.com/username" not "Add more contact info")
+- Be concrete, not generic (e.g. "Add GitHub profile URL" not "Add more contact info")
+- For design: infer from text structure — consistent indentation, date formats, bullet style, section naming, approximate length
 """
 
 
 async def check_resume(resume_text: str, anthropic_key: str) -> dict:
-    """Analyse resume text and return structured quality check results."""
+    """Analyse CV text and return structured quality check results."""
     client = AsyncAnthropic(api_key=anthropic_key)
 
-    prompt = _PROMPT.format(resume_text=resume_text[:8000])  # cap to avoid huge tokens
+    prompt = _PROMPT.format(resume_text=resume_text[:8000])
 
     message = await client.messages.create(
-        model="claude-haiku-4-5-20251001",  # fast + cheap for a checker
+        model="claude-haiku-4-5-20251001",
         max_tokens=2048,
         system=_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
 
     raw = message.content[0].text.strip()
-
-    # Strip markdown fences if model wraps in ```json ... ```
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw)
 
     try:
         result = json.loads(raw)
     except json.JSONDecodeError as exc:
-        logger.error("[checker] Failed to parse AI response: %s", exc)
-        raise ValueError("Resume analysis failed — please try again.") from exc
+        logger.error("[cv_score] Failed to parse AI response: %s", exc)
+        raise ValueError("CV analysis failed — please try again.") from exc
 
     return result

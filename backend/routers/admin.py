@@ -455,6 +455,71 @@ async def admin_delete_template(template_id: str, _: dict = Depends(require_supe
     await db.templates.delete_one({"_id": oid})
 
 
+@router.get("/admin/cv-score/stats")
+async def cv_score_stats(_: dict = Depends(require_superadmin)):
+    """Aggregate CV Score usage statistics for the admin dashboard."""
+    from datetime import datetime, timezone, timedelta
+    db = get_db()
+
+    now = datetime.now(timezone.utc)
+    today_start  = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start   = today_start - timedelta(days=7)
+
+    total          = await db.cv_checks.count_documents({})
+    checks_today   = await db.cv_checks.count_documents({"created_at": {"$gte": today_start}})
+    checks_week    = await db.cv_checks.count_documents({"created_at": {"$gte": week_start}})
+    authenticated  = await db.cv_checks.count_documents({"user_id": {"$ne": None}})
+    anonymous      = total - authenticated
+
+    # Average overall score
+    pipeline = [{"$group": {"_id": None, "avg": {"$avg": "$overall_score"}}}]
+    avg_cursor = db.cv_checks.aggregate(pipeline)
+    avg_doc = await avg_cursor.to_list(length=1)
+    avg_score = round(avg_doc[0]["avg"]) if avg_doc else 0
+
+    # Average per category
+    cat_pipeline = [
+        {"$unwind": "$categories"},
+        {"$group": {
+            "_id": "$categories.key",
+            "avg": {"$avg": "$categories.score"},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"_id": 1}},
+    ]
+    cat_cursor = db.cv_checks.aggregate(cat_pipeline)
+    category_averages = [
+        {"key": d["_id"], "avg_score": round(d["avg"]), "count": d["count"]}
+        async for d in cat_cursor
+    ]
+
+    # Recent 10 checks
+    recent_cursor = db.cv_checks.find(
+        {}, {"_id": 1, "created_at": 1, "overall_score": 1, "file_ext": 1, "user_id": 1}
+    ).sort("created_at", -1).limit(10)
+    recent = [
+        {
+            "id": str(d["_id"]),
+            "created_at": d["created_at"].isoformat(),
+            "overall_score": d.get("overall_score", 0),
+            "file_ext": d.get("file_ext", ""),
+            "authenticated": d.get("user_id") is not None,
+        }
+        async for d in recent_cursor
+    ]
+
+    return {
+        "total": total,
+        "checks_today": checks_today,
+        "checks_week": checks_week,
+        "authenticated": authenticated,
+        "anonymous": anonymous,
+        "avg_score": avg_score,
+        "category_averages": category_averages,
+        "recent": recent,
+    }
+
+
 @router.get("/admin/templates/{template_id}/download")
 async def admin_download_template(template_id: str, _: dict = Depends(require_superadmin)):
     from services.template_service import get_template_path

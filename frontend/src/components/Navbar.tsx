@@ -45,7 +45,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const onChecker = pathname.startsWith("/resume-checker");
+  const onChecker = pathname.startsWith("/cv-score");
   const onBuilder = pathname.startsWith("/builder");
   const onJobs    = pathname.startsWith("/jobs");
 
@@ -70,11 +70,11 @@ export default function Navbar() {
 
         <div className="flex items-center gap-1 sm:gap-3">
 
-          {/* ── CV Checker (all users) ── */}
+          {/* ── CV Score (all users) ── */}
           <>
             <Link
-              href="/resume-checker"
-              title="CV Checker"
+              href="/cv-score"
+              title="CV Score"
               className={`sm:hidden p-2 rounded-lg transition ${
                 onChecker ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
               }`}
@@ -82,7 +82,7 @@ export default function Navbar() {
               <FiCheckSquare className="w-5 h-5" />
             </Link>
             <Link
-              href="/resume-checker"
+              href="/cv-score"
               className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
                 onChecker
                   ? "border-brand-400 bg-brand-50 text-brand-700"
@@ -90,7 +90,7 @@ export default function Navbar() {
               }`}
             >
               <FiCheckSquare className="w-4 h-4" />
-              CV Checker
+              CV Score
             </Link>
           </>
 

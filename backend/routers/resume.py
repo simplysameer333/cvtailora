@@ -186,11 +186,15 @@ async def upload_sample_cv(
 
 
 @router.post("/resume/check")
-async def check_resume_quality(file: UploadFile = File(...)):
-    """Analyse a resume and return a structured quality report.
+async def check_resume_quality(
+    file: UploadFile = File(...),
+    user: dict | None = Depends(get_optional_user),
+):
+    """Analyse a CV and return a structured quality report.
 
     No authentication required — available to all users including anonymous.
-    Returns 6-category breakdown with scores and improvement suggestions.
+    Returns 7-category breakdown with scores and improvement suggestions.
+    Usage is tracked in the cv_checks MongoDB collection.
     """
     if file.content_type not in ACCEPTED_TYPES:
         raise HTTPException(400, "Only PDF and DOCX files are accepted.")
@@ -202,7 +206,7 @@ async def check_resume_quality(file: UploadFile = File(...)):
     try:
         parsed = parse_resume(file_bytes, file.filename)
     except Exception as exc:
-        raise HTTPException(422, f"Failed to parse resume: {exc}")
+        raise HTTPException(422, f"Failed to parse CV: {exc}")
 
     if not parsed.get("raw_text", "").strip():
         raise HTTPException(422, "Could not extract text from this file. Try a plain PDF or DOCX.")
@@ -211,8 +215,25 @@ async def check_resume_quality(file: UploadFile = File(...)):
         result = await _check_resume(parsed["raw_text"], settings.anthropic_api_key)
     except ValueError as exc:
         raise HTTPException(502, str(exc))
+    except Exception:
+        logger.exception("[cv_score] Unexpected error")
+        raise HTTPException(502, "CV analysis failed. Please try again.")
+
+    # ── Track usage in MongoDB (fire-and-forget, never fails the request) ──
+    try:
+        file_ext = (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else "unknown"
+        db = get_db()
+        await db.cv_checks.insert_one({
+            "user_id":       user["_id"] if user else None,
+            "created_at":    datetime.utcnow(),
+            "overall_score": result.get("overall_score", 0),
+            "file_ext":      file_ext,
+            "categories": [
+                {"key": c.get("key"), "score": c.get("score", 0), "status": c.get("status")}
+                for c in result.get("categories", [])
+            ],
+        })
     except Exception as exc:
-        logger.exception("[checker] Unexpected error")
-        raise HTTPException(502, "Resume analysis failed. Please try again.")
+        logger.warning("[cv_score] Failed to track usage: %s", exc)
 
     return result
