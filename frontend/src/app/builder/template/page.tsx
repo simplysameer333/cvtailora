@@ -19,7 +19,7 @@ import {
   FiDownload, FiRefreshCw, FiBookmark, FiX,
 } from "react-icons/fi";
 import {
-  ALL_TEMPLATES, SAMPLE_THUMB, CATEGORY_COLORS, CATEGORY_HEADER,
+  ALL_TEMPLATES, CATEGORY_COLORS, CATEGORY_HEADER,
   type PreviewData, type TemplateInfo,
 } from "@/components/TemplatePreviews";
 import { getTemplateHtml } from "@/lib/templateHtml";
@@ -31,22 +31,22 @@ function toPreviewData(resume: GeneratedResume): PreviewData {
   const skills: string[] =
     resume.skills?.length
       ? resume.skills
-      : (resume.sections?.find(s => s.title.toLowerCase().includes("skill"))?.items ?? SAMPLE_THUMB.skills);
+      : (resume.sections?.find(s => s.title.toLowerCase().includes("skill"))?.items ?? []);
   return {
-    name:     resume.name     || SAMPLE_THUMB.name,
-    title:    resume.experience?.[0]?.role || SAMPLE_THUMB.title,
-    email:    resume.contact?.email    || SAMPLE_THUMB.email,
-    phone:    resume.contact?.phone    || SAMPLE_THUMB.phone,
-    location: resume.contact?.location || SAMPLE_THUMB.location,
-    linkedin: resume.contact?.linkedin || SAMPLE_THUMB.linkedin,
-    summary:  resume.summary  || SAMPLE_THUMB.summary,
+    name:     resume.name                   || "",
+    title:    resume.experience?.[0]?.role  || "",
+    email:    resume.contact?.email         || "",
+    phone:    resume.contact?.phone         || "",
+    location: resume.contact?.location      || "",
+    linkedin: resume.contact?.linkedin      || "",
+    summary:  resume.summary                || "",
     skills,
     experience: resume.experience?.length
       ? resume.experience.map(e => ({ title: e.role, company: e.company, date: e.dates, bullets: e.bullets }))
-      : SAMPLE_THUMB.experience,
+      : [],
     education: resume.education?.length
       ? resume.education.map(e => ({ degree: e.degree, school: e.institution, year: e.dates }))
-      : SAMPLE_THUMB.education,
+      : [],
   };
 }
 

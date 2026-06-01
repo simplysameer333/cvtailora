@@ -20,58 +20,13 @@ export interface PreviewData {
   education: { degree: string; school: string; year: string }[];
 }
 
-// Demo data for template previews — fictional person, rich realistic content
-// so templates render at their best and showcase the product quality.
+// SAMPLE / SAMPLE_THUMB removed — previews always use real data.
+// Kept as empty exports so any import that references them compiles without error.
 export const SAMPLE_THUMB: PreviewData = {
-  name:     "Jordan Mitchell",
-  title:    "Senior Product Manager",
-  email:    "jordan.mitchell@email.com",
-  phone:    "+44 7911 123 456",
-  location: "London, UK",
-  linkedin: "linkedin.com/in/jordanmitchell",
-  summary:  "Product Manager with 9+ years driving 0→1 product launches and scaling B2B SaaS platforms. Delivered £12M ARR growth and led cross-functional teams of 20+ across engineering, design and data.",
-  skills:   ["Product Strategy", "Agile / Scrum", "SQL & Analytics", "Roadmap Planning", "A/B Testing", "Stakeholder Management", "User Research", "Jira & Confluence"],
-  experience: [
-    { title: "Senior Product Manager", company: "Monzo Bank", date: "2021 – Present",
-      bullets: ["Owned lending product generating £8M ARR; grew active users 3× in 18 months", "Led 0→1 launch of business accounts across 6 EU markets"] },
-    { title: "Product Manager", company: "Deliveroo", date: "2018 – 2021",
-      bullets: ["Rebuilt checkout flow, increasing conversion by 22% and reducing drop-off by 35%", "Managed roadmap for 4M+ weekly active users across iOS and Android"] },
-    { title: "Associate Product Manager", company: "Accenture", date: "2015 – 2018",
-      bullets: ["Delivered digital transformation projects for FTSE 100 retail and financial clients"] },
-  ],
-  education: [
-    { degree: "BSc Computer Science (First Class)", school: "University of Manchester", year: "2015" },
-    { degree: "Certified Scrum Product Owner", school: "Scrum Alliance", year: "2019" },
-  ],
+  name: "", title: "", email: "", phone: "", location: "", linkedin: "",
+  summary: "", skills: [], experience: [], education: [],
 };
-
-// Richer variant used for large previews — same person, more detail
-export const SAMPLE: PreviewData = {
-  ...SAMPLE_THUMB,
-  summary:  "Senior Product Manager with 9+ years driving 0→1 product launches and scaling B2B SaaS platforms to £12M+ ARR. Expert at translating complex user needs into clear roadmaps, leading cross-functional teams of 20+ engineers and designers, and using data to validate decisions fast. Passionate about building products users love.",
-  skills:   ["Product Strategy", "Agile / Scrum", "SQL & Analytics", "OKR Framework", "Roadmap Planning", "A/B Testing & Experimentation", "Stakeholder Management", "User Research & Interviews", "Jira & Confluence", "Figma", "Python (data analysis)", "Go-to-Market"],
-  experience: [
-    { title: "Senior Product Manager", company: "Monzo Bank", date: "Jan 2021 – Present",
-      bullets: [
-        "Owned lending product suite generating £8M ARR; grew active users 3× in 18 months through targeted experiment programme",
-        "Led 0→1 launch of Monzo Business Accounts across 6 EU markets, coordinating 3 engineering squads and legal/compliance teams",
-        "Reduced time-to-decision on loan applications by 60% by redesigning underwriting UX with ML team",
-        "Introduced quarterly product reviews adopted org-wide, improving roadmap predictability by 40%",
-      ] },
-    { title: "Product Manager", company: "Deliveroo", date: "Mar 2018 – Dec 2020",
-      bullets: [
-        "Rebuilt checkout flow end-to-end, increasing conversion by 22% and reducing basket abandonment by 35%",
-        "Managed roadmap for consumer app serving 4M+ weekly active users across iOS and Android",
-        "Launched subscription product (Deliveroo Plus) from 0 to 500K subscribers in 12 months",
-        "Partnered with data science to build real-time demand forecasting model, cutting late deliveries by 18%",
-      ] },
-    { title: "Associate Product Manager", company: "Accenture Digital", date: "Sep 2015 – Feb 2018",
-      bullets: [
-        "Delivered digital transformation programmes for FTSE 100 clients in retail and financial services",
-        "Led discovery and prototyping for a loyalty platform serving 2M+ customers",
-      ] },
-  ],
-};
+export const SAMPLE = SAMPLE_THUMB;
 
 const W = 600; // base template width in px (used by React components)
 
@@ -107,7 +62,7 @@ const contact = (d: PreviewData) =>
 // ══════════════════════════════════════════════════════════════════════════════
 
 // 1. CAMBRIDGE — Classic single-column, clean dividers
-export function Cambridge({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Cambridge({ data }: { data?: PreviewData }) {
   const h2 = { fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 1.5, color: "#374151", margin: "18px 0 4px" };
   return (
     <div style={{ width: W, background: "#fff", padding: "48px 52px", fontFamily: "'Calibri',system-ui,sans-serif", color: "#1f2937", lineHeight: 1.5 }}>
@@ -142,7 +97,7 @@ export function Cambridge({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 2. HORIZON — Blue header, bold section headings
-export function Horizon({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Horizon({ data }: { data?: PreviewData }) {
   const blue = "#1d4ed8";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", color: "#1f2937" }}>
@@ -177,7 +132,7 @@ export function Horizon({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 3. PRESTIGE — Formal serif, centered header, double rules
-export function Prestige({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Prestige({ data }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "48px 52px", fontFamily: "Georgia,serif", color: "#1c1c1c" }}>
       <div style={{ borderTop: "2.5px solid #1c1c1c", marginBottom: 10 }} />
@@ -218,7 +173,7 @@ export function Prestige({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 4. CATALYST — Bold orange accent, strong typography
-export function Catalyst({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Catalyst({ data }: { data?: PreviewData }) {
   const orange = "#ea580c";
   return (
     <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif", color: "#111" }}>
@@ -260,7 +215,7 @@ export function Catalyst({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 5. CANVAS — Ultra-minimal, whitespace-first
-export function Canvas({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Canvas({ data }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "56px 60px", fontFamily: "'Helvetica Neue',system-ui,sans-serif", color: "#374151" }}>
       <div style={{ fontSize: 24, fontWeight: 300, color: "#111827", letterSpacing: -0.5 }}>{data.name}</div>
@@ -292,7 +247,7 @@ export function Canvas({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 6. ADMIRAL — Navy blue, formal two-tone
-export function Admiral({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Admiral({ data }: { data?: PreviewData }) {
   const navy = "#1e3a5f";
   return (
     <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif" }}>
@@ -328,7 +283,7 @@ export function Admiral({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 7. JADE — Teal left accent bar + teal headings
-export function Jade({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Jade({ data }: { data?: PreviewData }) {
   const teal = "#0d9488";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex" }}>
@@ -371,7 +326,7 @@ function SectionTeal({ label, teal, children }: { label: string; teal: string; c
 }
 
 // 8. PRISM — Two-column: gray sidebar | main
-export function Prism({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Prism({ data }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex", minHeight: 848 }}>
       <div style={{ width: 200, background: "#f1f5f9", padding: "40px 22px", flexShrink: 0 }}>
@@ -420,7 +375,7 @@ export function Prism({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 9. VIVID — Purple sidebar, creative
-export function Vivid({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Vivid({ data }: { data?: PreviewData }) {
   const purple = "#7c3aed";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex", minHeight: 848 }}>
@@ -466,7 +421,7 @@ export function Vivid({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 10. CHRONICLE — Timeline with left border dots
-export function Chronicle({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Chronicle({ data }: { data?: PreviewData }) {
   const brand = "#2563eb";
   return (
     <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif" }}>
@@ -502,7 +457,7 @@ export function Chronicle({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 11. SUMMIT — Dark charcoal header block
-export function Summit({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Summit({ data }: { data?: PreviewData }) {
   const dark = "#1e293b";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif" }}>
@@ -541,7 +496,7 @@ export function Summit({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 12. SYMMETRY — Equal two columns
-export function Symmetry({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Symmetry({ data }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif" }}>
       <div style={{ padding: "36px 48px 16px", borderBottom: "2px solid #0f172a" }}>
@@ -589,7 +544,7 @@ export function Symmetry({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 13. SCHOLAR — Academic, formal structure
-export function Scholar({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Scholar({ data }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "48px 56px", fontFamily: "Georgia,serif", color: "#1c1c1c", lineHeight: 1.6 }}>
       <div style={{ textAlign: "center" as const, marginBottom: 20 }}>
@@ -629,7 +584,7 @@ export function Scholar({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 14. SWIFT — Ultra-compact, maximises content on one page
-export function Swift({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Swift({ data }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "32px 44px", fontFamily: "system-ui,sans-serif", fontSize: 11 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: "1.5px solid #374151", paddingBottom: 8, marginBottom: 8 }}>
@@ -657,7 +612,7 @@ export function Swift({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 }
 
 // 15. LUXE — Warm gold accents, cream background
-export function Luxe({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
+export function Luxe({ data }: { data?: PreviewData }) {
   const gold = "#b45309";
   return (
     <div style={{ width: W, background: "#fffdf5", padding: "52px 56px", fontFamily: "Georgia,serif", color: "#292524" }}>
@@ -699,11 +654,11 @@ export function Luxe({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
 // 16-20. New templates — previews rendered via getTemplateHtml (iframes)
 // These stubs exist only to satisfy the TemplateInfo type; the component
 // field is unused at runtime (all previews use getTemplateHtml).
-export function TechModern({ data = SAMPLE_THUMB }: { data?: PreviewData }) { return Cambridge({ data }); }
-export function Pulse({ data = SAMPLE_THUMB }: { data?: PreviewData })      { return Jade({ data }); }
-export function HexagonPro({ data = SAMPLE_THUMB }: { data?: PreviewData }) { return Horizon({ data }); }
-export function SalesImpact({ data = SAMPLE_THUMB }: { data?: PreviewData }) { return Horizon({ data }); }
-export function Healthcare({ data = SAMPLE_THUMB }: { data?: PreviewData }) { return Jade({ data }); }
+export function TechModern({ data }: { data?: PreviewData }) { return Cambridge({ data }); }
+export function Pulse({ data }: { data?: PreviewData })      { return Jade({ data }); }
+export function HexagonPro({ data }: { data?: PreviewData }) { return Horizon({ data }); }
+export function SalesImpact({ data }: { data?: PreviewData }) { return Horizon({ data }); }
+export function Healthcare({ data }: { data?: PreviewData }) { return Jade({ data }); }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TEMPLATE REGISTRY
