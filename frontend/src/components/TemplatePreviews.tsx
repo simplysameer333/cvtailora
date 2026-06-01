@@ -1,8 +1,9 @@
 "use client";
-import React from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
 import { FiCheckCircle, FiArrowRight, FiLock } from "react-icons/fi";
 import clsx from "clsx";
+import { getTemplateHtml } from "@/lib/templateHtml";
 
 // ── Preview data ──────────────────────────────────────────────────────────────
 
@@ -704,8 +705,12 @@ export const CATEGORY_COLORS: Record<string, string> = {
 // REUSABLE UI COMPONENTS
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Thumbnail scale: fits ~196px wide card
-const THUMB_SCALE = 0.295;
+// ── Iframe-based preview (crisp, pixel-perfect rendering) ─────────────────────
+
+// Thumbnail: iframe 794px wide scaled to fit card (~196px → scale 0.247)
+const THUMB_IFRAME_W = 794;
+const THUMB_SCALE    = 0.247;
+const THUMB_H        = Math.round(THUMB_IFRAME_W * 1.414 * THUMB_SCALE); // A4 ratio
 
 export function TemplateThumbnail({
   info, isSelected, onClick, locked = false, data,
@@ -713,9 +718,11 @@ export function TemplateThumbnail({
   info: TemplateInfo; isSelected: boolean; onClick: () => void;
   locked?: boolean; data?: PreviewData;
 }) {
-  const Template = info.component;
-  const containerW = Math.round(W * THUMB_SCALE);
-  const containerH = Math.round(W * 1.414 * THUMB_SCALE);
+  const html = useMemo(
+    () => getTemplateHtml(info.key, data ?? SAMPLE),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [info.key, data?.name, data?.title]
+  );
 
   return (
     <button
@@ -738,13 +745,21 @@ export function TemplateThumbnail({
         </div>
       )}
 
-      {/* Scaled preview */}
-      <div style={{ width: "100%", height: containerH + 20, overflow: "hidden", position: "relative", background: "#f8fafc" }}>
-        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", overflow: "hidden" }}>
-          <div style={{ transform: `scale(${THUMB_SCALE})`, transformOrigin: "top left", width: W, position: "absolute", top: 0, left: 0 }}>
-            <Template data={data} />
-          </div>
-        </div>
+      {/* Iframe preview — renders at full 794px then CSS-scaled down */}
+      <div style={{ height: THUMB_H, overflow: "hidden", position: "relative", background: "#fff", flexShrink: 0 }}>
+        <iframe
+          srcDoc={html}
+          sandbox="allow-same-origin"
+          scrolling="no"
+          style={{
+            width: THUMB_IFRAME_W,
+            height: Math.round(THUMB_IFRAME_W * 1.414),
+            border: "none",
+            transform: `scale(${THUMB_SCALE})`,
+            transformOrigin: "top left",
+            pointerEvents: "none",
+          }}
+        />
       </div>
 
       {/* Footer */}
@@ -777,26 +792,42 @@ export function TemplateThumbnail({
   );
 }
 
-// Large selected-template preview (Layer 1 — instant, shown above gallery)
-const LARGE_SCALE = 0.54;
+// Large live preview — shown above gallery, updates instantly on template switch
+const LARGE_IFRAME_W = 794;
+const LARGE_SCALE    = 0.48;
+const LARGE_H        = Math.round(LARGE_IFRAME_W * 1.414 * LARGE_SCALE);
+const LARGE_W        = Math.round(LARGE_IFRAME_W * LARGE_SCALE);
 
 export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?: PreviewData }) {
-  const Template = info.component;
-  const previewW = Math.round(W * LARGE_SCALE);
-  const previewH = Math.round(W * 1.414 * LARGE_SCALE);
+  const html = useMemo(
+    () => getTemplateHtml(info.key, data ?? SAMPLE),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [info.key, data?.name, data?.title, data?.summary]
+  );
+  const isPersonalised = !!(data?.name && data.name !== SAMPLE.name);
 
   return (
     <div className="flex flex-col sm:flex-row gap-5 items-start card border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4 shadow-sm">
-      {/* Scaled preview */}
+      {/* Iframe large preview */}
       <div className="shrink-0 mx-auto sm:mx-0 rounded-xl shadow-lg overflow-hidden border border-slate-200"
-           style={{ width: previewW, height: previewH, position: "relative", background: "#f8fafc" }}>
-        <div style={{ transform: `scale(${LARGE_SCALE})`, transformOrigin: "top left",
-          width: W, position: "absolute", top: 0, left: 0 }}>
-          <Template data={data} />
-        </div>
+           style={{ width: LARGE_W, height: LARGE_H }}>
+        <iframe
+          srcDoc={html}
+          sandbox="allow-same-origin"
+          scrolling="no"
+          title={`${info.name} preview`}
+          style={{
+            width: LARGE_IFRAME_W,
+            height: Math.round(LARGE_IFRAME_W * 1.414),
+            border: "none",
+            transform: `scale(${LARGE_SCALE})`,
+            transformOrigin: "top left",
+            pointerEvents: "none",
+          }}
+        />
       </div>
 
-      {/* Info */}
+      {/* Info panel */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap mb-2">
           <h3 className="font-bold text-slate-900 text-xl">{info.name}</h3>
@@ -816,15 +847,20 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
         <p className="text-xs text-slate-500 mb-3">
           <span className="font-semibold text-slate-600">Best for:</span> {info.bestFor}
         </p>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 mb-3">
           {info.traits.map(t => (
             <span key={t} className="text-xs bg-white border border-slate-200 text-slate-600 rounded-full px-2.5 py-0.5 shadow-sm">{t}</span>
           ))}
         </div>
-        {data?.name && data.name !== SAMPLE.name && (
-          <p className="mt-3 text-xs text-brand-600 flex items-center gap-1.5">
+        {isPersonalised ? (
+          <p className="text-xs text-brand-600 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block" />
-            Previewing with your details
+            Live preview — showing your CV details
+          </p>
+        ) : (
+          <p className="text-xs text-slate-400 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block" />
+            Sample preview — your CV will replace this content
           </p>
         )}
       </div>

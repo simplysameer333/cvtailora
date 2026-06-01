@@ -68,6 +68,21 @@ async def prefill_profile(session_id: str):
         return {}
 
 
+@router.get("/profile/session")
+async def get_session_profile(session_id: str):
+    """Return the saved user_profile for a session (used for template live preview)."""
+    db = get_db()
+    try:
+        session = await db.sessions.find_one(
+            {"_id": ObjectId(session_id)}, {"user_profile": 1}
+        )
+    except Exception:
+        raise HTTPException(400, "Invalid session ID.")
+    if not session or not session.get("user_profile"):
+        raise HTTPException(404, "Profile not found for this session.")
+    return session["user_profile"]
+
+
 @router.post("/profile")
 async def save_profile(session_id: str, profile: UserProfile):
     db = get_db()

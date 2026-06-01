@@ -1,5 +1,6 @@
 "use client";
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -338,6 +339,7 @@ const FAQS = [
 // ── main page ─────────────────────────────────────────────────────────────────
 
 export default function CvScorePage() {
+  const router = useRouter();
   const { data: session } = useAuth();
   const tier = session?.user?.tier ?? "free";
   const canSeeImprovements = hasFeature(tier, "pdf_export"); // Plus+
@@ -367,8 +369,12 @@ export default function CvScorePage() {
     try {
       const res = await checkResume(file);
       setResult(res);
-      // Scroll to results
-      setTimeout(() => document.getElementById("checker-results")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      // Redirect to permalink if we got a result_id
+      if (res.result_id) {
+        router.push(`/cv-score/${res.result_id}`);
+      } else {
+        setTimeout(() => document.getElementById("checker-results")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       toast.error(msg ?? "Analysis failed. Please try again.");

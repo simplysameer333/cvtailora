@@ -14,6 +14,7 @@ import { FiUploadCloud, FiCheckCircle, FiFile, FiFileText, FiLayers, FiLock, FiZ
 import {
   ALL_TEMPLATES, LargeTemplatePreview, TemplateThumbnail, type PreviewData, type TemplateInfo,
 } from "@/components/TemplatePreviews";
+import { getSessionProfile } from "@/lib/api";
 
 type OutputFormat = "docx" | "pdf" | "both";
 
@@ -35,23 +36,7 @@ export default function TemplatePage() {
   const isPdfEnabled = hasFeature(tier, "pdf_export");
   const canUseAllTemplates = tier === "plus" || tier === "pro";
 
-  // Build preview data from session — fills user's name; rest uses sample content
-  const previewData: PreviewData | undefined = session?.user?.name ? {
-    name:     session.user.name,
-    title:    "Senior Professional",
-    email:    session.user.email ?? "your@email.com",
-    phone:    "+44 7700 900 000",
-    location: "London, UK",
-    linkedin: "linkedin.com/in/yourprofile",
-    summary:  "Results-driven professional with 8+ years of experience delivering high-impact projects. Consistently exceeded targets and led cross-functional teams to success.",
-    skills:   ["Leadership", "Strategy", "Project Management", "Communication", "Analysis", "Python", "SQL", "AWS"],
-    experience: [
-      { title: "Senior Manager", company: "Your Company", date: "2021 – Present", bullets: ["Led team of 8 delivering 40% efficiency improvements", "Managed $2M budget with 15% cost savings"] },
-      { title: "Manager", company: "Previous Company", date: "2018 – 2021", bullets: ["Delivered 3 major projects on time and under budget", "Grew team from 3 to 7 people"] },
-    ],
-    education: [{ degree: "Bachelor's Degree", school: "University", year: "2017" }],
-  } : undefined;
-
+  const [previewData, setPreviewData] = useState<PreviewData | undefined>(undefined);
   const [dbTemplates, setDbTemplates] = useState<Template[]>([]);
   const [selected, setSelected]       = useState<string | null>(null);
   const [instructions, setInstructions]   = useState("");
@@ -72,6 +57,41 @@ export default function TemplatePage() {
 
   useEffect(() => {
     listTemplates().then(setDbTemplates).catch(() => toast.error("Could not load templates."));
+
+    // Fetch real profile data from session for live template preview
+    const sessionId = getSessionId();
+    if (sessionId) {
+      getSessionProfile(sessionId).then(p => {
+        setPreviewData({
+          name:     p.full_name  || session?.user?.name || "Your Name",
+          title:    p.target_role || "Your Professional Title",
+          email:    p.email      || session?.user?.email || "your@email.com",
+          phone:    p.phone      || "",
+          location: p.location   || "",
+          linkedin: p.linkedin   || "",
+          summary:  "Your professional summary will appear here, tailored to your experience and target role.",
+          skills:   p.key_skills?.length ? p.key_skills : ["Your skills will appear here"],
+          experience: [
+            { title: p.target_role || "Your Role", company: "Your Company", date: "Present",
+              bullets: ["Your achievements and responsibilities from your uploaded CV will appear here"] },
+          ],
+          education: [{ degree: "Your Degree", school: "Your University", year: "" }],
+        });
+      }).catch(() => {
+        // Fallback to session name only
+        if (session?.user?.name) {
+          setPreviewData({
+            name: session.user.name, title: "Professional", email: session.user.email ?? "",
+            phone: "", location: "", linkedin: "",
+            summary: "Your CV summary will appear here.",
+            skills: ["Your skills"],
+            experience: [{ title: "Your Role", company: "Your Company", date: "Present", bullets: ["Your experience"] }],
+            education: [{ degree: "Your Degree", school: "University", year: "" }],
+          });
+        }
+      });
+    }
+
     const saved = localStorage.getItem(LS_INSTRUCTIONS);
     if (saved) setInstructions(saved);
     const savedFmt = localStorage.getItem(LS_OUTPUT_FORMAT) as OutputFormat | null;

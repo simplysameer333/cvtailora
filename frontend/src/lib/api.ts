@@ -134,6 +134,7 @@ export interface ResumeCheckResult {
   overall_score: number;
   summary: string;
   categories: CheckCategory[];
+  result_id?: string;  // UUID returned by the backend for permalink
 }
 
 export async function checkResume(file: File): Promise<ResumeCheckResult> {
@@ -143,6 +144,19 @@ export async function checkResume(file: File): Promise<ResumeCheckResult> {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return data as ResumeCheckResult;
+}
+
+export async function getCheckResult(resultId: string): Promise<ResumeCheckResult> {
+  const { data } = await api.get(`/api/resume/check/${resultId}`);
+  return data as ResumeCheckResult;
+}
+
+export async function getSessionProfile(sessionId: string): Promise<{
+  full_name: string; email: string; phone: string; linkedin: string;
+  location: string; target_role: string; key_skills: string[];
+}> {
+  const { data } = await api.get(`/api/profile/session?session_id=${sessionId}`);
+  return data;
 }
 
 // ── LinkedIn ────────────────────────────────────────────────────────────────────

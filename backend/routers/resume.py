@@ -18,6 +18,7 @@ Storage keys follow the convention:
 """
 import logging
 import traceback
+import uuid
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from bson import ObjectId
 from datetime import datetime
@@ -223,11 +224,26 @@ async def check_resume_quality(
         await send_error_alert("POST", "/api/resume/check", exc, traceback.format_exc())
         raise HTTPException(502, "CV analysis failed. Please try again.")
 
-    # ── Track usage in MongoDB (fire-and-forget, never fails the request) ──
+    # ── Persist full result with a shareable UUID ──────────────────────────────
+    result_id = str(uuid.uuid4())
     try:
         file_ext = (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else "unknown"
         db = get_db()
+        await db.cv_check_results.insert_one({
+            "_id":           result_id,
+            "user_id":       user["_id"] if user else None,
+            "created_at":    datetime.utcnow(),
+            "overall_score": result.get("overall_score", 0),
+            "file_ext":      file_ext,
+            "result":        result,   # full JSON result for permalink page
+            "categories": [
+                {"key": c.get("key"), "score": c.get("score", 0), "status": c.get("status")}
+                for c in result.get("categories", [])
+            ],
+        })
+        # also write lightweight row to cv_checks for admin stats
         await db.cv_checks.insert_one({
+            "result_id":     result_id,
             "user_id":       user["_id"] if user else None,
             "created_at":    datetime.utcnow(),
             "overall_score": result.get("overall_score", 0),
@@ -238,6 +254,17 @@ async def check_resume_quality(
             ],
         })
     except Exception as exc:
-        logger.warning("[cv_score] Failed to track usage: %s", exc)
+        logger.warning("[cv_score] Failed to persist result: %s", exc)
+        result_id = None
 
-    return result
+    return {**result, "result_id": result_id}
+
+
+@router.get("/resume/check/{result_id}")
+async def get_check_result(result_id: str):
+    """Load a previously saved CV Score result by its unique ID."""
+    db = get_db()
+    doc = await db.cv_check_results.find_one({"_id": result_id})
+    if not doc:
+        raise HTTPException(404, "Result not found or has expired.")
+    return doc["result"] | {"result_id": result_id}
