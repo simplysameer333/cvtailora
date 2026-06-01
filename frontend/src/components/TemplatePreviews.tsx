@@ -752,6 +752,8 @@ export function TemplateThumbnail({
           sandbox="allow-same-origin"
           scrolling="no"
           style={{
+            position: "absolute",
+            top: 0, left: 0,
             width: THUMB_IFRAME_W,
             height: Math.round(THUMB_IFRAME_W * 1.414),
             border: "none",
@@ -810,13 +812,15 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
     <div className="flex flex-col sm:flex-row gap-5 items-start card border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4 shadow-sm">
       {/* Iframe large preview */}
       <div className="shrink-0 mx-auto sm:mx-0 rounded-xl shadow-lg overflow-hidden border border-slate-200"
-           style={{ width: LARGE_W, height: LARGE_H }}>
+           style={{ width: LARGE_W, height: LARGE_H, position: "relative" }}>
         <iframe
           srcDoc={html}
           sandbox="allow-same-origin"
           scrolling="no"
           title={`${info.name} preview`}
           style={{
+            position: "absolute",
+            top: 0, left: 0,
             width: LARGE_IFRAME_W,
             height: Math.round(LARGE_IFRAME_W * 1.414),
             border: "none",
@@ -887,16 +891,28 @@ export function TemplateSuggestions() {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {shown.map((info) => {
-          const Template = info.component;
-          const thumbH = Math.round(W * 1.414 * 0.23);
+          const SUGG_SCALE = 0.23;
+          const thumbH = Math.round(794 * 1.414 * SUGG_SCALE);
+          const html = getTemplateHtml(info.key, SAMPLE);
           return (
             <div key={info.key} className="card p-0 overflow-hidden hover:shadow-lg hover:border-brand-300 transition cursor-pointer rounded-2xl">
-              <div style={{ height: thumbH + 12, overflow: "hidden", position: "relative", background: "#f8fafc" }}>
-                <div style={{ transform: "scale(0.23)", transformOrigin: "top left", width: W, position: "absolute", top: 0, left: 0 }}>
-                  <Template />
-                </div>
+              <div style={{ height: thumbH, overflow: "hidden", position: "relative", background: "#fff" }}>
+                <iframe
+                  srcDoc={html}
+                  sandbox="allow-same-origin"
+                  scrolling="no"
+                  style={{
+                    position: "absolute", top: 0, left: 0,
+                    width: 794,
+                    height: Math.round(794 * 1.414),
+                    border: "none",
+                    transform: `scale(${SUGG_SCALE})`,
+                    transformOrigin: "top left",
+                    pointerEvents: "none",
+                  }}
+                />
                 <div className={clsx(
-                  "absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                  "absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full z-10",
                   info.pages === 1 ? "bg-blue-500 text-white" : "bg-slate-700 text-white"
                 )}>
                   {info.pages === 1 ? "1-Page" : "2-Page"}

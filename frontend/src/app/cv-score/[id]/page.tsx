@@ -10,7 +10,6 @@ import { getCheckResult, type ResumeCheckResult, type CheckCategory } from "@/li
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature } from "@/lib/config";
 import { TemplateSuggestions } from "@/components/TemplatePreviews";
-import { useState as useLocalState } from "react";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -147,7 +146,7 @@ export default function CvScoreResultPage() {
   const [result, setResult] = useState<ResumeCheckResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [copied, setCopied] = useLocalState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!id) return;
