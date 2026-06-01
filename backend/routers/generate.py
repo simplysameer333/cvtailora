@@ -235,14 +235,16 @@ async def generate(
         "input_hash": input_hash,
         "created_at": {"$gt": datetime.utcnow() - timedelta(hours=24)},
     })
-    if cached_gen:
-        logger.info("[generate] Cache hit for session %s (hash %s…)", session_id, input_hash[:8])
+    cached_score = (cached_gen or {}).get("eval_summary", {}).get("min_score", 0)
+    if cached_gen and cached_score >= pass_threshold:
+        logger.info("[generate] Cache hit — session %s score %d >= threshold %d",
+                    session_id, cached_score, pass_threshold)
         await db.sessions.update_one(
             {"_id": ObjectId(session_id)},
             {"$set": {
                 "generated_resume": cached_gen["resume_json"],
                 "key_skills": key_skills,
-                "final_min_score": cached_gen["eval_summary"].get("min_score", 0),
+                "final_min_score": cached_score,
                 "final_all_passed": cached_gen["eval_summary"].get("all_passed", False),
             }},
         )
