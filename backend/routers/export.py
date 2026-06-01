@@ -12,6 +12,30 @@ from services.template_service import get_template_path
 
 router = APIRouter()
 
+# Maps frontend template keys → prebuilt DOCX file (relative to backend root).
+# Used as a fallback when the template isn't found in MongoDB (which only contains
+# custom-uploaded templates). All 15 frontend templates need this mapping.
+_TEMPLATE_KEY_TO_DOCX: dict[str, str] = {
+    # Classic / ATS → clean.docx
+    "Cambridge": "templates/prebuilt/clean.docx",
+    "Canvas":    "templates/prebuilt/clean.docx",
+    "Admiral":   "templates/prebuilt/clean.docx",
+    "Scholar":   "templates/prebuilt/clean.docx",
+    "Swift":     "templates/prebuilt/clean.docx",
+    # Modern → modern.docx
+    "Horizon":   "templates/prebuilt/modern.docx",
+    "Catalyst":  "templates/prebuilt/modern.docx",
+    "Jade":      "templates/prebuilt/modern.docx",
+    "Prism":     "templates/prebuilt/modern.docx",
+    "Chronicle": "templates/prebuilt/modern.docx",
+    "Symmetry":  "templates/prebuilt/modern.docx",
+    "Vivid":     "templates/prebuilt/modern.docx",
+    # Executive → executive.docx
+    "Prestige":  "templates/prebuilt/executive.docx",
+    "Summit":    "templates/prebuilt/executive.docx",
+    "Luxe":      "templates/prebuilt/executive.docx",
+}
+
 
 class ExportBody(BaseModel):
     include_pdf: bool = False
@@ -54,6 +78,9 @@ async def export_resume(
             tmpl = await db.templates.find_one({"name": template_id})
         if tmpl:
             template_path = get_template_path(tmpl["file_path"])
+        elif template_id in _TEMPLATE_KEY_TO_DOCX:
+            # Frontend template key (e.g. "Cambridge") — map to a prebuilt DOCX style
+            template_path = get_template_path(_TEMPLATE_KEY_TO_DOCX[template_id])
 
     if body.include_pdf:
         from services.tier_config_service import has_feature as _hf
