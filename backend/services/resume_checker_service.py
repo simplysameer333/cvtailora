@@ -8,19 +8,156 @@ import re
 from anthropic import AsyncAnthropic
 
 
-def extract_full_profile(raw_text: str) -> dict:
-    """Extract name, contact and ALL CV sections from raw text — no LLM required.
+# ── Shared regex constants ─────────────────────────────────────────────────────
 
-    Returns the same shape as the LLM-extracted extracted_contact so it can be
-    used as a drop-in replacement for both fresh and cached result paths.
+_DATE_RE = re.compile(
+    r"\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+    r"\s+\d{4}"
+    r"|\b\d{4}\s*[-–—]\s*(?:\d{4}|Present|Current|Now|Today)\b",
+    re.IGNORECASE,
+)
+_BULLET_STRIP = re.compile(r"^[•·▪▸►\-–—○●*→\s]+")
+_IS_BULLET    = re.compile(r"^[•·▪▸►\-–—○●*→]")
+_ALLCAPS_HDR  = re.compile(r"^[A-Z][A-Z\s&/\-]{2,34}$")
+_KNOWN_HEADERS = {
+    "professional summary", "work experience", "career history",
+    "employment history", "education", "qualifications", "skills",
+    "technical skills", "core competencies", "key skills",
+    "certifications", "licences", "awards", "achievements",
+    "projects", "publications", "languages", "interests",
+    "references", "personal profile", "career objective", "objective",
+    "profile", "summary", "experience", "training", "volunteer",
+    "hobbies", "additional information", "other",
+}
+
+
+# ── Sub-parsers ────────────────────────────────────────────────────────────────
+
+def _parse_experience(items: list[str]) -> list[dict]:
+    """Convert flat experience lines into structured job entries.
+
+    Strategy: date lines are strong anchors.  For each date line, look backward
+    to claim role / company lines, then forward to collect bullet lines.
+    """
+    date_idxs = [i for i, item in enumerate(items) if _DATE_RE.search(item)]
+
+    if not date_idxs:
+        bullets = [_BULLET_STRIP.sub("", item).strip() for item in items if item.strip()]
+        return [{"role": "", "company": "", "dates": "", "bullets": bullets}] if bullets else []
+
+    # For each date line, claim up to 2 short preceding lines as role/company
+    pre_by_date: dict[int, list[int]] = {}
+    for date_idx in date_idxs:
+        pre: list[int] = []
+        k = date_idx - 1
+        while k >= 0 and len(pre) < 2:
+            item = items[k]
+            if _DATE_RE.search(item) or _IS_BULLET.match(item):
+                break
+            if len(item.strip()) < 90:
+                pre.insert(0, k)
+                k -= 1
+            else:
+                break
+        pre_by_date[date_idx] = pre
+
+    pre_used: set[int] = {i for idxs in pre_by_date.values() for i in idxs}
+
+    jobs: list[dict] = []
+    for j, date_idx in enumerate(date_idxs):
+        pre_indices = pre_by_date[date_idx]
+        pre_items   = [items[i] for i in pre_indices]
+        role    = pre_items[0] if pre_items else ""
+        company = pre_items[1] if len(pre_items) > 1 else ""
+        dates   = items[date_idx]
+
+        next_date_idx = date_idxs[j + 1] if j + 1 < len(date_idxs) else len(items)
+        next_pre      = pre_by_date.get(date_idxs[j + 1], []) if j + 1 < len(date_idxs) else []
+        bullet_end    = min(next_pre) if next_pre else next_date_idx
+
+        bullets: list[str] = []
+        for i in range(date_idx + 1, bullet_end):
+            if i in pre_used:
+                continue
+            clean = _BULLET_STRIP.sub("", items[i]).strip()
+            if clean:
+                bullets.append(clean)
+
+        if role or bullets:
+            jobs.append({"role": role, "company": company, "dates": dates, "bullets": bullets})
+
+    return jobs
+
+
+def _parse_education(items: list[str]) -> list[dict]:
+    """Convert flat education lines into structured entries."""
+    YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+    entries: list[dict] = []
+    cur: dict = {"degree": "", "institution": "", "dates": ""}
+
+    for item in items:
+        year_m = YEAR_RE.search(item)
+        if year_m:
+            year_str = year_m.group(0)
+            # Strip the year (and surrounding separators) to get any institution text
+            rest = item[:year_m.start()].strip().strip("|–-–").strip()
+            if cur.get("degree") or cur.get("institution"):
+                if rest and not cur.get("institution"):
+                    cur["institution"] = rest
+                cur["dates"] = year_str
+                entries.append(cur)
+                cur = {"degree": "", "institution": "", "dates": ""}
+            else:
+                if rest:
+                    cur["institution"] = rest
+                cur["dates"] = year_str
+        elif not cur.get("degree"):
+            cur["degree"] = item
+        elif not cur.get("institution"):
+            cur["institution"] = item
+        else:
+            if cur.get("degree"):
+                entries.append(cur)
+            cur = {"degree": item, "institution": "", "dates": ""}
+
+    if cur.get("degree") or cur.get("institution"):
+        entries.append(cur)
+
+    return entries
+
+
+def _parse_skills(items: list[str]) -> list[str]:
+    """Split skill lines into individual skill strings."""
+    SPLIT_RE = re.compile(r"[,|•·]")
+    skills: list[str] = []
+    for item in items:
+        parts = [s.strip() for s in SPLIT_RE.split(item) if s.strip()]
+        skills.extend(parts if len(parts) > 1 else ([item.strip()] if item.strip() else []))
+    return skills
+
+
+# ── Main profile extractor ────────────────────────────────────────────────────
+
+def extract_full_profile(raw_text: str) -> dict:
+    """Extract a fully structured CV profile from raw text — no LLM needed.
+
+    Returns:
+        name, title, email, phone, location, linkedin, summary,
+        skills[], experience[{role,company,dates,bullets}],
+        education[{degree,institution,dates}]
     """
     lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
 
     email_m    = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", raw_text)
     phone_m    = re.search(r"(?:\+\d{1,3}[\s\-.]?)?\(?\d{2,4}\)?[\s\-.]?\d{3,4}[\s\-.]?\d{3,5}", raw_text)
     linkedin_m = re.search(r"linkedin\.com/in/[\w\-]+", raw_text, re.IGNORECASE)
+    location_m = re.search(
+        r"\b([A-Z][a-zA-Z ]{2,25},\s*(?:UK|US|USA|UAE|Canada|Australia|Ireland|India|Germany|France|[A-Z]{2,}))\b",
+        raw_text[:600],
+    )
 
-    # ── Name: first line in the header area that looks like a person's name ─────
+    # ── Name detection ────────────────────────────────────────────────────────
     _name_re  = re.compile(r"^[A-Z][a-zA-Z'\-]+(?: [A-Z][a-zA-Z'\-]+){1,3}$")
     _skip_kws = {"cv", "resume", "curriculum", "vitae", "page", "profile", "address"}
     name = title = ""
@@ -30,29 +167,15 @@ def extract_full_profile(raw_text: str) -> dict:
                 and len(line) < 50
                 and not any(kw in line.lower() for kw in _skip_kws)
                 and not re.search(r"\d", line)):
-            name  = line
+            name = line
             title = lines[i + 1] if i + 1 < len(lines) else ""
             name_line_idx = i
             break
     if not name:
-        name  = lines[0] if lines else ""
+        name = lines[0] if lines else ""
         title = lines[1] if len(lines) > 1 else ""
-        name_line_idx = 0
 
-    # ── Section parser ──────────────────────────────────────────────────────────
-    # Headers must be ALL-CAPS (e.g. EXPERIENCE, SKILLS) or match a known
-    # Title-Case section name whitelist. This avoids misclassifying job titles
-    # like "Vice President, Global Lead" as section headers.
-    _ALLCAPS_HDR = re.compile(r"^[A-Z][A-Z\s&/\-]{2,34}$")
-    _KNOWN_TITLE_CASE = {
-        "professional summary", "work experience", "career history",
-        "employment history", "education", "qualifications", "skills",
-        "technical skills", "core competencies", "key skills",
-        "certifications", "licences", "awards", "achievements",
-        "projects", "publications", "languages", "interests",
-        "references", "personal profile", "career objective", "objective",
-        "profile", "summary", "experience", "training", "volunteer",
-    }
+    # ── Section header detection ───────────────────────────────────────────────
     _contact_kw = {"@", "http", "linkedin", "phone", "email", "tel:"}
 
     def _is_section_header(line: str) -> bool:
@@ -63,17 +186,16 @@ def extract_full_profile(raw_text: str) -> dict:
             return False
         if _ALLCAPS_HDR.match(stripped):
             return True
-        if stripped.lower() in _KNOWN_TITLE_CASE:
+        if stripped.lower() in _KNOWN_HEADERS:
             return True
         return False
 
-    sections: list[dict] = []
+    # ── Collect raw sections (flat items per section) ─────────────────────────
+    raw_sections: list[dict] = []
     cur_title: str | None = None
     cur_items: list[str] = []
 
-    # Find where body starts: the first ALL-CAPS/known section header after the
-    # contact block. Fall back to name_line_idx+2 so we don't skip summary headers
-    # that appear right after the name/contact block.
+    # Start at first real section header after the name/contact block
     body_start = name_line_idx + 2
     for i, line in enumerate(lines[name_line_idx + 1:], start=name_line_idx + 1):
         if _is_section_header(line):
@@ -81,33 +203,59 @@ def extract_full_profile(raw_text: str) -> dict:
             break
 
     for line in lines[body_start:]:
-        clean_line = line.lstrip("•·▪▸►-–—○●*").strip()
-        if not clean_line:
+        clean = line.lstrip("•·▪▸►-–—○●*").strip()
+        if not clean:
             continue
-
         if _is_section_header(line):
             if cur_title and cur_items:
-                sections.append({"title": cur_title, "items": cur_items})
+                raw_sections.append({"title": cur_title, "items": cur_items})
             cur_title = line.rstrip(":").strip()
             cur_items = []
-        elif cur_title and clean_line:
-            cur_items.append(clean_line)
+        elif cur_title and clean:
+            cur_items.append(clean)
 
     if cur_title and cur_items:
-        sections.append({"title": cur_title, "items": cur_items})
+        raw_sections.append({"title": cur_title, "items": cur_items})
+
+    # ── Parse each section into structured fields ──────────────────────────────
+    summary    = ""
+    skills:    list[str] = []
+    experience: list[dict] = []
+    education:  list[dict] = []
+
+    for sec in raw_sections:
+        t = sec["title"].lower()
+        items = sec["items"]
+        if any(kw in t for kw in ["summary", "profile", "objective", "about", "statement"]):
+            summary = " ".join(items)
+        elif any(kw in t for kw in ["experience", "employment", "work", "career", "history", "role"]):
+            experience = _parse_experience(items)
+        elif any(kw in t for kw in ["skill", "competenc", "technolog", "expertise", "tool"]):
+            skills = _parse_skills(items)
+        elif any(kw in t for kw in ["education", "qualification", "degree", "academic", "study"]):
+            education = _parse_education(items)
 
     return {
-        "name":     name,
-        "title":    title,
-        "email":    email_m.group(0)    if email_m    else "",
-        "phone":    phone_m.group(0)    if phone_m    else "",
-        "linkedin": linkedin_m.group(0) if linkedin_m else "",
-        "sections": sections,
+        "name":       name,
+        "title":      title,
+        "email":      email_m.group(0)    if email_m    else "",
+        "phone":      phone_m.group(0)    if phone_m    else "",
+        "location":   location_m.group(1) if location_m else "",
+        "linkedin":   linkedin_m.group(0) if linkedin_m else "",
+        "summary":    summary,
+        "skills":     skills,
+        "experience": experience,
+        "education":  education,
     }
 
 
-# Keep old name as alias so any existing imports don't break
+# Alias so existing imports keep working
 extract_contact_regex = extract_full_profile
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LLM-based CV quality analyser
+# ═══════════════════════════════════════════════════════════════════════════════
 
 logger = logging.getLogger("tailormycv")
 
@@ -249,13 +397,7 @@ Return this exact JSON structure with ALL 51 checks populated:
     "title":    "<current or most recent job title from the CV>",
     "email":    "<email address if present, else empty string>",
     "phone":    "<phone number if present, else empty string>",
-    "linkedin": "<LinkedIn URL if present, else empty string>",
-    "sections": [
-      {{
-        "title": "<exact section heading from the CV e.g. 'Work Experience', 'Skills', 'Education', 'Publications', 'Certifications'>",
-        "items": ["<one item per bullet / entry — for experience include role, company, dates and each bullet as separate items>"]
-      }}
-    ]
+    "linkedin": "<LinkedIn URL if present, else empty string>"
   }}
 }}
 
@@ -278,19 +420,15 @@ async def check_resume(resume_text: str, anthropic_key: str) -> dict:
 
     message = await client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=6000,  # 51 checks + improvements across 7 categories
+        max_tokens=6000,
         system=_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
 
     raw = message.content[0].text.strip()
-    raw = re.sub(r"^```(?:json)?\s*", "", raw)
-    raw = re.sub(r"\s*```$", "", raw)
+    # Strip markdown code fences if the model wrapped the JSON
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
 
-    try:
-        result = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        logger.error("[cv_score] Failed to parse AI response: %s", exc)
-        raise ValueError("CV analysis failed — please try again.") from exc
-
-    return result
+    return json.loads(raw)

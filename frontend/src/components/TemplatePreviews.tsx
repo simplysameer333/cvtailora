@@ -938,11 +938,6 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
 }
 
 // CV Score — 4 template suggestions with large preview + clickable thumbnails
-// Match a section title to a category by keyword — avoids hardcoding section names
-function matchSection(sections: { title: string; items: string[] }[], keywords: string[]) {
-  return sections.find(s => keywords.some(kw => s.title.toLowerCase().includes(kw)));
-}
-
 export function TemplateSuggestions({ extractedProfile }: {
   extractedProfile?: import("@/lib/api").ExtractedProfile;
 }) {
@@ -957,57 +952,51 @@ export function TemplateSuggestions({ extractedProfile }: {
     ALL_TEMPLATES.find(t => t.key === "Swift")!,     // 1-page: dark header, ultra-dense
   ];
 
-  // Build full PreviewData from the extracted profile — no demo data fallback.
-  // matchSection finds whichever sections the resume actually contains.
+  // Build PreviewData directly from structured extracted fields — no demo fallback.
   const hasRealProfile = !!(extractedProfile?.name && extractedProfile.name.trim());
 
-  const previewData: PreviewData | null = (() => {
+  const previewData: PreviewData | null = useMemo(() => {
     if (!hasRealProfile) return null;
-
-    const secs = extractedProfile!.sections ?? [];
-
-    const summarySection = matchSection(secs, ["summary", "profile", "about", "objective", "statement"]);
-    const summary = summarySection?.items.join(" ") || extractedProfile!.title || "";
-
-    const skillsSection = matchSection(secs, ["skill", "competenc", "technolog", "expertise", "tool"]);
-    const skills = skillsSection?.items.length ? skillsSection.items : [];
-
-    const expSection = matchSection(secs, ["experience", "employment", "work", "career", "history", "role"]);
-    const experience = expSection?.items.length
-      ? [{ title: extractedProfile!.title || "", company: "", date: "", bullets: expSection.items }]
-      : [];
-
-    const eduSection = matchSection(secs, ["education", "qualification", "degree", "academic", "study"]);
-    const education = eduSection?.items.length
-      ? eduSection.items.map(item => ({ degree: item, school: "", year: "" }))
-      : [];
-
     return {
       name:     extractedProfile!.name     || "",
       title:    extractedProfile!.title    || "",
       email:    extractedProfile!.email    || "",
       phone:    extractedProfile!.phone    || "",
-      location: "",
+      location: extractedProfile!.location || "",
       linkedin: extractedProfile!.linkedin || "",
-      summary,
-      skills,
-      experience,
-      education,
+      summary:  extractedProfile!.summary  || "",
+      skills:   extractedProfile!.skills   || [],
+      experience: (extractedProfile!.experience || []).map(e => ({
+        title:   e.role,
+        company: e.company,
+        date:    e.dates,
+        bullets: e.bullets,
+      })),
+      education: (extractedProfile!.education || []).map(e => ({
+        degree: e.degree,
+        school: e.institution,
+        year:   e.dates,
+      })),
     };
-  })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRealProfile, extractedProfile?.name]);
 
   const selected = shown[selectedIdx];
 
-  // Large preview dimensions — scale so the full A4 page is visible
+  // Pre-generate ALL 4 template HTMLs when profile loads — instant switching
   const LARGE_SCALE = 0.62;
   const LARGE_W = a4W(LARGE_SCALE);
   const LARGE_H = a4H(LARGE_SCALE);
 
-  const largeHtml = useMemo(
-    () => previewData ? getTemplateHtml(selected.key, previewData) : "",
+  const allHtmls = useMemo(
+    () => previewData
+      ? Object.fromEntries(shown.map(t => [t.key, getTemplateHtml(t.key, previewData)]))
+      : {} as Record<string, string>,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selected.key, extractedProfile?.name, extractedProfile?.title]
+    [previewData]
   );
+
+  const largeHtml = allHtmls[selected.key] ?? "";
 
   // Thumbnail dimensions
   const THUMB_SCALE = 0.22;
@@ -1078,7 +1067,7 @@ export function TemplateSuggestions({ extractedProfile }: {
         {/* Thumbnail selector row */}
         <div className="grid grid-cols-4 gap-0 divide-x divide-slate-100">
           {shown.map((info, i) => {
-            const thumbHtml = previewData ? getTemplateHtml(info.key, previewData) : "";
+            const thumbHtml = allHtmls[info.key] ?? "";
             const isActive = i === selectedIdx;
             return (
               <button
