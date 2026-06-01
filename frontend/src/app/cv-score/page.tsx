@@ -145,6 +145,7 @@ export default function CvScorePage() {
   const [loading, setLoading]   = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(0);
   const [result, setResult]     = useState<ResumeCheckResult | null>(null);
+  const spinnerRef = useRef<HTMLDivElement | null>(null);
 
   // Rotate loading message every 7 s while analysing
   const msgTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -155,6 +156,8 @@ export default function CvScorePage() {
         () => setLoadingMsg(n => (n + 1) % LOADING_MESSAGES.length),
         7000,
       );
+      // Scroll to spinner so user sees progress, not the page below
+      setTimeout(() => spinnerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
     } else {
       if (msgTimerRef.current) clearInterval(msgTimerRef.current);
     }
@@ -245,7 +248,7 @@ export default function CvScorePage() {
 
       {/* ── Loading overlay ── */}
       {loading && (
-        <div className="card flex flex-col items-center justify-center py-12 gap-5">
+        <div ref={spinnerRef} className="card flex flex-col items-center justify-center py-12 gap-5">
           <div className="relative w-14 h-14">
             <div className="absolute inset-0 rounded-full border-4 border-brand-100" />
             <div className="absolute inset-0 rounded-full border-4 border-brand-600 border-t-transparent animate-spin" />

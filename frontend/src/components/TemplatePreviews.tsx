@@ -20,54 +20,55 @@ export interface PreviewData {
   education: { degree: string; school: string; year: string }[];
 }
 
-// Generic placeholder — used only when no real user data is available.
-// Deliberately generic so it is obviously a layout demo, never mistaken for a real CV.
+// Demo data for template previews — fictional person, rich realistic content
+// so templates render at their best and showcase the product quality.
 export const SAMPLE_THUMB: PreviewData = {
-  name:     "Your Name",
-  title:    "Your Professional Title",
-  email:    "your.email@example.com",
-  phone:    "+00 0000 000 000",
-  location: "City, Country",
-  linkedin: "linkedin.com/in/yourname",
-  summary:  "Your professional summary will appear here, showcasing your key experience, achievements and the value you bring to employers.",
-  skills:   ["Core Skill", "Technical Skill", "Industry Tool", "Key Competency", "Framework", "Methodology"],
+  name:     "Jordan Mitchell",
+  title:    "Senior Product Manager",
+  email:    "jordan.mitchell@email.com",
+  phone:    "+44 7911 123 456",
+  location: "London, UK",
+  linkedin: "linkedin.com/in/jordanmitchell",
+  summary:  "Product Manager with 9+ years driving 0→1 product launches and scaling B2B SaaS platforms. Delivered £12M ARR growth and led cross-functional teams of 20+ across engineering, design and data.",
+  skills:   ["Product Strategy", "Agile / Scrum", "SQL & Analytics", "Roadmap Planning", "A/B Testing", "Stakeholder Management", "User Research", "Jira & Confluence"],
   experience: [
-    { title: "Senior Role Title", company: "Company Name", date: "2021 – Present",
-      bullets: ["Key achievement demonstrating measurable impact", "Another significant contribution to the team"] },
-    { title: "Previous Role Title", company: "Previous Company", date: "2018 – 2021",
-      bullets: ["Notable achievement in your field", "Quantified result or successful project"] },
-    { title: "Earlier Role", company: "Earlier Company", date: "2015 – 2018",
-      bullets: ["Relevant contribution to the business"] },
+    { title: "Senior Product Manager", company: "Monzo Bank", date: "2021 – Present",
+      bullets: ["Owned lending product generating £8M ARR; grew active users 3× in 18 months", "Led 0→1 launch of business accounts across 6 EU markets"] },
+    { title: "Product Manager", company: "Deliveroo", date: "2018 – 2021",
+      bullets: ["Rebuilt checkout flow, increasing conversion by 22% and reducing drop-off by 35%", "Managed roadmap for 4M+ weekly active users across iOS and Android"] },
+    { title: "Associate Product Manager", company: "Accenture", date: "2015 – 2018",
+      bullets: ["Delivered digital transformation projects for FTSE 100 retail and financial clients"] },
   ],
   education: [
-    { degree: "Your Degree Title", school: "University Name", year: "2015" },
-    { degree: "Professional Certification", school: "Awarding Body", year: "2022" },
+    { degree: "BSc Computer Science (First Class)", school: "University of Manchester", year: "2015" },
+    { degree: "Certified Scrum Product Owner", school: "Scrum Alliance", year: "2019" },
   ],
 };
 
-// Alias kept for backward compatibility — same generic placeholder
+// Richer variant used for large previews — same person, more detail
 export const SAMPLE: PreviewData = {
   ...SAMPLE_THUMB,
-  summary: "Your professional summary will appear here, showcasing your key experience, skills and achievements. This is replaced with your actual CV content when you upload your resume.",
-  skills: ["Core Skill", "Technical Skill", "Industry Tool", "Key Competency", "Framework", "Methodology", "Soft Skill", "Domain Knowledge"],
+  summary:  "Senior Product Manager with 9+ years driving 0→1 product launches and scaling B2B SaaS platforms to £12M+ ARR. Expert at translating complex user needs into clear roadmaps, leading cross-functional teams of 20+ engineers and designers, and using data to validate decisions fast. Passionate about building products users love.",
+  skills:   ["Product Strategy", "Agile / Scrum", "SQL & Analytics", "OKR Framework", "Roadmap Planning", "A/B Testing & Experimentation", "Stakeholder Management", "User Research & Interviews", "Jira & Confluence", "Figma", "Python (data analysis)", "Go-to-Market"],
   experience: [
-    { title: "Senior Role Title", company: "Company Name", date: "Sep 2021 – Present",
+    { title: "Senior Product Manager", company: "Monzo Bank", date: "Jan 2021 – Present",
       bullets: [
-        "Key achievement demonstrating measurable impact on the business",
-        "Led initiative that improved a core metric by a significant amount",
-        "Collaborated cross-functionally to deliver a strategic project",
-        "Mentored junior team members and contributed to team growth",
+        "Owned lending product suite generating £8M ARR; grew active users 3× in 18 months through targeted experiment programme",
+        "Led 0→1 launch of Monzo Business Accounts across 6 EU markets, coordinating 3 engineering squads and legal/compliance teams",
+        "Reduced time-to-decision on loan applications by 60% by redesigning underwriting UX with ML team",
+        "Introduced quarterly product reviews adopted org-wide, improving roadmap predictability by 40%",
       ] },
-    { title: "Mid-Level Role", company: "Previous Company", date: "Mar 2018 – Aug 2021",
+    { title: "Product Manager", company: "Deliveroo", date: "Mar 2018 – Dec 2020",
       bullets: [
-        "Delivered a major project on time and within budget",
-        "Improved a key process, resulting in measurable efficiency gains",
-        "Worked with stakeholders to define and implement a new approach",
+        "Rebuilt checkout flow end-to-end, increasing conversion by 22% and reducing basket abandonment by 35%",
+        "Managed roadmap for consumer app serving 4M+ weekly active users across iOS and Android",
+        "Launched subscription product (Deliveroo Plus) from 0 to 500K subscribers in 12 months",
+        "Partnered with data science to build real-time demand forecasting model, cutting late deliveries by 18%",
       ] },
-    { title: "Earlier Role", company: "Earlier Company", date: "Jun 2015 – Feb 2018",
+    { title: "Associate Product Manager", company: "Accenture Digital", date: "Sep 2015 – Feb 2018",
       bullets: [
-        "Contributed to core business objectives during this period",
-        "Developed skills in key areas relevant to your target role",
+        "Delivered digital transformation programmes for FTSE 100 clients in retail and financial services",
+        "Led discovery and prototyping for a loyalty platform serving 2M+ customers",
       ] },
   ],
 };
