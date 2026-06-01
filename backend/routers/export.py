@@ -9,32 +9,9 @@ from database import get_db, get_fs
 from dependencies.auth import get_optional_user
 from services.file_generator import generate_docx, generate_pdf
 from services.template_service import get_template_path
+from services.docx_templates import generate_docx_from_key, KNOWN_TEMPLATE_KEYS
 
 router = APIRouter()
-
-# Maps frontend template keys → prebuilt DOCX file (relative to backend root).
-# Used as a fallback when the template isn't found in MongoDB (which only contains
-# custom-uploaded templates). All 15 frontend templates need this mapping.
-_TEMPLATE_KEY_TO_DOCX: dict[str, str] = {
-    # Classic / ATS → clean.docx
-    "Cambridge": "templates/prebuilt/clean.docx",
-    "Canvas":    "templates/prebuilt/clean.docx",
-    "Admiral":   "templates/prebuilt/clean.docx",
-    "Scholar":   "templates/prebuilt/clean.docx",
-    "Swift":     "templates/prebuilt/clean.docx",
-    # Modern → modern.docx
-    "Horizon":   "templates/prebuilt/modern.docx",
-    "Catalyst":  "templates/prebuilt/modern.docx",
-    "Jade":      "templates/prebuilt/modern.docx",
-    "Prism":     "templates/prebuilt/modern.docx",
-    "Chronicle": "templates/prebuilt/modern.docx",
-    "Symmetry":  "templates/prebuilt/modern.docx",
-    "Vivid":     "templates/prebuilt/modern.docx",
-    # Executive → executive.docx
-    "Prestige":  "templates/prebuilt/executive.docx",
-    "Summit":    "templates/prebuilt/executive.docx",
-    "Luxe":      "templates/prebuilt/executive.docx",
-}
 
 
 class ExportBody(BaseModel):
@@ -65,10 +42,25 @@ async def export_resume(
         )
 
     template_id = session.get("selected_template_id")
-    template_path = ""
+
+    # Resolve key_skills for bold-keyword rendering
+    bold_keywords: list[str] = []
+    if body.bold_keywords:
+        bold_keywords = session.get("key_skills") or []
+
+    if body.include_pdf:
+        from services.tier_config_service import has_feature as _hf
+        if not _hf((user or {}).get("tier", "free"), "pdf_export"):
+            raise HTTPException(403, "PDF export is not available on your plan. Visit /settings/plan to upgrade.")
+
+    output_files = {}
+
+    # ── DOCX generation ────────────────────────────────────────────────────────
+    # Priority: custom uploaded template (MongoDB) > named template key > default
+    docx_bytes: bytes | None = None
+
     if template_id:
-        # template_id may be a MongoDB ObjectId string OR a plain key/name string
-        # (the frontend falls back to info.key when the DB lookup misses)
+        # 1. Try MongoDB lookup (custom uploaded .docx templates)
         tmpl = None
         try:
             tmpl = await db.templates.find_one({"_id": ObjectId(template_id)})
@@ -76,26 +68,20 @@ async def export_resume(
             pass
         if tmpl is None:
             tmpl = await db.templates.find_one({"name": template_id})
+
         if tmpl:
+            # Custom uploaded template — apply placeholder substitution
             template_path = get_template_path(tmpl["file_path"])
-        elif template_id in _TEMPLATE_KEY_TO_DOCX:
-            # Frontend template key (e.g. "Cambridge") — map to a prebuilt DOCX style
-            template_path = get_template_path(_TEMPLATE_KEY_TO_DOCX[template_id])
+            docx_bytes = generate_docx(resume_data, template_path, bold_keywords=bold_keywords)
 
-    if body.include_pdf:
-        from services.tier_config_service import has_feature as _hf
-        if not _hf((user or {}).get("tier", "free"), "pdf_export"):
-            raise HTTPException(403, "PDF export is not available on your plan. Visit /settings/plan to upgrade.")
+        elif template_id in KNOWN_TEMPLATE_KEYS:
+            # One of the 15 built-in templates — use its dedicated DOCX generator
+            docx_bytes = generate_docx_from_key(resume_data, template_id, bold_keywords=bold_keywords)
 
-    # Resolve key_skills for bold-keyword rendering
-    bold_keywords: list[str] = []
-    if body.bold_keywords:
-        bold_keywords = session.get("key_skills") or []
+    if docx_bytes is None:
+        # No template selected or unrecognised key — generate default clean DOCX
+        docx_bytes = generate_docx(resume_data, "", bold_keywords=bold_keywords)
 
-    output_files = {}
-
-    # DOCX is always generated — it is the primary output.
-    docx_bytes = generate_docx(resume_data, template_path, bold_keywords=bold_keywords)
     docx_id = await fs.upload_from_stream(
         f"resume_{session_id}.docx",
         io.BytesIO(docx_bytes),
@@ -103,7 +89,7 @@ async def export_resume(
     )
     output_files["docx_file_id"] = str(docx_id)
 
-    # PDF is optional — generated directly from resume data (no LibreOffice needed).
+    # ── PDF generation (optional) ──────────────────────────────────────────────
     if body.include_pdf:
         try:
             pdf_bytes = generate_pdf(resume_data, bold_keywords=bold_keywords)
