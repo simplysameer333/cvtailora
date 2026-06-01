@@ -164,6 +164,7 @@ async def generate(
         raise HTTPException(422, "No parsed resume found in session.")
 
     has_jd = bool(job_description.strip())
+    job_analyzer_calls = 1 if has_jd else 0
 
     profession_config = await _resolve_profession(db, target_role)
 
