@@ -941,7 +941,9 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
 
 // CV Score — 4 template suggestions with large preview + clickable thumbnails
 export function TemplateSuggestions({ extractedProfile }: {
-  extractedProfile?: import("@/lib/api").ExtractedProfile;
+  extractedProfile?: {
+    name?: string; title?: string; email?: string; phone?: string; linkedin?: string;
+  };
 }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
 
@@ -954,35 +956,17 @@ export function TemplateSuggestions({ extractedProfile }: {
     ALL_TEMPLATES.find(t => t.key === "Swift")!,     // 1-page: dark header, ultra-dense
   ];
 
-  // Build full PreviewData from the extracted profile so every section
-  // shows the user's actual CV content, not demo data.
+  // Overlay only real contact fields on demo data — sections (experience,
+  // skills, education) are rendered from demo data until a proper dynamic
+  // section approach is implemented per template.
   const hasRealProfile = !!(extractedProfile?.name && extractedProfile.name.trim());
   const previewData: PreviewData = hasRealProfile ? {
+    ...SAMPLE_THUMB,
     name:     extractedProfile!.name     || SAMPLE_THUMB.name,
     title:    extractedProfile!.title    || SAMPLE_THUMB.title,
     email:    extractedProfile!.email    || SAMPLE_THUMB.email,
     phone:    extractedProfile!.phone    || SAMPLE_THUMB.phone,
-    location: SAMPLE_THUMB.location,
     linkedin: extractedProfile!.linkedin || SAMPLE_THUMB.linkedin,
-    summary:  extractedProfile!.summary  || SAMPLE_THUMB.summary,
-    skills:   extractedProfile!.skills?.length
-                ? extractedProfile!.skills
-                : SAMPLE_THUMB.skills,
-    experience: extractedProfile!.experience?.length
-                ? extractedProfile!.experience.map(e => ({
-                    title:   e.role,
-                    company: e.company,
-                    date:    e.dates,
-                    bullets: e.bullets,
-                  }))
-                : SAMPLE_THUMB.experience,
-    education: extractedProfile!.education?.length
-                ? extractedProfile!.education.map(e => ({
-                    degree: e.degree,
-                    school: e.institution,
-                    year:   e.dates,
-                  }))
-                : SAMPLE_THUMB.education,
   } : SAMPLE_THUMB;
 
   const selected = shown[selectedIdx];
