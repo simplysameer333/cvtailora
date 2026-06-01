@@ -16,12 +16,13 @@ Storage keys follow the convention:
     resumes/<session_id>/<original_filename>
     samples/<session_id>/<original_filename>
 """
+import hashlib
 import logging
 import traceback
 import uuid
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timedelta
 from database import get_db
 from dependencies.auth import get_optional_user
 from services.resume_parser import parse_resume
@@ -201,6 +202,30 @@ async def check_resume_quality(
     """
     parsed, _ = await _validate_and_parse(file, label="CV", require_text=True)
 
+    # ── Cache check — return prior result for identical CV text ──────────────
+    text_hash = hashlib.sha256(parsed["raw_text"][:8000].encode()).hexdigest()
+    db = get_db()
+    cached = await db.cv_check_results.find_one(
+        {"text_hash": text_hash, "created_at": {"$gt": datetime.utcnow() - timedelta(hours=48)}},
+        sort=[("created_at", -1)],
+    )
+    if cached and cached.get("result"):
+        logger.info("[cv_score] Cache hit for hash %s…", text_hash[:8])
+        # Issue a new permalink UUID so the user gets a fresh shareable link
+        new_id = str(uuid.uuid4())
+        try:
+            await db.cv_check_results.insert_one({
+                "_id": new_id, "user_id": user["_id"] if user else None,
+                "created_at": datetime.utcnow(), "text_hash": text_hash,
+                "overall_score": cached["overall_score"], "file_ext": cached.get("file_ext", ""),
+                "result": cached["result"],
+                "categories": cached.get("categories", []),
+            })
+        except Exception:
+            new_id = cached["_id"]
+        extracted_contact = extract_contact_regex(parsed["raw_text"])
+        return {**cached["result"], "result_id": new_id, "extracted_profile": extracted_contact, "cached": True}
+
     try:
         result = await _check_resume(parsed["raw_text"], settings.anthropic_api_key)
     except ValueError as exc:
@@ -215,14 +240,14 @@ async def check_resume_quality(
     result_id = str(uuid.uuid4())
     try:
         file_ext = (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else "unknown"
-        db = get_db()
         await db.cv_check_results.insert_one({
             "_id":           result_id,
             "user_id":       user["_id"] if user else None,
             "created_at":    datetime.utcnow(),
+            "text_hash":     text_hash,   # enables cache lookup for same CV
             "overall_score": result.get("overall_score", 0),
             "file_ext":      file_ext,
-            "result":        result,   # full JSON result for permalink page
+            "result":        result,      # full JSON result for permalink page
             "categories": [
                 {"key": c.get("key"), "score": c.get("score", 0), "status": c.get("status")}
                 for c in result.get("categories", [])

@@ -224,10 +224,11 @@ export async function generateResume(
   section?: string,
   additionalInstructions?: string
 ): Promise<PipelineResult | GeneratedResume> {
-  const { data } = await api.post(`/api/generate?session_id=${sessionId}`, {
-    section: section ?? null,
-    additional_instructions: additionalInstructions ?? null,
-  });
+  const { data } = await api.post(
+    `/api/generate?session_id=${sessionId}`,
+    { section: section ?? null, additional_instructions: additionalInstructions ?? null },
+    { timeout: 180_000 },  // 3 min — backend enforces 2.5 min, this covers the gap
+  );
   return data as PipelineResult | GeneratedResume;
 }
 

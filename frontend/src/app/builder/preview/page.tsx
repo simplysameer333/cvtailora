@@ -148,9 +148,11 @@ export default function PreviewPage() {
         toast.success(section ? `${section} regenerated!` : "Resume generated!");
       }
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Resume generation failed. Please try again.";
+      const e = err as { response?: { data?: { detail?: string } }; code?: string; message?: string };
+      const detail = e?.response?.data?.detail;
+      const isTimeout = e?.code === "ECONNABORTED" || e?.message?.includes("timeout");
+      const msg = detail
+        ?? (isTimeout ? "Generation timed out — the AI is taking longer than usual. Please try again." : "Resume generation failed. Please try again.");
       setGenerationError(msg);
     } finally {
       setLoading(false);
@@ -210,11 +212,14 @@ export default function PreviewPage() {
     { title: "Final polish underway…",                          sub: "Almost there — wrapping up your tailored resume" },
   ];
 
-  // Cycle message every 7 s while loading
+  // Advance loading message every 7 s — never wraps back to start
   useEffect(() => {
     if (!loading) return;
     setLoadingMsg(0);
-    const id = setInterval(() => setLoadingMsg(n => (n + 1) % LOADING_MESSAGES.length), 7000);
+    const id = setInterval(
+      () => setLoadingMsg(n => Math.min(n + 1, LOADING_MESSAGES.length - 1)),
+      7000,
+    );
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
@@ -237,19 +242,24 @@ export default function PreviewPage() {
           <p className="text-sm text-slate-500 mt-1.5 transition-all duration-500">{msg.sub}</p>
         </div>
 
-        {/* Step indicators */}
-        <div className="flex gap-1.5 mt-2">
-          {LOADING_MESSAGES.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1 rounded-full transition-all duration-500 ${
-                i === loadingMsg ? "w-6 bg-brand-600" : "w-2 bg-slate-200"
-              }`}
-            />
-          ))}
+        {/* Forward-only progress bar */}
+        <div className="w-64 mt-2">
+          <div className="flex gap-1">
+            {LOADING_MESSAGES.map((_, i) => (
+              <div
+                key={i}
+                className={`flex-1 h-1.5 rounded-full transition-all duration-700 ${
+                  i < loadingMsg  ? "bg-brand-300" :
+                  i === loadingMsg ? "bg-brand-600" :
+                  "bg-slate-200"
+                }`}
+              />
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mt-2 text-center">
+            Step {loadingMsg + 1} of {LOADING_MESSAGES.length} · Usually 30–90 seconds
+          </p>
         </div>
-
-        <p className="text-xs text-slate-400 mt-1">Usually takes 30–90 seconds</p>
       </div>
     );
   }

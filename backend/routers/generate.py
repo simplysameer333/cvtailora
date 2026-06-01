@@ -21,7 +21,10 @@ Job analysis
 - N is driven by SKILL_EXTRACTION_COUNT in .env (maps to subscription tier).
 - The extracted skills are passed to every generator cycle as prioritisation hints.
 """
+import asyncio
+import hashlib
 import logging
+from datetime import datetime, timedelta
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from bson import ObjectId
 from pydantic import BaseModel
@@ -216,6 +219,35 @@ async def generate(
         )
         return result
 
+    # ── Generation cache check ────────────────────────────────────────────────
+    # Hash the primary inputs so identical CV+JD combinations reuse a prior result.
+    # Only full-pipeline runs are cached (section regens are intentionally excluded).
+    input_hash = hashlib.sha256(
+        f"{resume_text[:8000]}|{job_description[:4000]}|{target_role}|{tone}".encode()
+    ).hexdigest()
+
+    cached_gen = await db.generation_cache.find_one({
+        "input_hash": input_hash,
+        "created_at": {"$gt": datetime.utcnow() - timedelta(hours=24)},
+    })
+    if cached_gen:
+        logger.info("[generate] Cache hit for session %s (hash %s…)", session_id, input_hash[:8])
+        await db.sessions.update_one(
+            {"_id": ObjectId(session_id)},
+            {"$set": {
+                "generated_resume": cached_gen["resume_json"],
+                "key_skills": key_skills,
+                "final_min_score": cached_gen["eval_summary"].get("min_score", 0),
+                "final_all_passed": cached_gen["eval_summary"].get("all_passed", False),
+            }},
+        )
+        return {
+            "resume": cached_gen["resume_json"],
+            "mode": "tailored" if has_jd else "polished",
+            "cached": True,
+            "eval_summary": cached_gen["eval_summary"],
+        }
+
     # ── Full evaluator-optimizer pipeline ─────────────────────────────────────
     # Evaluator selection is tier-aware: Free=1, Plus=2, Pro=3 (subject to API key config).
     enabled_evaluators = _enabled_evaluators_for_tier(user_tier)
@@ -242,9 +274,16 @@ async def generate(
     }
 
     try:
-        final_state = await pipeline.ainvoke(initial_state)
+        final_state = await asyncio.wait_for(
+            pipeline.ainvoke(initial_state),
+            timeout=150.0,  # 2.5 min hard ceiling — Railway HTTP timeout is 5 min
+        )
+    except asyncio.TimeoutError:
+        logger.error("[generate] Pipeline timed out for session %s", session_id)
+        raise HTTPException(504, "Resume generation timed out. Please try again — it usually completes in 30–90 seconds.")
     except Exception as exc:
-        raise HTTPException(500, f"Pipeline failed: {exc}")
+        logger.exception("[generate] Pipeline failed for session %s: %s", session_id, exc)
+        raise HTTPException(500, f"Resume generation failed: {exc}")
 
     # Actual calls used: 1 job-analyzer + (generator + evaluators) * completed cycles
     actual_calls = job_analyzer_calls + (1 + active_evaluator_count) * final_state["cycle"]
@@ -278,18 +317,37 @@ async def generate(
             {"$set": {"quality_alert_sent": True}},
         )
 
+    eval_summary = {
+        "cycles": final_state["cycle"],
+        "all_passed": final_state["all_passed"],
+        "min_score": final_state["min_score"],
+        "pass_threshold": settings.pass_threshold,
+        "evaluator_results": final_state["eval_results"],
+        "profession": profession_config.get("display_name", "General"),
+        "key_skills": key_skills,
+    }
+
+    # ── Store successful result in generation cache ───────────────────────────
+    # Only cache valid, completed runs (not timeouts / exceptions — those never reach here).
+    if final_state.get("resume_json"):
+        try:
+            await db.generation_cache.update_one(
+                {"input_hash": input_hash},
+                {"$set": {
+                    "input_hash":   input_hash,
+                    "resume_json":  final_state["resume_json"],
+                    "eval_summary": eval_summary,
+                    "created_at":   datetime.utcnow(),
+                }},
+                upsert=True,
+            )
+        except Exception as cache_exc:
+            logger.warning("[generate] Failed to write generation cache: %s", cache_exc)
+
     return {
         "resume": final_state["resume_json"],
-        "mode": "tailored" if has_jd else "polished",
-        "eval_summary": {
-            "cycles": final_state["cycle"],
-            "all_passed": final_state["all_passed"],
-            "min_score": final_state["min_score"],
-            "pass_threshold": settings.pass_threshold,
-            "evaluator_results": final_state["eval_results"],
-            "profession": profession_config.get("display_name", "General"),
-            "key_skills": key_skills,
-        },
+        "mode":   "tailored" if has_jd else "polished",
+        "eval_summary": eval_summary,
     }
 
 
