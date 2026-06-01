@@ -62,7 +62,7 @@ const contact = (d: PreviewData) =>
 // ══════════════════════════════════════════════════════════════════════════════
 
 // 1. CAMBRIDGE — Classic single-column, clean dividers
-export function Cambridge({ data }: { data?: PreviewData }) {
+export function Cambridge({ data }: { data: PreviewData }) {
   const h2 = { fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 1.5, color: "#374151", margin: "18px 0 4px" };
   return (
     <div style={{ width: W, background: "#fff", padding: "48px 52px", fontFamily: "'Calibri',system-ui,sans-serif", color: "#1f2937", lineHeight: 1.5 }}>
@@ -97,7 +97,7 @@ export function Cambridge({ data }: { data?: PreviewData }) {
 }
 
 // 2. HORIZON — Blue header, bold section headings
-export function Horizon({ data }: { data?: PreviewData }) {
+export function Horizon({ data }: { data: PreviewData }) {
   const blue = "#1d4ed8";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", color: "#1f2937" }}>
@@ -132,7 +132,7 @@ export function Horizon({ data }: { data?: PreviewData }) {
 }
 
 // 3. PRESTIGE — Formal serif, centered header, double rules
-export function Prestige({ data }: { data?: PreviewData }) {
+export function Prestige({ data }: { data: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "48px 52px", fontFamily: "Georgia,serif", color: "#1c1c1c" }}>
       <div style={{ borderTop: "2.5px solid #1c1c1c", marginBottom: 10 }} />
@@ -173,7 +173,7 @@ export function Prestige({ data }: { data?: PreviewData }) {
 }
 
 // 4. CATALYST — Bold orange accent, strong typography
-export function Catalyst({ data }: { data?: PreviewData }) {
+export function Catalyst({ data }: { data: PreviewData }) {
   const orange = "#ea580c";
   return (
     <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif", color: "#111" }}>
@@ -215,7 +215,7 @@ export function Catalyst({ data }: { data?: PreviewData }) {
 }
 
 // 5. CANVAS — Ultra-minimal, whitespace-first
-export function Canvas({ data }: { data?: PreviewData }) {
+export function Canvas({ data }: { data: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "56px 60px", fontFamily: "'Helvetica Neue',system-ui,sans-serif", color: "#374151" }}>
       <div style={{ fontSize: 24, fontWeight: 300, color: "#111827", letterSpacing: -0.5 }}>{data.name}</div>
@@ -247,7 +247,7 @@ export function Canvas({ data }: { data?: PreviewData }) {
 }
 
 // 6. ADMIRAL — Navy blue, formal two-tone
-export function Admiral({ data }: { data?: PreviewData }) {
+export function Admiral({ data }: { data: PreviewData }) {
   const navy = "#1e3a5f";
   return (
     <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif" }}>
@@ -283,7 +283,7 @@ export function Admiral({ data }: { data?: PreviewData }) {
 }
 
 // 7. JADE — Teal left accent bar + teal headings
-export function Jade({ data }: { data?: PreviewData }) {
+export function Jade({ data }: { data: PreviewData }) {
   const teal = "#0d9488";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex" }}>
@@ -326,7 +326,7 @@ function SectionTeal({ label, teal, children }: { label: string; teal: string; c
 }
 
 // 8. PRISM — Two-column: gray sidebar | main
-export function Prism({ data }: { data?: PreviewData }) {
+export function Prism({ data }: { data: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex", minHeight: 848 }}>
       <div style={{ width: 200, background: "#f1f5f9", padding: "40px 22px", flexShrink: 0 }}>
@@ -375,7 +375,7 @@ export function Prism({ data }: { data?: PreviewData }) {
 }
 
 // 9. VIVID — Purple sidebar, creative
-export function Vivid({ data }: { data?: PreviewData }) {
+export function Vivid({ data }: { data: PreviewData }) {
   const purple = "#7c3aed";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex", minHeight: 848 }}>
@@ -421,7 +421,7 @@ export function Vivid({ data }: { data?: PreviewData }) {
 }
 
 // 10. CHRONICLE — Timeline with left border dots
-export function Chronicle({ data }: { data?: PreviewData }) {
+export function Chronicle({ data }: { data: PreviewData }) {
   const brand = "#2563eb";
   return (
     <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif" }}>
@@ -457,7 +457,7 @@ export function Chronicle({ data }: { data?: PreviewData }) {
 }
 
 // 11. SUMMIT — Dark charcoal header block
-export function Summit({ data }: { data?: PreviewData }) {
+export function Summit({ data }: { data: PreviewData }) {
   const dark = "#1e293b";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif" }}>
@@ -496,7 +496,7 @@ export function Summit({ data }: { data?: PreviewData }) {
 }
 
 // 12. SYMMETRY — Equal two columns
-export function Symmetry({ data }: { data?: PreviewData }) {
+export function Symmetry({ data }: { data: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif" }}>
       <div style={{ padding: "36px 48px 16px", borderBottom: "2px solid #0f172a" }}>
@@ -544,7 +544,7 @@ export function Symmetry({ data }: { data?: PreviewData }) {
 }
 
 // 13. SCHOLAR — Academic, formal structure
-export function Scholar({ data }: { data?: PreviewData }) {
+export function Scholar({ data }: { data: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "48px 56px", fontFamily: "Georgia,serif", color: "#1c1c1c", lineHeight: 1.6 }}>
       <div style={{ textAlign: "center" as const, marginBottom: 20 }}>
@@ -584,7 +584,7 @@ export function Scholar({ data }: { data?: PreviewData }) {
 }
 
 // 14. SWIFT — Ultra-compact, maximises content on one page
-export function Swift({ data }: { data?: PreviewData }) {
+export function Swift({ data }: { data: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "32px 44px", fontFamily: "system-ui,sans-serif", fontSize: 11 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: "1.5px solid #374151", paddingBottom: 8, marginBottom: 8 }}>
@@ -612,7 +612,7 @@ export function Swift({ data }: { data?: PreviewData }) {
 }
 
 // 15. LUXE — Warm gold accents, cream background
-export function Luxe({ data }: { data?: PreviewData }) {
+export function Luxe({ data }: { data: PreviewData }) {
   const gold = "#b45309";
   return (
     <div style={{ width: W, background: "#fffdf5", padding: "52px 56px", fontFamily: "Georgia,serif", color: "#292524" }}>
@@ -654,11 +654,11 @@ export function Luxe({ data }: { data?: PreviewData }) {
 // 16-20. New templates — previews rendered via getTemplateHtml (iframes)
 // These stubs exist only to satisfy the TemplateInfo type; the component
 // field is unused at runtime (all previews use getTemplateHtml).
-export function TechModern({ data }: { data?: PreviewData }) { return Cambridge({ data }); }
-export function Pulse({ data }: { data?: PreviewData })      { return Jade({ data }); }
-export function HexagonPro({ data }: { data?: PreviewData }) { return Horizon({ data }); }
-export function SalesImpact({ data }: { data?: PreviewData }) { return Horizon({ data }); }
-export function Healthcare({ data }: { data?: PreviewData }) { return Jade({ data }); }
+export function TechModern({ data }: { data: PreviewData }) { return Cambridge({ data }); }
+export function Pulse({ data }: { data: PreviewData })      { return Jade({ data }); }
+export function HexagonPro({ data }: { data: PreviewData }) { return Horizon({ data }); }
+export function SalesImpact({ data }: { data: PreviewData }) { return Horizon({ data }); }
+export function Healthcare({ data }: { data: PreviewData }) { return Jade({ data }); }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TEMPLATE REGISTRY
@@ -669,14 +669,14 @@ export type PageCount = 1 | 2;
 export interface TemplateInfo {
   key: string;
   name: string;
-  component: React.FC<{ data?: PreviewData }>;
+  component: React.FC<{ data: PreviewData }>;
   category: "Classic" | "Modern" | "Creative" | "Executive" | "ATS";
   traits: string[];
   bestFor: string;
   description: string;
   pages: PageCount;
   tier: "free" | "plus";
-  accentColor: string;  // hex — used in gallery cards and modal header
+  accentColor: string;
 }
 
 export const ALL_TEMPLATES: TemplateInfo[] = [
