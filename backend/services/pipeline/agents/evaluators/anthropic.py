@@ -25,6 +25,8 @@ class AnthropicEvaluatorAgent(BaseEvaluatorAgent):
             model=settings.anthropic_evaluator_model,
             api_key=settings.anthropic_api_key,
             max_tokens=1024,
+            max_retries=0,
+            timeout=30,
         )
 
     async def run(self, resume_json: dict, job_description: str, profession_config: dict) -> dict:

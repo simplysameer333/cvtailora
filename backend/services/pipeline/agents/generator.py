@@ -26,6 +26,8 @@ class GeneratorAgent(BaseAgent):
             model=settings.generator_model,
             api_key=settings.anthropic_api_key,
             max_tokens=4096,
+            max_retries=0,   # pipeline handles retry cycles; no LangChain retries
+            timeout=90,      # hard ceiling per generator call
         )
 
     async def run(

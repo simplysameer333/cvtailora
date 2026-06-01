@@ -34,6 +34,8 @@ class JobAnalyzerAgent(BaseAgent):
             model=settings.generator_model,
             api_key=settings.anthropic_api_key,
             max_tokens=512,
+            max_retries=0,
+            timeout=20,
         )
 
     async def run(
