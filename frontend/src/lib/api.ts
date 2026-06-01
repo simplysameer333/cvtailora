@@ -136,6 +136,7 @@ export interface ExtractedProfile {
   email: string;
   phone: string;
   linkedin: string;
+  sections?: { title: string; items: string[] }[];
 }
 
 export interface ResumeCheckResult {

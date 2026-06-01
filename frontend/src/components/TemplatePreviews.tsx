@@ -940,10 +940,13 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
 }
 
 // CV Score — 4 template suggestions with large preview + clickable thumbnails
+// Match a section title to a category by keyword — avoids hardcoding section names
+function matchSection(sections: { title: string; items: string[] }[], keywords: string[]) {
+  return sections.find(s => keywords.some(kw => s.title.toLowerCase().includes(kw)));
+}
+
 export function TemplateSuggestions({ extractedProfile }: {
-  extractedProfile?: {
-    name?: string; title?: string; email?: string; phone?: string; linkedin?: string;
-  };
+  extractedProfile?: import("@/lib/api").ExtractedProfile;
 }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
 
@@ -956,18 +959,49 @@ export function TemplateSuggestions({ extractedProfile }: {
     ALL_TEMPLATES.find(t => t.key === "Swift")!,     // 1-page: dark header, ultra-dense
   ];
 
-  // Overlay only real contact fields on demo data — sections (experience,
-  // skills, education) are rendered from demo data until a proper dynamic
-  // section approach is implemented per template.
+  // Build PreviewData from extracted sections — whatever the resume contains.
+  // matchSection finds sections by keyword so we don't assume fixed names.
   const hasRealProfile = !!(extractedProfile?.name && extractedProfile.name.trim());
-  const previewData: PreviewData = hasRealProfile ? {
-    ...SAMPLE_THUMB,
-    name:     extractedProfile!.name     || SAMPLE_THUMB.name,
-    title:    extractedProfile!.title    || SAMPLE_THUMB.title,
-    email:    extractedProfile!.email    || SAMPLE_THUMB.email,
-    phone:    extractedProfile!.phone    || SAMPLE_THUMB.phone,
-    linkedin: extractedProfile!.linkedin || SAMPLE_THUMB.linkedin,
-  } : SAMPLE_THUMB;
+
+  const previewData: PreviewData = (() => {
+    if (!hasRealProfile) return SAMPLE_THUMB;
+
+    const secs = extractedProfile!.sections ?? [];
+
+    // Summary — match any section that looks like a profile/summary
+    const summarySection = matchSection(secs, ["summary", "profile", "about", "objective", "statement"]);
+    const summary = summarySection?.items.join(" ") || SAMPLE_THUMB.summary;
+
+    // Skills — match any skills/competencies section; each item is a skill
+    const skillsSection = matchSection(secs, ["skill", "competenc", "technolog", "expertise", "tool"]);
+    const skills = skillsSection?.items.length ? skillsSection.items : SAMPLE_THUMB.skills;
+
+    // Experience — match work/career/employment sections
+    const expSection = matchSection(secs, ["experience", "employment", "work", "career", "history", "role"]);
+    // Each item in the experience section is a flat string — group them into bullets
+    const experience = expSection?.items.length
+      ? [{ title: extractedProfile!.title || "Role", company: "", date: "", bullets: expSection.items }]
+      : SAMPLE_THUMB.experience;
+
+    // Education — match education/qualification/degree sections
+    const eduSection = matchSection(secs, ["education", "qualification", "degree", "academic", "study"]);
+    const education = eduSection?.items.length
+      ? eduSection.items.map(item => ({ degree: item, school: "", year: "" }))
+      : SAMPLE_THUMB.education;
+
+    return {
+      name:     extractedProfile!.name     || SAMPLE_THUMB.name,
+      title:    extractedProfile!.title    || SAMPLE_THUMB.title,
+      email:    extractedProfile!.email    || SAMPLE_THUMB.email,
+      phone:    extractedProfile!.phone    || SAMPLE_THUMB.phone,
+      location: SAMPLE_THUMB.location,
+      linkedin: extractedProfile!.linkedin || SAMPLE_THUMB.linkedin,
+      summary,
+      skills,
+      experience,
+      education,
+    };
+  })();
 
   const selected = shown[selectedIdx];
 

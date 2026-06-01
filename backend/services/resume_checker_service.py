@@ -181,7 +181,13 @@ Return this exact JSON structure with ALL 51 checks populated:
     "title":    "<current or most recent job title from the CV>",
     "email":    "<email address if present, else empty string>",
     "phone":    "<phone number if present, else empty string>",
-    "linkedin": "<LinkedIn URL if present, else empty string>"
+    "linkedin": "<LinkedIn URL if present, else empty string>",
+    "sections": [
+      {{
+        "title": "<exact section heading from the CV e.g. 'Work Experience', 'Skills', 'Education', 'Publications', 'Certifications'>",
+        "items": ["<one item per bullet / entry — for experience include role, company, dates and each bullet as separate items>"]
+      }}
+    ]
   }}
 }}
 
