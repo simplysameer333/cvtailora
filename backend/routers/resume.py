@@ -223,8 +223,16 @@ async def check_resume_quality(
             })
         except Exception:
             new_id = cached["_id"]
-        extracted_contact = extract_contact_regex(parsed["raw_text"])
-        return {**cached["result"], "result_id": new_id, "extracted_profile": extracted_contact, "cached": True}
+        llm_contact_c   = cached["result"].get("extracted_contact") or {}
+        regex_contact_c = extract_contact_regex(parsed["raw_text"])
+        extracted_contact_c = {
+            "name":     llm_contact_c.get("name")     or regex_contact_c.get("name", ""),
+            "title":    llm_contact_c.get("title")    or regex_contact_c.get("title", ""),
+            "email":    llm_contact_c.get("email")    or regex_contact_c.get("email", ""),
+            "phone":    llm_contact_c.get("phone")    or regex_contact_c.get("phone", ""),
+            "linkedin": llm_contact_c.get("linkedin") or regex_contact_c.get("linkedin", ""),
+        }
+        return {**cached["result"], "result_id": new_id, "extracted_profile": extracted_contact_c, "cached": True}
 
     try:
         result = await _check_resume(parsed["raw_text"], settings.anthropic_api_key)
@@ -270,7 +278,16 @@ async def check_resume_quality(
         logger.warning("[cv_score] Failed to persist result: %s", exc)
         result_id = None
 
-    extracted_contact = extract_contact_regex(parsed["raw_text"])
+    # Prefer the LLM-extracted contact (already parsed the full CV) over regex
+    llm_contact   = result.pop("extracted_contact", None) or {}
+    regex_contact = extract_contact_regex(parsed["raw_text"])
+    extracted_contact = {
+        "name":     llm_contact.get("name")     or regex_contact.get("name", ""),
+        "title":    llm_contact.get("title")    or regex_contact.get("title", ""),
+        "email":    llm_contact.get("email")    or regex_contact.get("email", ""),
+        "phone":    llm_contact.get("phone")    or regex_contact.get("phone", ""),
+        "linkedin": llm_contact.get("linkedin") or regex_contact.get("linkedin", ""),
+    }
     return {**result, "result_id": result_id, "extracted_profile": extracted_contact}
 
 

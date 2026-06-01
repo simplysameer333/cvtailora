@@ -16,9 +16,26 @@ def extract_contact_regex(raw_text: str) -> dict:
     phone_m    = re.search(r"(?:\+\d{1,3}[\s\-.]?)?\(?\d{2,4}\)?[\s\-.]?\d{3,4}[\s\-.]?\d{3,5}", raw_text)
     linkedin_m = re.search(r"linkedin\.com/in/[\w\-]+", raw_text, re.IGNORECASE)
 
+    # Find name: scan first 8 non-empty lines for one that looks like a person's name
+    # (2-4 capitalised words, no digits, not a common header like "CV" or "Resume")
+    _name_re   = re.compile(r"^[A-Z][a-zA-Z'\-]+(?: [A-Z][a-zA-Z'\-]+){1,3}$")
+    _skip_kws  = {"cv", "resume", "curriculum", "vitae", "page", "profile", "address"}
+    name = title = ""
+    for i, line in enumerate(lines[:8]):
+        if (_name_re.match(line)
+                and len(line) < 50
+                and not any(kw in line.lower() for kw in _skip_kws)
+                and not re.search(r"\d", line)):
+            name  = line
+            title = lines[i + 1] if i + 1 < len(lines) else ""
+            break
+    if not name:
+        name  = lines[0] if lines else ""
+        title = lines[1] if len(lines) > 1 else ""
+
     return {
-        "name":     lines[0] if lines else "",
-        "title":    lines[1] if len(lines) > 1 else "",
+        "name":     name,
+        "title":    title,
         "email":    email_m.group(0)    if email_m    else "",
         "phone":    phone_m.group(0)    if phone_m    else "",
         "linkedin": linkedin_m.group(0) if linkedin_m else "",
@@ -158,7 +175,14 @@ Return this exact JSON structure with ALL 51 checks populated:
       ],
       "improvements": ["<specific actionable suggestion>", "<specific actionable suggestion>"]
     }}
-  ]
+  ],
+  "extracted_contact": {{
+    "name":     "<candidate's full name exactly as written on the CV>",
+    "title":    "<current or most recent job title from the CV>",
+    "email":    "<email address if present, else empty string>",
+    "phone":    "<phone number if present, else empty string>",
+    "linkedin": "<LinkedIn URL if present, else empty string>"
+  }}
 }}
 
 SCORING RULES (be rigorous — most CVs score 45–65, not 75+):
