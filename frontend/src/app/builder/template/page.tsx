@@ -12,7 +12,8 @@ import Link from "next/link";
 import clsx from "clsx";
 import { FiUploadCloud, FiCheckCircle, FiFile, FiFileText, FiLayers, FiLock, FiZap } from "react-icons/fi";
 import {
-  ALL_TEMPLATES, LargeTemplatePreview, TemplateThumbnail, type PreviewData, type TemplateInfo,
+  ALL_TEMPLATES, LargeTemplatePreview, TemplateThumbnail, SAMPLE,
+  type PreviewData, type TemplateInfo,
 } from "@/components/TemplatePreviews";
 import { getSessionProfile } from "@/lib/api";
 
@@ -62,33 +63,28 @@ export default function TemplatePage() {
     const sessionId = getSessionId();
     if (sessionId) {
       getSessionProfile(sessionId).then(p => {
+        const name  = p.full_name   || session?.user?.name || "Your Name";
+        const title = p.target_role || "Senior Professional";
+        const skills = p.key_skills?.length ? p.key_skills : SAMPLE.skills;
+        // Use real user data for contact/skills; rich sample data for experience
+        // so the template looks full and realistic even before tailoring
         setPreviewData({
-          name:     p.full_name  || session?.user?.name || "Your Name",
-          title:    p.target_role || "Your Professional Title",
-          email:    p.email      || session?.user?.email || "your@email.com",
-          phone:    p.phone      || "",
-          location: p.location   || "",
-          linkedin: p.linkedin   || "",
-          summary:  "Your professional summary will appear here, tailored to your experience and target role.",
-          skills:   p.key_skills?.length ? p.key_skills : ["Your skills will appear here"],
-          experience: [
-            { title: p.target_role || "Your Role", company: "Your Company", date: "Present",
-              bullets: ["Your achievements and responsibilities from your uploaded CV will appear here"] },
-          ],
-          education: [{ degree: "Your Degree", school: "Your University", year: "" }],
+          ...SAMPLE,               // full experience + education from sample
+          name,
+          title,
+          email:    p.email    || session?.user?.email || SAMPLE.email,
+          phone:    p.phone    || SAMPLE.phone,
+          location: p.location || SAMPLE.location,
+          linkedin: p.linkedin || SAMPLE.linkedin,
+          skills,
+          // Replace sample job titles with user's target role for first entry
+          experience: SAMPLE.experience.map((e, i) =>
+            i === 0 ? { ...e, title } : e
+          ),
         });
       }).catch(() => {
-        // Fallback to session name only
-        if (session?.user?.name) {
-          setPreviewData({
-            name: session.user.name, title: "Professional", email: session.user.email ?? "",
-            phone: "", location: "", linkedin: "",
-            summary: "Your CV summary will appear here.",
-            skills: ["Your skills"],
-            experience: [{ title: "Your Role", company: "Your Company", date: "Present", bullets: ["Your experience"] }],
-            education: [{ degree: "Your Degree", school: "University", year: "" }],
-          });
-        }
+        // Fallback: use SAMPLE with user's name only
+        setPreviewData({ ...SAMPLE, name: session?.user?.name || SAMPLE.name });
       });
     }
 

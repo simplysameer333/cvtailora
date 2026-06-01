@@ -23,19 +23,44 @@ export interface PreviewData {
 export const SAMPLE: PreviewData = {
   name:     "Alex Johnson",
   title:    "Senior Software Engineer",
-  email:    "alex@email.com",
+  email:    "alex.johnson@email.com",
   phone:    "+44 7700 900 123",
   location: "London, UK",
-  linkedin: "linkedin.com/in/alexj",
-  summary:  "Results-driven Software Engineer with 8+ years designing scalable distributed systems. Led teams delivering 40% latency improvements serving 50M daily users.",
-  skills:   ["Python", "TypeScript", "AWS", "Kubernetes", "PostgreSQL", "Redis", "React", "System Design"],
+  linkedin: "linkedin.com/in/alexjohnson",
+  summary:  "Senior Software Engineer with 10+ years of experience designing and delivering scalable distributed systems for Fortune 500 companies. Led cross-functional teams of 8+ engineers, reducing infrastructure costs by $500K annually and improving system latency by 40%. Currently responsible for AI/ML serving infrastructure at Google DeepMind processing 50M predictions daily.",
+  skills:   ["Python", "TypeScript", "Java", "AWS", "GCP", "Kubernetes", "Docker", "PostgreSQL", "Redis", "Kafka", "React", "System Design", "Machine Learning", "CI/CD"],
   experience: [
-    { title: "Senior Software Engineer", company: "Google DeepMind", date: "2021 – Present",
-      bullets: ["Re-architected ML serving pipeline, reducing P99 latency by 40%", "Mentored 4 engineers; introduced weekly design reviews", "Built feature store serving 50M predictions/day"] },
-    { title: "Software Engineer", company: "Stripe", date: "2018 – 2021",
-      bullets: ["Built payment reconciliation processing $2B+ annually", "Improved test coverage from 45% to 92% across core modules"] },
+    { title: "Senior Software Engineer", company: "Google DeepMind", date: "Sep 2021 – Present",
+      bullets: [
+        "Re-architected ML serving pipeline reducing P99 latency by 40% across 50M daily predictions",
+        "Led team of 6 engineers delivering real-time feature store; reduced model inference time by 60%",
+        "Designed distributed training infrastructure supporting 200+ model experiments per week",
+        "Introduced weekly design review process adopted across 3 engineering teams",
+        "Mentored 4 junior engineers; 2 promoted to mid-level within 18 months",
+      ] },
+    { title: "Software Engineer II", company: "Stripe", date: "Mar 2018 – Aug 2021",
+      bullets: [
+        "Built payment reconciliation service processing $2B+ in transactions annually with 99.99% uptime",
+        "Improved test coverage from 45% to 92% across core payment modules; reduced production bugs by 65%",
+        "Migrated monolithic auth service to microservices, cutting deployment time from 4 hours to 12 minutes",
+        "Collaborated with product and legal teams to ensure PCI-DSS compliance across 3 payment flows",
+      ] },
+    { title: "Software Developer", company: "Genpact Capital Markets", date: "Jun 2015 – Feb 2018",
+      bullets: [
+        "Developed FIX/JSON/XML trading gateway supporting 15+ institutional clients across EMEA",
+        "Reduced daily batch processing time from 6 hours to 45 minutes through parallelisation",
+        "Led migration of on-premise infrastructure to AWS; saved $1M in annual hosting costs",
+      ] },
+    { title: "Junior Developer", company: "TechCorp Solutions", date: "Sep 2013 – May 2015",
+      bullets: [
+        "Built RESTful APIs for client-facing dashboard serving 10,000+ daily active users",
+        "Maintained CI/CD pipeline and reduced deployment failures by 40%",
+      ] },
   ],
-  education: [{ degree: "BSc Computer Science", school: "University College London", year: "2018" }],
+  education: [
+    { degree: "BSc Computer Science (First Class)", school: "University College London", year: "2013" },
+    { degree: "AWS Solutions Architect – Professional", school: "Amazon Web Services", year: "2022" },
+  ],
 };
 
 const W = 600; // base template width in px
@@ -707,12 +732,10 @@ export const CATEGORY_COLORS: Record<string, string> = {
 
 // ── Iframe-based preview (crisp, pixel-perfect rendering) ─────────────────────
 
-// Thumbnail: show top 55% of page at scale that fills card width (~196px)
-// Only render the top portion — name/header/first section is all that matters
-const THUMB_IFRAME_W  = 794;
-const THUMB_SCALE     = 0.247;
-const THUMB_SHOW_FRAC = 0.52;   // show top 52% of A4 height
-const THUMB_H         = Math.round(THUMB_IFRAME_W * 1.414 * THUMB_SCALE * THUMB_SHOW_FRAC);
+// Thumbnail: full A4 page at scale that fits card width (~196px)
+const THUMB_IFRAME_W = 794;
+const THUMB_SCALE    = 0.247;
+const THUMB_H        = Math.round(THUMB_IFRAME_W * 1.414 * THUMB_SCALE); // full A4 height
 
 export function TemplateThumbnail({
   info, isSelected, onClick, locked = false, data,
@@ -893,8 +916,8 @@ export function TemplateSuggestions() {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {shown.map((info) => {
-          const SUGG_SCALE = 0.27;
-          const thumbH = Math.round(794 * 1.414 * SUGG_SCALE * 0.52); // top 52%
+          const SUGG_SCALE = 0.25;
+          const thumbH = Math.round(794 * 1.414 * SUGG_SCALE); // full A4 height
           const html = getTemplateHtml(info.key, SAMPLE);
           return (
             <div key={info.key} className="card p-0 overflow-hidden hover:shadow-lg hover:border-brand-300 transition cursor-pointer rounded-2xl">
