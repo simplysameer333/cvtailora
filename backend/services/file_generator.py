@@ -13,7 +13,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, HRFlowable, ListFlowable, ListItem,
     Table, TableStyle,
@@ -242,6 +242,12 @@ def _build_replacements(r: dict) -> dict:
 
 def _generate_clean_docx(r: dict, kw_re=None) -> bytes:
     doc = Document()
+    # Narrow margins: 15 mm sides, 14 mm top/bottom — maximises content area
+    section = doc.sections[0]
+    section.left_margin   = Inches(0.59)   # ≈ 15 mm
+    section.right_margin  = Inches(0.59)
+    section.top_margin    = Inches(0.55)   # ≈ 14 mm
+    section.bottom_margin = Inches(0.47)   # ≈ 12 mm
     contact = r.get("contact", {})
 
     # ── Name ──────────────────────────────────────────────────────────────────
@@ -286,6 +292,7 @@ def _generate_clean_docx(r: dict, kw_re=None) -> bytes:
     if r.get("summary"):
         _docx_section_heading(doc, "Professional Summary")
         p = doc.add_paragraph(r["summary"])
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         p.paragraph_format.space_after = Pt(4)
         for run in p.runs:
             run.font.size = Pt(10)
@@ -385,8 +392,8 @@ def generate_pdf(resume_data: dict, bold_keywords: list[str] | None = None) -> b
     doc = SimpleDocTemplate(
         buf,
         pagesize=A4,
-        leftMargin=18*mm, rightMargin=18*mm,
-        topMargin=14*mm, bottomMargin=14*mm,
+        leftMargin=14*mm, rightMargin=14*mm,
+        topMargin=12*mm, bottomMargin=12*mm,
     )
 
     base = getSampleStyleSheet()
@@ -420,6 +427,7 @@ def generate_pdf(resume_data: dict, bold_keywords: list[str] | None = None) -> b
         "Body", parent=base["Normal"],
         fontSize=9.5, leading=13, textColor=_TEXT,
         fontName="Helvetica", spaceAfter=4,
+        alignment=TA_JUSTIFY,
     )
     # Bullet text style — no indent here; alignment is handled by the Table column
     bullet_text_style = ParagraphStyle(
