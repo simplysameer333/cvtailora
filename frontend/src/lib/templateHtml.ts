@@ -38,8 +38,34 @@ function expRows(d: PreviewData, titleColor = "#111827", coColor = "#2563eb") {
     <ul style="margin-bottom:10px;">${e.bullets.map(b => `<li style="font-size:11px;color:#4b5563;">${esc(b)}</li>`).join("")}</ul>
   `).join("");
 }
+// Injected into every preview iframe: paginates content onto A4 pages so no
+// block (bullet, paragraph, heading) is ever split across a page boundary —
+// any block that would straddle is pushed down to start cleanly on the next page.
+const PAGINATE_SCRIPT = `<script>
+(function(){
+  var PAGE = 1123;   // A4 height at 794px width
+  var TOP  = 30;     // breathing room at the top of a new page
+  function topOf(el){ var t=0,e=el; while(e){ t+=e.offsetTop; e=e.offsetParent; } return t; }
+  // Atomic blocks that must never be cut mid-way. li=bullets, .prose=summary.
+  var nodes = document.querySelectorAll('li, .prose');
+  for (var i=0;i<nodes.length;i++){
+    var el = nodes[i];
+    var h = el.offsetHeight;
+    if (h >= PAGE - TOP) continue;            // taller than a page — cannot avoid
+    var top = topOf(el);
+    var startPage = Math.floor(top / PAGE);
+    var endPage = Math.floor((top + h - 1) / PAGE);
+    if (endPage > startPage){                 // straddles a boundary → push to next page
+      var push = (startPage + 1) * PAGE - top + TOP;
+      var cur = parseFloat(getComputedStyle(el).marginTop) || 0;
+      el.style.marginTop = (cur + push) + 'px';
+    }
+  }
+})();
+</script>`;
+
 function wrap(css: string, body: string) {
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${BASE_CSS}${css}</style></head><body>${body}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${BASE_CSS}${css}</style></head><body>${body}${PAGINATE_SCRIPT}</body></html>`;
 }
 
 // ── Extra-section routing ──────────────────────────────────────────────────────

@@ -358,11 +358,12 @@ async def generate(
                 anthropic_key=settings.anthropic_api_key,
                 source_resume_text=resume_text,
             )
-            if layout_validation.get("truncated"):
+            if layout_validation.get("truncated") or not layout_validation.get("page_breaks_clean", True):
                 logger.warning(
-                    "[generate] TRUNCATION — session %s needs ~%s pages but template is %s. Suggestions: %s",
-                    session_id, layout_validation.get("estimated_pages"),
-                    template_pages, layout_validation.get("suggestions"),
+                    "[generate] LAYOUT — session %s: est %s pages (template %s), truncated=%s, clean_breaks=%s. Fixes: %s",
+                    session_id, layout_validation.get("estimated_pages"), template_pages,
+                    layout_validation.get("truncated"), layout_validation.get("page_breaks_clean"),
+                    layout_validation.get("suggestions"),
                 )
             elif not layout_validation.get("optimized") or layout_validation.get("page_fit") != "good":
                 logger.info(

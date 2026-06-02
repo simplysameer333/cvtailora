@@ -592,6 +592,7 @@ Return EXACTLY this structure:
 {{
   "estimated_pages": <number — how many A4 pages this content actually needs when rendered, e.g. 1.0, 1.5, 2.3>,
   "truncated": <true if estimated_pages exceeds the PAGE BUDGET — i.e. content will overflow and be cut off>,
+  "page_breaks_clean": <true if every role/section fits cleanly within a page, false if any block would be split across a page boundary>,
   "optimized": <true if section sizes follow the best-practice targets, else false>,
   "page_fit": "<good | overflow_risk | underfilled>",
   "issues": ["<each concrete problem, e.g. 'Skills list has 14 items (max 8 for 1 page)'>"],
@@ -607,6 +608,7 @@ HOW TO ESTIMATE PAGES (a single A4 page holds roughly 45–50 text lines at this
 
 RULES:
 - truncated: TRUE whenever estimated_pages > the page budget. This is the most important field — a truncated resume has content cut off at the bottom and looks broken.
+- page_breaks_clean: FALSE if any single role (with its bullets) or section is so large it would straddle a page boundary — leaving part of the block on one page and the rest on the next (e.g. a role's header at the bottom of page 1 with its bullets on page 2, or a bullet split across the boundary). When false, add a suggestion naming the block to resize so it sits within one page.
 - page_fit: "overflow_risk" if estimated_pages exceeds the budget; "underfilled" if content fills less than ~70% of the budget (large empty space); otherwise "good".
 - optimized: false if ANY section breaks its best-practice target (too many skills, too many bullets on old roles, summary too long, etc.).
 - missing_sections: ONLY sections present in the SOURCE resume but absent from the structured resume. Empty array if none or no source provided.
@@ -623,11 +625,11 @@ async def validate_resume_layout(
 ) -> dict:
     """QA a structured resume against its page budget via a focused LLM call.
 
-    Returns: {estimated_pages: float, truncated: bool, optimized: bool,
-    page_fit: str, issues: [], missing_sections: [], suggestions: []}.
-    `truncated` is the key signal — True means content overflows the page
-    budget and will be visibly cut off. Raises on LLM/parse failure — callers
-    should catch and treat the result as best-effort.
+    Returns: {estimated_pages: float, truncated: bool, page_breaks_clean: bool,
+    optimized: bool, page_fit: str, issues: [], missing_sections: [],
+    suggestions: []}. `truncated` flags content overflowing the budget;
+    `page_breaks_clean` is False when a role/section would be split across a
+    page boundary. Raises on LLM/parse failure — callers treat as best-effort.
     """
     client = AsyncAnthropic(api_key=anthropic_key)
 
@@ -666,11 +668,12 @@ async def validate_resume_layout(
     truncated = bool(data.get("truncated", False)) or (est_pages > page_count + 0.05)
 
     return {
-        "estimated_pages":  round(est_pages, 1),
-        "truncated":        truncated,
-        "optimized":        bool(data.get("optimized", False)),
-        "page_fit":         data.get("page_fit", "good") or "good",
-        "issues":           data.get("issues") or [],
-        "missing_sections": data.get("missing_sections") or [],
-        "suggestions":      data.get("suggestions") or [],
+        "estimated_pages":   round(est_pages, 1),
+        "truncated":         truncated,
+        "page_breaks_clean": bool(data.get("page_breaks_clean", True)),
+        "optimized":         bool(data.get("optimized", False)),
+        "page_fit":          data.get("page_fit", "good") or "good",
+        "issues":            data.get("issues") or [],
+        "missing_sections":  data.get("missing_sections") or [],
+        "suggestions":       data.get("suggestions") or [],
     }

@@ -5,6 +5,22 @@ import { FiCheckCircle, FiArrowRight, FiLock } from "react-icons/fi";
 import clsx from "clsx";
 import { getTemplateHtml } from "@/lib/templateHtml";
 
+// ══════════════════════════════════════════════════════════════════════════════
+// PREVIEW RULES — how the CV-score preview curates the uploaded CV for display.
+//
+// IMPORTANT: this is a SEPARATE ruleset from the resume GENERATOR rules used by
+// the builder (backend: services/pipeline/prompts/anthropic.py → _page_rules()).
+// The preview and the actual resume creation are decoupled BY DESIGN — even for
+// the same template, the preview may show different counts than the generated
+// resume. Tune these values independently; do not couple them to the generator.
+// (Exact guidelines to be finalised later.)
+// ══════════════════════════════════════════════════════════════════════════════
+const PREVIEW_RULES = {
+  skillsCap: 10,            // max skills shown in the preview
+  bulletsByRole: [5, 4, 3, 3] as number[],  // inverted pyramid; roles past the end use bulletsDefault
+  bulletsDefault: 2,
+};
+
 // ── Preview data ──────────────────────────────────────────────────────────────
 
 export interface PreviewData {
@@ -913,10 +929,8 @@ export function TemplateSuggestions({ extractedProfile }: {
 
   const previewData: PreviewData | null = useMemo(() => {
     if (!hasRealProfile) return null;
-    // Curate the real CV to senior resume-writing standards so the preview shows
-    // how it SHOULD look, not a raw dump. Matches the agreed builder counts.
-    const SKILLS_CAP = 10;                 // 8–10 agreed; cap the dump
-    const BULLETS_BY_ROLE = [5, 4, 3, 3];  // inverted pyramid; index 4+ → 2
+    // Curate the real CV per the PREVIEW_RULES (separate from generator rules)
+    // so the preview shows a polished version, not a raw dump.
     return {
       name:     extractedProfile!.name     || "",
       title:    extractedProfile!.title    || "",
@@ -925,12 +939,12 @@ export function TemplateSuggestions({ extractedProfile }: {
       location: extractedProfile!.location || "",
       linkedin: extractedProfile!.linkedin || "",
       summary:  extractedProfile!.summary  || "",
-      skills:   (extractedProfile!.skills || []).slice(0, SKILLS_CAP),
+      skills:   (extractedProfile!.skills || []).slice(0, PREVIEW_RULES.skillsCap),
       experience: (extractedProfile!.experience || []).map((e, i) => ({
         title:   e.role,
         company: e.company,
         date:    e.dates,
-        bullets: (e.bullets || []).slice(0, BULLETS_BY_ROLE[i] ?? 2),
+        bullets: (e.bullets || []).slice(0, PREVIEW_RULES.bulletsByRole[i] ?? PREVIEW_RULES.bulletsDefault),
       })),
       education: (extractedProfile!.education || []).map(e => ({
         degree: e.degree,
@@ -1001,7 +1015,9 @@ export function TemplateSuggestions({ extractedProfile }: {
                 <div style={{ width: LARGE_W, height: scrollAreaH, position: "relative" }}>
                   <iframe
                     srcDoc={largeHtml}
-                    sandbox="allow-same-origin"
+                    // allow-scripts enables the in-iframe pagination script (content is
+                    // our own, with all CV data HTML-escaped — no untrusted code runs).
+                    sandbox="allow-same-origin allow-scripts"
                     scrolling="no"
                     title={`${selected.name} preview`}
                     onLoad={(e) => {
@@ -1021,7 +1037,8 @@ export function TemplateSuggestions({ extractedProfile }: {
                       pointerEvents: "none",
                     }}
                   />
-                  {/* Page-break guides so the user sees where each A4 page ends */}
+                  {/* Page-break guides — content is paginated inside the iframe so
+                      sections never straddle these lines; they start cleanly on the next page. */}
                   {pagesNeeded && pagesNeeded > 1 && Array.from({ length: Math.floor(pagesNeeded) }).map((_, i) => (
                     <div key={i} aria-hidden
                       style={{ position: "absolute", left: 0, right: 0,

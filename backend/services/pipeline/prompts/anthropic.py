@@ -93,6 +93,14 @@ Exact per-role bullet counts are specified in the PAGE COUNT rules below — fol
 - Drop generic/obvious skills (e.g. "Microsoft Word", "Email", "Teamwork") and anything not relevant to the target role.
 - Exact skill counts are specified in the PAGE COUNT rules below — treat them as a hard cap, not a target to pad toward.
 
+## PAGE-BREAK HYGIENE — content must break cleanly across pages
+The resume renders onto fixed A4 pages. Size content so no block is ever split awkwardly across a page boundary (one line on a page, the rest on the next):
+- Keep every bullet to a SINGLE line (stay within the word limit) — a one-line bullet can never be cut mid-bullet across pages.
+- Treat each role together with its bullets as one unit: a role plus its bullets should comfortably fit within a single page. Never write a role so long (too many or too-wordy bullets) that the role spills across a page break.
+- Keep the summary tight (per the sentence count) so it sits cleanly near the top of page 1, not spilling over a boundary.
+- A section heading must never be the last thing on a page with its content starting the next page — keep headings with their content.
+- When content is near a page's capacity, prefer tightening earlier bullets over creating a block that straddles the break.
+
 ## PAGE COUNT — HARD TEMPLATE CONSTRAINT
 {page_rules}
 
@@ -180,11 +188,16 @@ async def _get_anthropic_evaluator_base() -> str:
 
 
 def _page_rules(pages: int) -> str:
-    """Return hard page-count rules for the generator based on the selected template.
+    """Return hard page-count rules for the resume GENERATOR (the builder).
 
     Counts reflect senior resume-writing best practice: tight skills lists,
     inverted-pyramid bullet weighting (recent roles get more, older taper),
     and never dropping a section to fit — compress within sections instead.
+
+    NOTE: This is the GENERATOR ruleset, SEPARATE BY DESIGN from the CV-score
+    PREVIEW ruleset (frontend: components/TemplatePreviews.tsx → PREVIEW_RULES).
+    The two are decoupled — even for the same template, the preview may curate
+    content differently from the generated resume. Tune them independently.
     """
     if pages == 1:
         return (
