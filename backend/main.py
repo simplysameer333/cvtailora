@@ -25,6 +25,27 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_db()
+
+    # Safety guard: DEV_BYPASS_AUTH disables ALL authentication. It must never be on
+    # in a deployed environment. Detect Railway (or any non-local host) and shout.
+    if settings.dev_bypass_auth:
+        import os
+        deployed = bool(
+            os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_PROJECT_ID")
+            or os.getenv("RAILWAY_SERVICE_ID") or os.getenv("RAILWAY_STATIC_URL")
+        )
+        if deployed:
+            logger.error(
+                "=" * 78 + "\n"
+                "  SECURITY: DEV_BYPASS_AUTH=true on a DEPLOYED (Railway) environment.\n"
+                "  ALL authentication is disabled. The frontend must also be in dev-bypass,\n"
+                "  and any 'Bearer dev-*' token is accepted. Set DEV_BYPASS_AUTH=false in\n"
+                "  production (and NEXT_PUBLIC_DEV_BYPASS_AUTH=false on the frontend).\n"
+                + "=" * 78
+            )
+        else:
+            logger.warning("DEV_BYPASS_AUTH=true (local dev) — authentication is bypassed.")
+
     from database import get_db
     from services.profession_service import seed_professions
     await seed_professions(get_db())
