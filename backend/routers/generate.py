@@ -96,7 +96,11 @@ async def _resolve_profession(db, target_role: str) -> dict:
 
 
 async def _check_cost_limit(db, session_id: str) -> int:
-    """Raise 429 if this session has already reached its AI call limit."""
+    """Raise 429 if this session has already reached its AI call limit.
+
+    Checks current usage, not projected usage — allows the first generation
+    to always complete regardless of tier/evaluator count.
+    """
     if settings.max_ai_calls_per_session <= 0:
         return 0
     session = await db.sessions.find_one({"_id": ObjectId(session_id)}, {"ai_call_count": 1})
@@ -129,7 +133,12 @@ async def _increment_call_count(db, session_id: str, count: int):
 
 
 async def _original_cv_score(db, resume_text: str) -> int:
-    """CV-Score of the UPLOADED résumé — the floor the generated one must not drop below."""
+    """CV-Score of the UPLOADED résumé — the floor the generated one must not drop below.
+
+    Reuses the cached score from the upload/score flow when present (free); otherwise
+    computes it once with check_resume (Haiku, cheap). Returns 0 on any failure so the
+    gate falls back to the plain tier bar.
+    """
     if not resume_text.strip():
         return 0
     text_hash = hashlib.sha256(resume_text[:8000].encode()).hexdigest()
@@ -175,13 +184,18 @@ async def generate(
     locked_facts = session.get("locked_facts") or []
     sample_cv_text: str | None = session.get("sample_cv_text") or None
 
+    # Resolve user tier early so we can gate Pro-only session features.
+    # Done here (before the body.section check) so section regen also respects it.
+    # NOTE: user_tier is re-resolved later after skill count; keep both in sync.
     from services.tier_config_service import has_feature as _has_feature
     _early_tier = (user or {}).get("tier", "free")
+    # Drop Pro-only session data for non-entitled users (handles mid-lifecycle downgrades).
     if not _has_feature(_early_tier, "locked_facts"):
         locked_facts = []
     if not _has_feature(_early_tier, "sample_cv"):
         sample_cv_text = None
 
+    # Merge stored upload-time instructions + request-time additional_instructions into profile.
     extra_parts = []
     upload_instructions = (session.get("upload_instructions") or "").strip()
     if upload_instructions:
@@ -210,16 +224,24 @@ async def generate(
     tier_bar = _TIER_THRESHOLDS.get((user or {}).get("tier", "free"), settings.pass_threshold)
     original_score = await _original_cv_score(db, resume_text)
     pass_threshold = min(100, max(tier_bar, int(original_score * 0.90)))
+    # Tier-aware refinement budget — higher tiers get more attempts at the higher
+    # bar. Calls per run ≈ 1 + (1 + N_evaluators) × cycles (Pro N=3 → 1+4×cycles),
+    # bounded by MAX_AI_CALLS_PER_SESSION (30). We return the BEST cycle, so extra
+    # cycles can only help. Pro 5 cycles ≈ 21 calls.
     _TIER_MAX_CYCLES = {"free": 3, "plus": 4, "pro": 5}
     max_cycles = _TIER_MAX_CYCLES.get((user or {}).get("tier", "free"), settings.max_eval_cycles)
 
     profession_config = await _resolve_profession(db, target_role)
 
+    # ── Resolve user tier for per-tier feature enforcement ────────────────────
     user_tier = (user or {}).get("tier", "free")
 
+    # ── Per-user daily + monthly cost budget — account-level cost guardrail ───
+    # Checked before any LLM cost is incurred (covers section regen + full run).
     if user:
         await check_budget(db, user, user_tier)
 
+    # ── Job analysis — only runs when a job description is provided ───────────
     from services.tier_config_service import get_limit as _get_limit
     if has_jd:
         n_skills = _get_limit(user_tier, "key_skills") or settings.skill_extraction_count
@@ -231,11 +253,13 @@ async def generate(
         )
     else:
         key_skills = []
+    # Persist key_skills on the session so export can bold them
     await db.sessions.update_one(
         {"_id": ObjectId(session_id)},
         {"$set": {"key_skills": key_skills}},
     )
 
+    # ── Section-only regeneration (Pro only) ─────────────────────────────────
     if body.section:
         from services.tier_config_service import has_feature as _hf
         if not _hf(user_tier, "section_regen"):
@@ -269,6 +293,11 @@ async def generate(
         )
         return result
 
+    # ── Generation cache check ────────────────────────────────────────────────
+    # Hash all inputs that affect the generated output.
+    # template_id affects content density (1-page vs 2-page) and style hints.
+    # sample_cv_text fingerprint ensures formatting references invalidate the cache.
+    # additional_instructions also affect output so they must be included.
     template_id  = session.get("selected_template_id") or ""
     sample_fp    = hashlib.sha256((sample_cv_text or "").encode()).hexdigest()[:16]
     extra_instr  = body.additional_instructions or ""
@@ -300,6 +329,8 @@ async def generate(
             "eval_summary": cached_gen["eval_summary"],
         }
 
+    # ── Full evaluator-optimizer pipeline ─────────────────────────────────────
+    # Evaluator selection is tier-aware: Free=1, Plus=2, Pro=3 (subject to API key config).
     enabled_evaluators = _enabled_evaluators_for_tier(user_tier)
     active_evaluator_count = sum(enabled_evaluators.values())
     await _check_cost_limit(db, session_id)
@@ -332,11 +363,11 @@ async def generate(
         "min_score": 0,
     }
 
-    telemetry.start_capture()
+    telemetry.start_capture()  # accumulate per-call tokens/cost across the whole run
     try:
         final_state = await asyncio.wait_for(
             pipeline.ainvoke(initial_state),
-            timeout=300.0,
+            timeout=300.0,  # 5 min — Pro runs up to 5 cycles × 3 evaluators (~40s/cycle)
         )
     except asyncio.TimeoutError:
         logger.error("[generate] Pipeline timed out for session %s", session_id)
@@ -345,14 +376,23 @@ async def generate(
         logger.exception("[generate] Pipeline failed for session %s: %s", session_id, exc)
         raise HTTPException(500, f"Resume generation failed: {exc}")
 
+    # Return the BEST cycle, not the last. The refine loop is non-monotonic — a
+    # later cycle can regress below an earlier one (observed: min_score [72,82,75]).
+    # aggregate_node tracks the highest-scoring cycle; collapse final_state onto it
+    # so every downstream consumer (cache, validator, response) uses the best.
     if final_state.get("best_resume_json") is not None:
         final_state["resume_json"] = final_state["best_resume_json"]
         final_state["min_score"] = final_state["best_min_score"]
         final_state["all_passed"] = final_state["best_min_score"] >= pass_threshold
 
+    # Actual calls used: 1 job-analyzer + (generator + evaluators) * completed cycles
     actual_calls = job_analyzer_calls + (1 + active_evaluator_count) * final_state["cycle"]
     await _increment_call_count(db, session_id, actual_calls)
 
+    # ── Telemetry — measured tokens + estimated cost across every LLM call ─────
+    # Answers "how many calls / how much did this run cost" with real usage data
+    # (not the formula above). Logged, persisted on the session, and surfaced in
+    # the admin audit log per action so cost-per-tier is observable.
     usage = telemetry.summary()
     logger.info(
         "[generate] TELEMETRY session=%s tier=%s cycles=%d min_score=%d passed=%s | "
@@ -376,9 +416,12 @@ async def generate(
         }},
     )
 
+    # Charge the run against the user's account-level daily + monthly budget.
     if user:
         await increment_usage(db, str(user.get("_id", "")), actual_calls, usage["est_cost_usd"])
 
+    # Feed the outcome into agent memory (background) so the generator learns which
+    # weaknesses cost cycles and pre-empts them next time. Best-effort, non-blocking.
     eval_hist = final_state.get("eval_history") or []
     background_tasks.add_task(record_generation_outcome, {
         "first_score": (eval_hist[0]["min_score"] if eval_hist else final_state["min_score"]),
@@ -389,11 +432,12 @@ async def generate(
         "evaluators": final_state.get("eval_results") or [],
     })
 
+    # Audit entry with the cost signals the admin dashboard surfaces per action.
     if user:
         log_audit(user, "resume.generate.complete", {
             "tier": user_tier,
-            "cycles": final_state["cycle"],
-            "max_cycles": max_cycles,
+            "cycles": final_state["cycle"],   # cycles actually run
+            "max_cycles": max_cycles,         # tier's cycle budget
             "min_score": final_state["min_score"],
             "passed": final_state["all_passed"],
             "llm_calls": usage["llm_calls"],
@@ -417,6 +461,10 @@ async def generate(
             {"$set": {"quality_alert_sent": True}},
         )
 
+    # ── Preview validator — dedicated QA pass ─────────────────────────────────
+    # Focused LLM call: confirms the generated resume fits the template's page
+    # budget, is sized to best-practice counts, and keeps every source section.
+    # Best-effort: a failure must never break generation.
     layout_validation = None
     if final_state.get("resume_json"):
         try:
@@ -441,6 +489,7 @@ async def generate(
         except Exception as val_exc:
             logger.warning("[generate] Layout validation failed (non-fatal): %s", val_exc)
 
+    # Never-regress visibility: warn if the best draft still scored below the upload.
     final_score = final_state["min_score"]
     if original_score and final_score < original_score:
         logger.warning(
@@ -464,7 +513,7 @@ async def generate(
         "cycles": final_state["cycle"],
         "all_passed": final_state["all_passed"],
         "min_score": final_score,
-        "score": final_score,
+        "score": final_score,           # CV-Score of the generated résumé (same scale users see)
         "original_score": original_score,
         "beat_original": (not original_score) or final_score >= original_score,
         "pass_threshold": pass_threshold,
@@ -475,6 +524,8 @@ async def generate(
         "user_actions_needed": user_actions,
     }
 
+    # ── Store successful result in generation cache ───────────────────────────
+    # Only cache valid, completed runs (not timeouts / exceptions — those never reach here).
     if final_state.get("resume_json"):
         try:
             await db.generation_cache.update_one(
@@ -513,7 +564,10 @@ async def save_resume(session_id: str, body: dict):
 
 @router.patch("/sessions/{session_id}/template")
 async def set_session_template(session_id: str, body: dict):
-    """Attach a template to the session so export can apply it."""
+    """Attach a template to the session so export can apply it.
+
+    Body: {"template_id": "<mongo ObjectId string>"}
+    """
     template_id = body.get("template_id", "")
     db = get_db()
     result = await db.sessions.update_one(
@@ -531,7 +585,12 @@ async def set_locked_facts(
     body: dict,
     user: dict | None = Depends(get_optional_user),
 ):
-    """Replace the session's locked_facts list. Pro only."""
+    """Replace the session's locked_facts list. Pro only.
+
+    Body: {"locked_facts": ["Company: Google", "Degree: BSc Computer Science"]}
+    Locked facts are injected into the generator system prompt on the next
+    generate call. The generator is instructed never to modify or remove them.
+    """
     user_tier = (user or {}).get("tier", "free")
     from services.tier_config_service import has_feature as _hf
     if not _hf(user_tier, "locked_facts"):

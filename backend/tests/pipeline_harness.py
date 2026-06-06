@@ -1,7 +1,7 @@
 """CV Pipeline Eval Harness — benchmark and regression-test the generate pipeline.
 
 Usage:
-    python tests/pipeline_harness.py path/to/cv.docx [--tiers plus pro] [--attempts 2] [--disable-plateau] [--output-dir results/]
+    python tests/pipeline_harness.py path/to/cv.pdf [--tiers plus pro] [--cycles 4] [--attempts 2]
 
 What it does:
     1. Scores the original CV (baseline)
@@ -15,7 +15,7 @@ Exit codes:
 
 Environment:
     ANTHROPIC_API_KEY  required
-    MONGODB_URI        optional (defaults to a local no-op URI)
+    MONGODB_URI        optional (only needed for DB-backed features; defaults to a no-op)
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ import docx  # type: ignore
 from config import settings
 from services.pipeline.graph import pipeline
 from services.pipeline import nodes as nodes_mod
-from services.resume_checker_service import check_resume
+from services.resume_checker_service import check_resume, extract_weak_categories
 from services.pipeline.agents.evaluators.cv_score import resume_json_to_text
 from services.user_actions_service import build_user_actions
 
@@ -122,6 +122,7 @@ async def _run_attempt(cv_text: str, tier: str, tier_cfg: dict, key_skills: list
     history = [r["min_score"] for r in state.get("eval_history", [])]
     eval_results = state.get("eval_results") or []
 
+    # Re-score with full category breakdown
     final_score, final_cats = 0, []
     if best_json:
         gen_text = resume_json_to_text(best_json)
@@ -172,6 +173,7 @@ async def run_harness(
     print(f"Original CV score: {orig_score}/100\n")
 
     orig_cat_map = {c.get("name", ""): c.get("score", 0) for c in orig_cats}
+
     results_by_tier: dict[str, dict] = {}
 
     for tier in tiers:
@@ -206,6 +208,7 @@ async def run_harness(
 
         results_by_tier[tier] = best_result
 
+        # Category delta table
         print(f"\n  Best result for {tier.upper()} (score={best_result['final_score']}/100):")
         print(f"  {'Category':<30} {'Orig':>5} {'Gen':>5} {'Delta':>6}  Status")
         print(f"  {'-'*56}")
@@ -229,6 +232,7 @@ async def run_harness(
         else:
             print(f"\n  ✓ Threshold reached: {best_result['final_score']}/{cfg['bar']}")
 
+    # Final comparison
     print(f"\n{'='*64}")
     print("SUMMARY")
     print(f"{'='*64}")
@@ -244,6 +248,7 @@ async def run_harness(
             regression = True
         print(f"{tier.upper():<8} {orig_score:>8} {gen_s:>10} {delta_str:>6} {res['threshold']:>10} {passed:>7}")
 
+    # Write JSON output
     report = {
         "timestamp": datetime.utcnow().isoformat(),
         "cv_path": cv_path,
@@ -256,6 +261,7 @@ async def run_harness(
     if output_dir:
         out_path = Path(output_dir) / f"harness_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
         out_path.parent.mkdir(parents=True, exist_ok=True)
+        # Don't dump full resume_json to keep report readable
         clean = {k: v for k, v in report.items() if k != "tier_results"}
         clean["tier_results"] = {
             t: {k: v for k, v in r.items() if k != "resume_json"}

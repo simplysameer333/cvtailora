@@ -21,7 +21,7 @@ _CONTACT_ACTIONS = [
     {
         "trigger": ["linkedin"],
         "action": "Add your LinkedIn profile URL to your CV",
-        "example": "linkedin.com/in/your-name",
+        "example": "linkedin.com/in/himjit-singh",
         "score_impact": 6,
     },
     {
@@ -75,7 +75,7 @@ _EDUCATION_ACTIONS = [
     {
         "trigger": ["graduation year", "graduation", "year", "btech", "bachelor"],
         "action": "Add your graduation year to your degree",
-        "example": "Bachelor of Technology (Computer Science) — College Name, 2010",
+        "example": "Bachelor of Technology (Computer Science) — Ambala College, 2010",
         "score_impact": 5,
     },
     {
@@ -163,15 +163,17 @@ def build_user_actions(
 
     Pure function — no I/O, fully unit-testable.
     """
+    all_suggestions: list[str] = []
     category_suggestions: dict[str, list[str]] = {}
 
     for result in eval_results:
         for suggestion in result.get("suggestions") or []:
             # Suggestions are prefixed "[CategoryName] text"
             if suggestion.startswith("[") and "]" in suggestion:
-                cat = suggestion[1: suggestion.index("]")] 
+                cat = suggestion[1: suggestion.index("]")]
                 text = suggestion[suggestion.index("]") + 2:]
                 category_suggestions.setdefault(cat, []).append(text)
+                all_suggestions.append(suggestion)
 
     actions: list[dict] = []
     for cat, suggestions in category_suggestions.items():
