@@ -1023,8 +1023,7 @@ export function TemplateSuggestions({ extractedProfile }: {
   const [naturalHeights, setNaturalHeights] = useState<Record<string, number>>({});
   const measuredH   = naturalHeights[selected.key];
   const iframeH     = measuredH ?? A4_PAGE_PX * 3;          // render tall until measured
-  const VIEWPORT_H  = a4H(LARGE_SCALE);                     // visible frame = 1 A4 page
-  const scrollAreaH = Math.round((measuredH ?? A4_PAGE_PX) * LARGE_SCALE);  // full content
+  const scrollAreaH = Math.round((measuredH ?? A4_PAGE_PX) * LARGE_SCALE);  // full content height
   const pagesNeeded = measuredH ? measuredH / A4_PAGE_PX : null;
   const overflowsTemplate = pagesNeeded ? pagesNeeded > selected.pages + 0.08 : false;
   const pagesLabel = pagesNeeded ? (Math.round(pagesNeeded * 10) / 10) : null;
@@ -1051,9 +1050,11 @@ export function TemplateSuggestions({ extractedProfile }: {
         {hasRealProfile ? (
           <>
             <div className="flex justify-center bg-slate-50 py-6 border-b border-slate-100">
-              {/* Fixed one-page-tall window that scrolls to reveal the full resume */}
-              <div className="rounded-lg shadow-lg overflow-y-auto overflow-x-hidden border border-slate-200"
-                   style={{ width: LARGE_W, height: VIEWPORT_H, position: "relative", background: "#fff" }}>
+              {/* Full-height inline preview — the PAGE scrolls through the whole
+                  resume. No inner scroll window, so the wheel is never trapped over
+                  the preview (it scrolls the page like everything else). */}
+              <div className="rounded-lg shadow-lg overflow-hidden border border-slate-200"
+                   style={{ width: LARGE_W, height: scrollAreaH, position: "relative", background: "#fff" }}>
                 {/* Scroll area = full scaled content height */}
                 <div style={{ width: LARGE_W, height: scrollAreaH, position: "relative" }}>
                   <iframe

@@ -94,8 +94,11 @@ async def search_jobs(
     # Build search query (JSearch takes location inline)
     q = f"{query.strip()} {location.strip()}".strip()
 
-    # Cache lookup (keyed on query + page + page_size)
-    cache_key = _cache_key(q, str(page), str(page_size))
+    # Cache lookup — key is NORMALISED (lower-cased, whitespace collapsed) so trivial
+    # variations of the same search ("Software Engineer London" vs
+    # "software engineer  london") reuse one cached result instead of each paying the
+    # slow external API round-trip. The live API call below still uses the raw query.
+    cache_key = _cache_key(" ".join(q.lower().split()), str(page), str(page_size))
     cached = await _get_cache(cache_key)
     if cached:
         cached["from_cache"] = True
