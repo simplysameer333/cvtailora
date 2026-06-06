@@ -102,6 +102,17 @@ function GalleryCard({
             {info.category}
           </span>
           <span className="text-[9px] font-medium text-slate-400">{info.pages}p</span>
+          {typeof info.quality_score === "number" && (
+            <span
+              title="CV-Score this template achieves with a strong résumé"
+              className={clsx("text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0",
+                info.quality_score >= 85 ? "bg-emerald-50 text-emerald-700"
+                  : info.quality_score >= 78 ? "bg-amber-50 text-amber-700"
+                  : "bg-slate-100 text-slate-500")}
+            >
+              {info.quality_score}
+            </span>
+          )}
         </div>
         <p className="text-xs font-bold text-slate-900 leading-tight mb-1">{info.name}</p>
         <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2 flex-1">{info.description}</p>
@@ -113,7 +124,7 @@ function GalleryCard({
         ) : (
           <Link href="/settings/plan" onClick={e => e.stopPropagation()}
             className="text-[9px] font-semibold text-brand-500 hover:underline mt-2">
-            Plus / Pro
+            {info.tier === "pro" ? "Pro only" : "Plus / Pro"}
           </Link>
         )}
       </div>
@@ -187,6 +198,14 @@ function TemplateModal({
                 </span>
                 {info.tier === "plus" && (
                   <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full">Plus+</span>
+                )}
+                {info.tier === "pro" && (
+                  <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full">Pro only</span>
+                )}
+                {typeof info.quality_score === "number" && (
+                  <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full" title="CV-Score this template achieves">
+                    Score {info.quality_score}
+                  </span>
                 )}
               </div>
               <button
@@ -282,6 +301,10 @@ export default function TemplatePage() {
   const router = useRouter();
   const { data: session } = useAuth();
   const tier = session?.user?.tier ?? "free";
+  // A template requires its own `tier` (driven by its quality score: 85+ → pro).
+  // A user may use it only if their tier rank meets the template's.
+  const TIER_RANK: Record<string, number> = { free: 0, plus: 1, pro: 2 };
+  const userRank = TIER_RANK[tier] ?? 0;
   const isPro          = hasFeature(tier, "sample_cv");
   const canExportPdf   = hasFeature(tier, "pdf_export");
   const canSaveLibrary = hasFeature(tier, "save_to_library");
@@ -491,7 +514,7 @@ export default function TemplatePage() {
       {/* Template gallery */}
       <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
         {templatesWithId.map((info) => {
-          const locked = !canUseAll && info.tier === "plus";
+          const locked = userRank < (TIER_RANK[info.tier] ?? 0);
           return (
             <GalleryCard
               key={info._id}

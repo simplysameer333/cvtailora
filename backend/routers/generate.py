@@ -56,21 +56,22 @@ router = APIRouter()
 logger = logging.getLogger("tailormycv")
 _job_analyzer = JobAnalyzerAgent()
 
-# Evaluators each tier is entitled to — must still have API keys configured.
-# Free: Anthropic only (1 evaluator, lowest cost)
-# Plus: Anthropic + OpenAI (2 evaluators, richer feedback)
-# Pro:  Anthropic + OpenAI + Google (3 evaluators, highest quality)
+# Every tier now scores with the SAME engine the user sees: CV-Score (cv_score
+# evaluator → check_resume, Haiku). One cheap call per cycle, and "the builder
+# reached 80" == "the user sees 80". The old JD-alignment panel (anthropic/openai/
+# google) stays available but is off by default.
 _TIER_EVALUATORS: dict[str, set[str]] = {
-    "free": {"anthropic"},
-    "plus": {"anthropic", "openai"},
-    "pro":  {"anthropic", "openai", "google"},
+    "free": {"cv_score"},
+    "plus": {"cv_score"},
+    "pro":  {"cv_score"},
 }
 
 
 def _enabled_evaluators_for_tier(user_tier: str) -> dict[str, bool]:
     """Return per-tier evaluator flags, respecting global env flags + API key presence."""
-    allowed = _TIER_EVALUATORS.get(user_tier, {"anthropic"})
+    allowed = _TIER_EVALUATORS.get(user_tier, {"cv_score"})
     return {
+        "cv_score":  "cv_score"  in allowed and bool(settings.anthropic_api_key),
         "anthropic": "anthropic" in allowed and settings.anthropic_evaluator_enabled,
         "openai":    "openai"    in allowed and settings.openai_evaluator_enabled and bool(settings.openai_api_key),
         "google":    "google"    in allowed and settings.google_evaluator_enabled and bool(settings.google_api_key),
@@ -128,6 +129,30 @@ async def _increment_call_count(db, session_id: str, count: int):
         {"_id": ObjectId(session_id)},
         {"$inc": {"ai_call_count": count}},
     )
+
+
+async def _original_cv_score(db, resume_text: str) -> int:
+    """CV-Score of the UPLOADED résumé — the floor the generated one must not drop below.
+
+    Reuses the cached score from the upload/score flow when present (free); otherwise
+    computes it once with check_resume (Haiku, cheap). Returns 0 on any failure so the
+    gate falls back to the plain tier bar.
+    """
+    if not resume_text.strip():
+        return 0
+    text_hash = hashlib.sha256(resume_text[:8000].encode()).hexdigest()
+    try:
+        doc = await db.cv_check_results.find_one({"text_hash": text_hash}, sort=[("created_at", -1)])
+        if doc and doc.get("overall_score") is not None:
+            return int(doc["overall_score"] or 0)
+    except Exception:
+        pass
+    try:
+        from services.resume_checker_service import check_resume
+        result = await check_resume(resume_text, settings.anthropic_api_key)
+        return int(result.get("overall_score", 0) or 0)
+    except Exception:
+        return 0
 
 
 @router.post("/generate")
@@ -188,12 +213,13 @@ async def generate(
     has_jd = bool(job_description.strip())
     job_analyzer_calls = 1 if has_jd else 0
 
-    # Tier-aware pass threshold — higher tiers demand more refinement cycles
-    # Minimum score every evaluator must reach before the loop exits. A resume we
-    # build should comfortably pass our own CV Score, so higher tiers demand more:
-    # Plus must reach 80+, Pro 90+.
-    _TIER_THRESHOLDS = {"free": 75, "plus": 80, "pro": 90}
-    pass_threshold = _TIER_THRESHOLDS.get((user or {}).get("tier", "free"), settings.pass_threshold)
+    # Tier-aware pass threshold — on the SAME CV-Score scale the user sees, and we
+    # never ship below what they uploaded: target = max(tier bar, original CV-Score).
+    # Free's lower bar (70) is the deliberate upsell; paid tiers are pushed to 80/90.
+    _TIER_THRESHOLDS = {"free": 70, "plus": 80, "pro": 90}
+    tier_bar = _TIER_THRESHOLDS.get((user or {}).get("tier", "free"), settings.pass_threshold)
+    original_score = await _original_cv_score(db, resume_text)
+    pass_threshold = min(100, max(tier_bar, original_score))
     # Tier-aware refinement budget — higher tiers get more attempts at the higher
     # bar. Calls per run ≈ 1 + (1 + N_evaluators) × cycles (Pro N=3 → 1+4×cycles),
     # bounded by MAX_AI_CALLS_PER_SESSION (30). We return the BEST cycle, so extra
@@ -458,10 +484,22 @@ async def generate(
         except Exception as val_exc:
             logger.warning("[generate] Layout validation failed (non-fatal): %s", val_exc)
 
+    # Never-regress visibility: warn if the best draft still scored below the upload.
+    final_score = final_state["min_score"]
+    if original_score and final_score < original_score:
+        logger.warning(
+            "[generate] REGRESSION — session %s: generated CV-Score %s < original %s (tier %s). "
+            "Loop could not beat the upload within %s cycles.",
+            session_id, final_score, original_score, user_tier, final_state["cycle"],
+        )
+
     eval_summary = {
         "cycles": final_state["cycle"],
         "all_passed": final_state["all_passed"],
-        "min_score": final_state["min_score"],
+        "min_score": final_score,
+        "score": final_score,           # CV-Score of the generated résumé (same scale users see)
+        "original_score": original_score,
+        "beat_original": (not original_score) or final_score >= original_score,
         "pass_threshold": pass_threshold,
         "evaluator_results": final_state["eval_results"],
         "profession": profession_config.get("display_name", "General"),
