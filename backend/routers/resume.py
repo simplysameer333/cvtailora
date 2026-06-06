@@ -35,6 +35,7 @@ from services.resume_checker_service import (
     check_grammar,
 )
 from services.email_service import send_error_alert
+from services.audit import log_audit
 from config import settings
 
 router = APIRouter()
@@ -332,6 +333,16 @@ async def check_resume_quality(
     except Exception as exc:
         logger.warning("[cv_score] Failed to persist result: %s", exc)
         result_id = None
+
+    # Audit the CV-Score check so it shows in the admin audit log alongside builder
+    # runs. (3 focused LLM calls: quality analysis + extraction + grammar.)
+    if user:
+        log_audit(user, "resume.cv_score", {
+            "result_id": result_id,
+            "overall_score": result.get("overall_score", 0),
+            "file_ext": (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else "unknown",
+            "llm_calls": 3,
+        })
 
     return {**result, "result_id": result_id, "extracted_profile": extracted_profile}
 
