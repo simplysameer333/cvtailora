@@ -78,6 +78,8 @@ def _weak_patch_keys(feedback: str | None, eval_results: list[dict]) -> list[str
                 key_hits[k] = key_hits.get(k, 0) + hits
 
     if not key_hits:
+        # Default when no pattern fires: summary and experience cover the most
+        # common first-draft weaknesses (narrative quality + bullet quantification).
         return ["summary", "experience"]
 
     # Return only the top 2 most-mentioned keys — keeps patches fast and focused

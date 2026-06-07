@@ -23,7 +23,10 @@ Collection `agent_memory`, one doc per agent (_id = agent name).
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 _COLLECTION = "agent_memory"
 
@@ -88,9 +91,9 @@ def _classify_with_section(suggestion: str) -> tuple[str, list[str]]:
     section = "other"
     text = suggestion or ""
     if text.startswith("[") and "]" in text:
-        bracket = text[1:text.index("]")]
+        bracket = text[1:text.index("]" )]
         section = _section_slug(bracket)
-        text = text[text.index("]") + 2:]   # skip "] "
+        text = text[text.index("]" ) + 2:]   # skip "] "
     return section, _classify(text)
 
 
@@ -263,8 +266,8 @@ async def record_generation_outcome(outcome: dict) -> None:
                 }, "$setOnInsert": {"created_at": now}},
                 upsert=True,
             )
-    except Exception:
-        pass  # memory is best-effort; never break generation
+    except Exception as exc:
+        logger.debug("[agent_memory] record_generation_outcome failed: %s", exc)
 
 
 async def get_generator_memory_text(db) -> str:
