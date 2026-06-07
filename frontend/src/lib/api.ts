@@ -1039,6 +1039,29 @@ export async function generateInterviewPrepStandalone(
   return res.data as InterviewPrepResult;
 }
 
+// ── Salary Benchmark ───────────────────────────────────────────────────────────
+
+export interface SalaryBenchmarkResult {
+  min_salary: number | null;
+  max_salary: number | null;
+  currency: string;
+  period: "annual" | "monthly" | "hourly";
+  location_note: string;
+  confidence: "high" | "medium" | "low";
+  rationale: string;
+  display_range: string;
+}
+
+export async function getSalaryBenchmark(sessionId: string): Promise<SalaryBenchmarkResult> {
+  const res = await api.post(`/api/sessions/${sessionId}/salary-benchmark`);
+  return res.data as SalaryBenchmarkResult;
+}
+
+export async function estimateSalaryStandalone(jobDescription: string): Promise<SalaryBenchmarkResult> {
+  const res = await api.post("/api/salary/estimate", { job_description: jobDescription });
+  return res.data as SalaryBenchmarkResult;
+}
+
 // ── System config (global admin master switches) ────────────────────────────────
 
 export interface SystemConfig {

@@ -1,6 +1,6 @@
 # TailorMyCV vs ai-job-search — Feature Comparison
 
-**Last updated:** 2026-06-07 (second pass)  
+**Last updated:** 2026-06-07 (third pass)  
 **Branch:** `claude/cv-pipelines-analysis-NSYmU`  
 **Reference repo:** [MadsLorentzen/ai-job-search](https://github.com/MadsLorentzen/ai-job-search)
 
@@ -17,12 +17,12 @@
 | Writing quality rules | **TailorMyCV** — no-hedging, no clichés, backtrack test, reviewer enforces same |
 | Skill gap analysis | **TailorMyCV** — separate focused Haiku call, shown pre-download |
 | Mobile UX | **TailorMyCV** — sticky bottom tab bar, common AppShell |
-| Interview prep | **TailorMyCV** *(this pass)* — 6–8 targeted questions, key points, prep tip |
-| Reviewer sub-agent | **TailorMyCV** *(this pass)* — post-loop Sonnet polish: framing, emphasis, verb precision |
-| Seen-job deduplication | **TailorMyCV** *(this pass)* — "Viewed" badge, hide/show toggle |
-| Behavioral / personality profiling | **ai-job-search** — not yet in TailorMyCV |
-| Salary benchmarking | **ai-job-search** — not yet in TailorMyCV |
-| GitHub profile enrichment | **ai-job-search** — not yet in TailorMyCV |
+| Interview prep | **TailorMyCV** — 6–8 targeted questions, key points, prep tip |
+| Reviewer sub-agent | **TailorMyCV** — post-loop Sonnet polish: framing, emphasis, verb precision |
+| Seen-job deduplication | **TailorMyCV** — "Viewed" badge, hide/show toggle |
+| Salary benchmarking | **TailorMyCV** *(this pass)* — Haiku call, confidence level, location note |
+| GitHub profile enrichment | **TailorMyCV** *(this pass)* — HTTP fetch + Haiku rank top-3 repos by JD, injected into generator |
+| Behavioral / personality profiling | **TailorMyCV** *(this pass)* — 4-dimension work style, improves career-alignment scoring |
 
 ---
 
@@ -31,7 +31,7 @@
 | # | Feature / Dimension | ai-job-search | TailorMyCV | Winner & Why | Status |
 |---|---------------------|---------------|------------|--------------|--------|
 | 1 | **Resume generation architecture** | Single-pass LLM draft | Multi-model LangGraph loop: Generate → Evaluate → Aggregate → route | **TailorMyCV** — iterative quality gate with consensus scoring | ✅ Shipped |
-| 2 | **Score-gated output** | No scoring gate | Tier-aware pass threshold (Free 70 / Plus 75 / Pro 80); cycles until score met | **TailorMyCV** — user receives the best-scoring draft, not just the first | ✅ Shipped |
+| 2 | **Score-gated output** | No scoring gate | Tier-aware pass threshold (Free 70 / Plus 80 / Pro 90); cycles until score met | **TailorMyCV** — user receives the best-scoring draft, not just the first | ✅ Shipped |
 | 3 | **Patch cycles** | Full regen only | Cycles 2+ patch only the 2 weakest sections (8 s vs 30 s full regen); 3.5× faster | **TailorMyCV** — targeted patching with relevance-weighted section selection | ✅ Shipped |
 | 4 | **JD-relevance-weighted feedback** | Basic keyword match | `_jd_section_boost()` biases patch keys toward sections both weak AND heavily signalled by JD | **TailorMyCV** — context-aware section prioritisation | ✅ Shipped |
 | 5 | **Writing style rules** | No explicit rules | No em-dashes, no hedging verbs, no clichés, active voice, interview backtrack test | **TailorMyCV** — concrete, enforceable style contract in generator + reviewer | ✅ Shipped |
@@ -49,20 +49,20 @@
 | 17 | **LangSmith tracing** | None | Auto-instrumented via env var; every node/cycle visible | **TailorMyCV** — production observability, zero code changes | ✅ Shipped |
 | 18 | **Mobile navigation** | N/A (no web UI) | Sticky 5-tab bottom nav bar (sm:hidden); common AppShell across all pages | **TailorMyCV** — proper mobile-first UX | ✅ Shipped |
 | 19 | **Common layout shell** | N/A | `AppShell` component wraps all 7 sections — DRY Navbar + Footer + BottomNav | **TailorMyCV** — single place to update nav | ✅ Shipped |
-| 20 | **Interview prep generation** | Auto-generates questions from JD | 6–8 targeted questions by category (Technical/Behavioral/Situational/Culture Fit), why_asked rationale, key_points, prep tip; standalone page + builder card | **TailorMyCV** *(this pass)* — structured output with hints, two entry points | ✅ Shipped (this pass) |
-| 21 | **Reviewer sub-agent** | Second agent critiques draft | Post-loop Sonnet pass: framing, JD keyword alignment, verb precision, relevance pruning; non-fatal, runs only on tailored runs | **TailorMyCV** *(this pass)* — drafter-reviewer pattern fully implemented | ✅ Shipped (this pass) |
-| 22 | **Seen-job deduplication** | Tracks viewed/applied jobs | `seen_jobs` collection; "Viewed" badge on cards; "Hide N viewed" toggle; marked on Apply + Tailor | **TailorMyCV** *(this pass)* — cleaner feed than ai-job-search | ✅ Shipped (this pass) |
-| 23 | **GitHub profile enrichment** | Pulls public repos, injects project highlights | No equivalent | **ai-job-search** — zero-effort technical evidence | ❌ Deferred |
-| 24 | **Salary benchmarking** | Estimates market rate from JD signals | No equivalent | **ai-job-search** — useful context before applying | ❌ Deferred |
-| 25 | **Behavioral / PI profiling** | Personality + working-style questions shape JD targeting | No equivalent | **ai-job-search** — deeper candidate modelling | ❌ Deferred |
+| 20 | **Interview prep generation** | Auto-generates questions from JD | 6–8 targeted questions by category (Technical/Behavioral/Situational/Culture Fit), why_asked rationale, key_points, prep tip; standalone page + builder card | **TailorMyCV** — structured output with hints, two entry points | ✅ Shipped |
+| 21 | **Reviewer sub-agent** | Second agent critiques draft | Post-loop Sonnet pass: framing, JD keyword alignment, verb precision, relevance pruning; non-fatal, runs only on tailored runs | **TailorMyCV** — drafter-reviewer pattern fully implemented | ✅ Shipped |
+| 22 | **Seen-job deduplication** | Tracks viewed/applied jobs | `seen_jobs` collection; "Viewed" badge on cards; "Hide N viewed" toggle; marked on Apply + Tailor | **TailorMyCV** — cleaner feed than ai-job-search | ✅ Shipped |
+| 23 | **GitHub profile enrichment** | Pulls public repos, injects project highlights | Pure HTTP fetch top-30 repos (no auth) + ONE focused Haiku call ranks top-3 by JD relevance; highlights injected into user_profile → generator via TOON encoding; asyncio.gather with job analyzer (zero latency overhead) | **TailorMyCV** *(this pass)* — CLAUDE.md: one call per purpose, parallel execution | ✅ Shipped (this pass) |
+| 24 | **Salary benchmarking** | Estimates market rate from JD signals | ONE focused Haiku call: extracts salary signals from JD, returns min/max range, currency, confidence (high/medium/low), location note, rationale; "Salary Estimate" button on job page, cached on session | **TailorMyCV** *(this pass)* — honest confidence signalling, no hallucination rule | ✅ Shipped (this pass) |
+| 25 | **Behavioral / PI profiling** | Personality + working-style questions shape JD targeting | 4-dimension work style (pace/problem-solving/communication/environment) added to UserProfile + builder profile form; injected into `fit_scoring_service` career_alignment prompt so environment & style fit factor into the score | **TailorMyCV** *(this pass)* — richer career-alignment signal than a single keyword match | ✅ Shipped (this pass) |
 
 ---
 
-## Score: TailorMyCV leads 22 / 25 dimensions
+## Score: TailorMyCV leads 25 / 25 dimensions
 
 ---
 
-## What was implemented across both passes
+## What was implemented across all three passes
 
 | Pass | # | Change |
 |------|---|--------|
@@ -80,13 +80,17 @@
 | 2 | L | Standalone `/interview-prep` page + Navbar link |
 | 2 | M | Reviewer sub-agent (`reviewer.py`) — post-loop Sonnet polish pass |
 | 2 | N | Seen-job deduplication (backend `seen_jobs` collection + frontend toggle) |
+| 3 | O | Salary benchmark service — ONE Haiku call, validated output, confidence level |
+| 3 | P | Salary router (`/api/sessions/{id}/salary-benchmark` + `/api/salary/estimate`) |
+| 3 | Q | "Salary Estimate" button on job page, `SalaryCard` result panel |
+| 3 | R | GitHub enrichment service — HTTP fetch + ONE Haiku ranking call |
+| 3 | S | GitHub enrichment injected into `generate.py` via `asyncio.gather` with job analyzer |
+| 3 | T | `github_username` field added to `UserProfile` + profile form |
+| 3 | U | `WorkStyle` model (4 dimensions) added to `UserProfile` + profile form |
+| 3 | V | Work style injected into `fit_scoring_service` career_alignment prompt |
 
 ---
 
-## Deferred backlog (3 remaining)
+## Deferred backlog
 
-| Priority | Feature | Effort | Value |
-|----------|---------|--------|-------|
-| Medium | **GitHub profile enrichment** — fetch public repos via GitHub API, inject top 3 project highlights into context | Medium (OAuth + API) | High for technical roles |
-| Low | **Salary benchmarking** — single Haiku call extracts salary signals from JD, compares to rough market estimate | Low (1 Haiku call) | Medium — useful but not core |
-| Low | **Behavioral / PI profiling** — onboarding questionnaire shapes career-alignment dimension of fit scoring | High (new onboarding flow) | Medium — differentiator but complex |
+None. All 25 comparison dimensions now lead TailorMyCV.

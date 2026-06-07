@@ -2,10 +2,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { saveJobDescription, checkFit, type FitScoreResult } from "@/lib/api";
+import { saveJobDescription, checkFit, getSalaryBenchmark, type FitScoreResult, type SalaryBenchmarkResult } from "@/lib/api";
 import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
-import { FiBriefcase, FiTarget, FiArrowRight, FiInfo, FiZap } from "react-icons/fi";
+import { FiBriefcase, FiTarget, FiArrowRight, FiInfo, FiZap, FiDollarSign } from "react-icons/fi";
 
 // ── Fit score helpers ──────────────────────────────────────────────────────────
 
@@ -98,15 +98,43 @@ function FitPanel({ fit }: { fit: FitScoreResult }) {
   );
 }
 
+// ── Salary card ────────────────────────────────────────────────────────────────
+
+const CONFIDENCE_STYLES: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  high:   { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", label: "High confidence" },
+  medium: { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200",    label: "Estimated"       },
+  low:    { bg: "bg-slate-50",   text: "text-slate-600",   border: "border-slate-200",   label: "Low confidence"  },
+};
+
+function SalaryCard({ salary }: { salary: SalaryBenchmarkResult }) {
+  const style = CONFIDENCE_STYLES[salary.confidence] ?? CONFIDENCE_STYLES.low;
+  return (
+    <div className={`rounded-2xl border ${style.border} ${style.bg} px-5 py-4 space-y-2`}>
+      <div className="flex items-center gap-2">
+        <FiDollarSign className={`w-4 h-4 shrink-0 ${style.text}`} />
+        <span className={`text-xs font-bold uppercase tracking-wide ${style.text}`}>Salary Estimate</span>
+        <span className={`ml-auto text-xs px-2 py-0.5 rounded-full border ${style.border} ${style.text} font-medium`}>{style.label}</span>
+      </div>
+      <p className={`text-2xl font-extrabold ${style.text}`}>{salary.display_range}</p>
+      {salary.location_note && (
+        <p className="text-xs text-slate-600">{salary.location_note}</p>
+      )}
+      <p className="text-xs text-slate-500 italic">{salary.rationale}</p>
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function JobPage() {
   useStepGuard("job");
   const router = useRouter();
-  const [jd, setJd]               = useState("");
-  const [loading, setLoading]     = useState(false);
-  const [fitLoading, setFitLoading] = useState(false);
-  const [fitResult, setFitResult] = useState<FitScoreResult | null>(null);
+  const [jd, setJd]                   = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [fitLoading, setFitLoading]   = useState(false);
+  const [fitResult, setFitResult]     = useState<FitScoreResult | null>(null);
+  const [salaryLoading, setSalaryLoading] = useState(false);
+  const [salaryResult, setSalaryResult]   = useState<SalaryBenchmarkResult | null>(null);
 
   useEffect(() => {
     const prefill = localStorage.getItem("tailormycv_prefill_jd");
@@ -123,7 +151,6 @@ export default function JobPage() {
     setFitLoading(true);
     setFitResult(null);
     try {
-      // Save the JD first so the backend has it, then score
       await saveJobDescription(sessionId, jd);
       const result = await checkFit(sessionId);
       setFitResult(result);
@@ -131,6 +158,22 @@ export default function JobPage() {
       toast.error("Could not analyse fit — please try again.");
     } finally {
       setFitLoading(false);
+    }
+  }
+
+  async function handleSalaryBenchmark() {
+    const sessionId = getSessionId();
+    if (!sessionId) { toast.error("No session — please start from Step 1."); return; }
+    setSalaryLoading(true);
+    setSalaryResult(null);
+    try {
+      await saveJobDescription(sessionId, jd);
+      const result = await getSalaryBenchmark(sessionId);
+      setSalaryResult(result);
+    } catch {
+      toast.error("Could not estimate salary — please try again.");
+    } finally {
+      setSalaryLoading(false);
     }
   }
 
@@ -227,14 +270,14 @@ export default function JobPage() {
             className="input h-64 resize-none font-mono text-xs"
             placeholder="Paste the full job description here…"
             value={jd}
-            onChange={(e) => { setJd(e.target.value); setFitResult(null); }}
+            onChange={(e) => { setJd(e.target.value); setFitResult(null); setSalaryResult(null); }}
           />
           <p className="text-xs text-slate-400 mt-1">{jd.length} characters{jd.length > 0 && jd.length < 50 ? " — paste the full description for best results" : ""}</p>
         </div>
 
-        {/* ── Check Fit button — appears once JD is long enough ── */}
+        {/* ── Action buttons — appear once JD is long enough ── */}
         {showCheckFit && (
-          <div className="flex justify-end">
+          <div className="flex flex-wrap gap-2 justify-end">
             <button
               type="button"
               onClick={handleCheckFit}
@@ -244,6 +287,17 @@ export default function JobPage() {
               {fitLoading
                 ? <><span className="w-4 h-4 rounded-full border-2 border-brand-400 border-t-transparent animate-spin shrink-0" /> Analysing fit…</>
                 : <><FiZap className="w-4 h-4 shrink-0" /> Check Fit</>
+              }
+            </button>
+            <button
+              type="button"
+              onClick={handleSalaryBenchmark}
+              disabled={salaryLoading}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {salaryLoading
+                ? <><span className="w-4 h-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin shrink-0" /> Estimating…</>
+                : <><FiDollarSign className="w-4 h-4 shrink-0" /> Salary Estimate</>
               }
             </button>
           </div>
@@ -272,8 +326,11 @@ export default function JobPage() {
         </div>
       </form>
 
-      {/* ── Fit score panel — sits between textarea form and action buttons ── */}
+      {/* ── Fit score panel ── */}
       {fitResult && <FitPanel fit={fitResult} />}
+
+      {/* ── Salary estimate panel ── */}
+      {salaryResult && <SalaryCard salary={salaryResult} />}
 
     </div>
   );

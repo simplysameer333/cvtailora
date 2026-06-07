@@ -33,16 +33,25 @@ class GeneratedResume(BaseModel):
     certifications: List[str] = []
 
 
+class WorkStyle(BaseModel):
+    work_pace: str = ""           # "Structured / deadline-driven" | "Flexible / exploratory"
+    problem_solving: str = ""     # "Analytical / data-first" | "Creative / intuition-first"
+    communication: str = ""       # "Direct / async" | "Collaborative / sync"
+    environment: str = ""         # "Remote" | "Hybrid" | "Office"
+
+
 class UserProfile(BaseModel):
     full_name: str
     email: str
     phone: str = ""
     linkedin: str = ""
+    github_username: str = ""
     location: str = ""
     target_role: str = ""
     preferred_tone: str = "Professional"
     key_skills: List[str] = []
     additional_notes: str = ""
+    work_style: WorkStyle = WorkStyle()
 
 
 class EvaluatorResult(BaseModel):

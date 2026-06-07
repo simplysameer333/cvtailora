@@ -20,11 +20,18 @@ export default function ProfilePage() {
     email: "",
     phone: "",
     linkedin: "",
+    github_username: "",
     location: "",
     target_role: "",
     preferred_tone: "Professional",
     key_skills: [] as string[],
     additional_notes: "",
+    work_style: {
+      work_pace: "",
+      problem_solving: "",
+      communication: "",
+      environment: "",
+    },
   });
 
   useEffect(() => {
@@ -83,6 +90,10 @@ export default function ProfilePage() {
 
   function onChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  }
+
+  function onWorkStyleChange(key: string, value: string) {
+    setForm((f) => ({ ...f, work_style: { ...f.work_style, [key]: value } }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -184,12 +195,13 @@ export default function ProfilePage() {
 
       <form onSubmit={handleSubmit} className="card space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <Field label="Full Name"    name="full_name" placeholder="Jane Doe"                      required />
-          <Field label="Email"        name="email"     type="email" placeholder="jane@example.com" required />
-          <Field label="Phone"        name="phone"     placeholder="+1 555 000 0000" />
-          <Field label="Location"     name="location"  placeholder="New York, NY" />
-          <Field label="LinkedIn URL" name="linkedin"  placeholder="https://linkedin.com/in/jane" />
-          <Field label="Target Role"  name="target_role" placeholder="Senior Software Engineer" />
+          <Field label="Full Name"      name="full_name"       placeholder="Jane Doe"                      required />
+          <Field label="Email"          name="email"           type="email" placeholder="jane@example.com" required />
+          <Field label="Phone"          name="phone"           placeholder="+1 555 000 0000" />
+          <Field label="Location"       name="location"        placeholder="New York, NY" />
+          <Field label="LinkedIn URL"   name="linkedin"        placeholder="https://linkedin.com/in/jane" />
+          <Field label="GitHub Username" name="github_username" placeholder="janedoe" />
+          <Field label="Target Role"    name="target_role"     placeholder="Senior Software Engineer" />
         </div>
 
         <div>
@@ -221,6 +233,65 @@ export default function ProfilePage() {
             value={form.additional_notes}
             onChange={onChange}
           />
+        </div>
+
+        {/* ── Work Style (optional, improves career-alignment scoring) ──────── */}
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Work Style <span className="font-normal text-slate-400 text-xs ml-1">optional — improves fit scoring</span></p>
+            <p className="text-xs text-slate-500 mt-0.5">Helps the AI assess how well your preferences match a role's culture and working environment.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label text-xs">Work Pace</label>
+              <select
+                className="input text-sm"
+                value={form.work_style.work_pace}
+                onChange={(e) => onWorkStyleChange("work_pace", e.target.value)}
+              >
+                <option value="">— select —</option>
+                <option value="Structured / deadline-driven">Structured / deadline-driven</option>
+                <option value="Flexible / exploratory">Flexible / exploratory</option>
+              </select>
+            </div>
+            <div>
+              <label className="label text-xs">Problem Solving</label>
+              <select
+                className="input text-sm"
+                value={form.work_style.problem_solving}
+                onChange={(e) => onWorkStyleChange("problem_solving", e.target.value)}
+              >
+                <option value="">— select —</option>
+                <option value="Analytical / data-first">Analytical / data-first</option>
+                <option value="Creative / intuition-first">Creative / intuition-first</option>
+              </select>
+            </div>
+            <div>
+              <label className="label text-xs">Communication</label>
+              <select
+                className="input text-sm"
+                value={form.work_style.communication}
+                onChange={(e) => onWorkStyleChange("communication", e.target.value)}
+              >
+                <option value="">— select —</option>
+                <option value="Direct / async-first">Direct / async-first</option>
+                <option value="Collaborative / sync-first">Collaborative / sync-first</option>
+              </select>
+            </div>
+            <div>
+              <label className="label text-xs">Environment Preference</label>
+              <select
+                className="input text-sm"
+                value={form.work_style.environment}
+                onChange={(e) => onWorkStyleChange("environment", e.target.value)}
+              >
+                <option value="">— select —</option>
+                <option value="Remote">Remote</option>
+                <option value="Hybrid">Hybrid</option>
+                <option value="Office">Office</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div className="flex justify-between pt-2">

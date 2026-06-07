@@ -90,6 +90,20 @@ async def score_fit(
     key_skills = ", ".join(user_profile.get("key_skills") or [])
     profile_block = f"Target role: {target_role}" + (f"\nSelf-identified key skills: {key_skills}" if key_skills else "")
 
+    # Inject work-style preferences so the career_alignment dimension can factor
+    # in environment fit (remote vs office), pace, and collaboration style.
+    work_style = user_profile.get("work_style") or {}
+    if isinstance(work_style, dict):
+        ws_parts = [
+            f"Work pace: {work_style.get('work_pace')}" if work_style.get("work_pace") else "",
+            f"Problem solving: {work_style.get('problem_solving')}" if work_style.get("problem_solving") else "",
+            f"Communication: {work_style.get('communication')}" if work_style.get("communication") else "",
+            f"Environment preference: {work_style.get('environment')}" if work_style.get("environment") else "",
+        ]
+        ws_text = "; ".join(p for p in ws_parts if p)
+        if ws_text:
+            profile_block += f"\nWork style preferences: {ws_text}"
+
     content = (
         f"## CANDIDATE PROFILE\n{profile_block}\n\n"
         f"## CANDIDATE RESUME (first 4000 chars)\n{resume_text[:4000]}\n\n"

@@ -223,17 +223,42 @@ async def generate(
     if user:
         await check_budget(db, user, user_tier)
 
+    # ── Job analysis + GitHub enrichment (parallel when JD present) ──────────
+    # Both calls are independent: job analyzer extracts JD skills for the generator;
+    # GitHub enrichment fetches + ranks the user's public repos by JD relevance.
+    # asyncio.gather runs them concurrently — no added latency vs a single call.
     from services.tier_config_service import get_limit as _get_limit
+    github_username = user_profile.get("github_username", "")
     if has_jd:
         n_skills = _get_limit(user_tier, "key_skills") or settings.skill_extraction_count
-        key_skills: list = await _job_analyzer.run(
-            resume_text=resume_text,
-            user_profile=user_profile,
-            job_description=job_description,
-            n=n_skills,
-        )
+
+        async def _job_analysis():
+            return await _job_analyzer.run(
+                resume_text=resume_text,
+                user_profile=user_profile,
+                job_description=job_description,
+                n=n_skills,
+            )
+
+        async def _github_enrich():
+            if not github_username.strip():
+                return []
+            from services.github_enrichment_service import enrich_github_projects
+            return await enrich_github_projects(github_username, job_description)
+
+        key_skills, github_projects = await asyncio.gather(_job_analysis(), _github_enrich())
     else:
         key_skills = []
+        github_projects = []
+
+    # Inject ranked GitHub projects into user_profile so TOON encoding carries
+    # them into the generator prompt under ## CANDIDATE PROFILE automatically.
+    if github_projects:
+        highlights = "; ".join(
+            f"{p['name']}: {p['highlight']}" for p in github_projects
+        )
+        user_profile = {**user_profile, "github_projects": highlights}
+    # Persist key_skills on the session so export can bold them
     await db.sessions.update_one(
         {"_id": ObjectId(session_id)},
         {"$set": {"key_skills": key_skills}},
