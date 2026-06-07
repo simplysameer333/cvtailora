@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
-import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell, FiShield, FiSettings, FiCheckSquare } from "react-icons/fi";
+import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell, FiShield, FiSettings, FiCheckSquare, FiMail, FiBookOpen } from "react-icons/fi";
 import Logo from "./Logo";
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature } from "@/lib/config";
@@ -45,9 +45,11 @@ export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const onChecker = pathname.startsWith("/cv-score");
-  const onBuilder = pathname.startsWith("/builder");
-  const onJobs    = pathname.startsWith("/jobs");
+  const onChecker       = pathname.startsWith("/cv-score");
+  const onBuilder       = pathname.startsWith("/builder");
+  const onJobs          = pathname.startsWith("/jobs");
+  const onCoverLetter   = pathname.startsWith("/cover-letter");
+  const onInterviewPrep = pathname.startsWith("/interview-prep");
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -71,79 +73,76 @@ export default function Navbar() {
         <div className="flex items-center gap-1 sm:gap-3">
 
           {/* ── CV Score (all users) ── */}
-          <>
+          <Link
+            href="/cv-score"
+            className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+              onChecker
+                ? "border-brand-400 bg-brand-50 text-brand-700"
+                : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+            }`}
+          >
+            <FiCheckSquare className="w-4 h-4" />
+            CV Score
+          </Link>
+
+          {/* ── CV Builder ── */}
+          {status === "authenticated" && (
             <Link
-              href="/cv-score"
-              title="CV Score"
-              className={`sm:hidden p-2 rounded-lg transition ${
-                onChecker ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <FiCheckSquare className="w-5 h-5" />
-            </Link>
-            <Link
-              href="/cv-score"
+              href="/builder/upload"
               className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                onChecker
+                onBuilder
                   ? "border-brand-400 bg-brand-50 text-brand-700"
                   : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
               }`}
             >
-              <FiCheckSquare className="w-4 h-4" />
-              CV Score
+              <FiEdit2 className="w-4 h-4" />
+              CV Builder
             </Link>
-          </>
+          )}
 
-          {/* ── CV Builder ── */}
+          {/* ── Cover Letter ── */}
           {status === "authenticated" && (
-            <>
-              <Link
-                href="/builder/upload"
-                title="CV Builder"
-                className={`sm:hidden p-2 rounded-lg transition ${
-                  onBuilder ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <FiEdit2 className="w-5 h-5" />
-              </Link>
-              <Link
-                href="/builder/upload"
-                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                  onBuilder
-                    ? "border-brand-400 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-                }`}
-              >
-                <FiEdit2 className="w-4 h-4" />
-                CV Builder
-              </Link>
-            </>
+            <Link
+              href="/cover-letter"
+              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                onCoverLetter
+                  ? "border-brand-400 bg-brand-50 text-brand-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+              }`}
+            >
+              <FiMail className="w-4 h-4" />
+              Cover Letter
+            </Link>
+          )}
+
+          {/* ── Interview Prep ── */}
+          {status === "authenticated" && (
+            <Link
+              href="/interview-prep"
+              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                onInterviewPrep
+                  ? "border-brand-400 bg-brand-50 text-brand-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+              }`}
+            >
+              <FiBookOpen className="w-4 h-4" />
+              Interview Prep
+            </Link>
           )}
 
           {/* ── Find Jobs ── */}
           {status === "authenticated" && (
-            <>
-              <Link
-                href="/jobs"
-                title="Find Jobs"
-                className={`sm:hidden p-2 rounded-lg transition ${
-                  onJobs ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <FiBriefcase className="w-5 h-5" />
-              </Link>
-              <Link
-                href="/jobs"
-                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                  onJobs
-                    ? "border-brand-400 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-                }`}
-              >
-                <FiBriefcase className="w-4 h-4" />
-                Find Jobs
-              </Link>
-            </>
+            <Link
+              href="/jobs"
+              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                onJobs
+                  ? "border-brand-400 bg-brand-50 text-brand-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+              }`}
+            >
+              <FiBriefcase className="w-4 h-4" />
+              Find Jobs
+            </Link>
           )}
 
           {status === "loading" && (

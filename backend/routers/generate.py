@@ -223,17 +223,42 @@ async def generate(
     if user:
         await check_budget(db, user, user_tier)
 
+    # ── Job analysis + GitHub enrichment (parallel when JD present) ──────────
+    # Both calls are independent: job analyzer extracts JD skills for the generator;
+    # GitHub enrichment fetches + ranks the user's public repos by JD relevance.
+    # asyncio.gather runs them concurrently — no added latency vs a single call.
     from services.tier_config_service import get_limit as _get_limit
+    github_username = user_profile.get("github_username", "")
     if has_jd:
         n_skills = _get_limit(user_tier, "key_skills") or settings.skill_extraction_count
-        key_skills: list = await _job_analyzer.run(
-            resume_text=resume_text,
-            user_profile=user_profile,
-            job_description=job_description,
-            n=n_skills,
-        )
+
+        async def _job_analysis():
+            return await _job_analyzer.run(
+                resume_text=resume_text,
+                user_profile=user_profile,
+                job_description=job_description,
+                n=n_skills,
+            )
+
+        async def _github_enrich():
+            if not github_username.strip():
+                return []
+            from services.github_enrichment_service import enrich_github_projects
+            return await enrich_github_projects(github_username, job_description)
+
+        key_skills, github_projects = await asyncio.gather(_job_analysis(), _github_enrich())
     else:
         key_skills = []
+        github_projects = []
+
+    # Inject ranked GitHub projects into user_profile so TOON encoding carries
+    # them into the generator prompt under ## CANDIDATE PROFILE automatically.
+    if github_projects:
+        highlights = "; ".join(
+            f"{p['name']}: {p['highlight']}" for p in github_projects
+        )
+        user_profile = {**user_profile, "github_projects": highlights}
+    # Persist key_skills on the session so export can bold them
     await db.sessions.update_one(
         {"_id": ObjectId(session_id)},
         {"$set": {"key_skills": key_skills}},
@@ -372,6 +397,25 @@ async def generate(
         final_state["min_score"] = final_state["best_min_score"]
         final_state["all_passed"] = final_state["best_min_score"] >= pass_threshold
 
+    # ── Reviewer sub-agent — post-loop polish pass ────────────────────────────
+    # A second focused Sonnet call reviews the finished draft against the JD with
+    # fresh eyes: framing, emphasis, verb precision, JD keyword alignment.
+    # Runs only when a JD is present (tailored run). Non-fatal: keeps loop output
+    # on any failure. Skipped on timed-out runs to avoid extending a slow request.
+    if not _timed_out and final_state.get("resume_json") and job_description.strip():
+        try:
+            from services.pipeline.agents.reviewer import ReviewerAgent
+            reviewed = await ReviewerAgent().run(
+                resume_json=final_state["resume_json"],
+                job_description=job_description,
+            )
+            if reviewed:
+                final_state["resume_json"] = reviewed
+                logger.info("[generate] Reviewer pass applied for session %s.", session_id)
+        except Exception as _rev_exc:
+            logger.warning("[generate] Reviewer pass skipped (non-fatal): %s", _rev_exc)
+
+    # Actual calls used: 1 job-analyzer + (generator + evaluators) * completed cycles
     actual_calls = job_analyzer_calls + (1 + active_evaluator_count) * final_state["cycle"]
     await _increment_call_count(db, session_id, actual_calls)
 
@@ -577,3 +621,77 @@ async def set_locked_facts(
     if result.matched_count == 0:
         raise HTTPException(404, "Session not found.")
     return {"locked_facts": locked}
+
+
+@router.get("/sessions/{session_id}/skill-gaps")
+async def skill_gaps(session_id: str):
+    """Skill gap analysis — matched vs missing JD skills for this session.
+
+    Requires a session with a parsed resume + job description.
+    Single Haiku call (~$0.001). Result cached on session.
+    """
+    db = get_db()
+    session = await db.sessions.find_one({"_id": ObjectId(session_id)})
+    if not session:
+        raise HTTPException(404, "Session not found.")
+
+    # Return cached result if present
+    cached = session.get("skill_gaps")
+    if cached:
+        return cached
+
+    resume_text = (session.get("resume_parsed") or {}).get("raw_text", "")
+    job_description = session.get("job_description") or ""
+
+    if not resume_text:
+        raise HTTPException(422, "No resume found in session.")
+    if not job_description.strip():
+        raise HTTPException(422, "No job description in session.")
+
+    try:
+        from services.skill_gap_service import analyze_skill_gaps
+        result = await analyze_skill_gaps(resume_text, job_description)
+        await db.sessions.update_one(
+            {"_id": ObjectId(session_id)},
+            {"$set": {"skill_gaps": result}},
+        )
+        return result
+    except Exception as exc:
+        logger.warning("[skill_gaps] Failed for session %s: %s", session_id, exc)
+        raise HTTPException(500, f"Skill gap analysis failed: {exc}")
+
+
+@router.post("/sessions/{session_id}/fit-score")
+async def fit_score(session_id: str):
+    """Pre-generation fit assessment — scores candidate-job match before running the pipeline.
+
+    Requires a session with both a parsed resume and a job description.
+    Returns fit scores across 3 dimensions + skill gap analysis.
+    Runs a single Haiku call (~3–5 s, ~$0.001).
+    """
+    db = get_db()
+    session = await db.sessions.find_one({"_id": ObjectId(session_id)})
+    if not session:
+        raise HTTPException(404, "Session not found.")
+
+    resume_text = (session.get("resume_parsed") or {}).get("raw_text", "")
+    job_description = session.get("job_description") or ""
+    user_profile = session.get("user_profile") or {}
+
+    if not resume_text:
+        raise HTTPException(422, "No resume found in session. Please upload a CV first.")
+    if not job_description.strip():
+        raise HTTPException(422, "No job description in session. Please paste a job description first.")
+
+    try:
+        from services.fit_scoring_service import score_fit
+        result = await score_fit(resume_text, job_description, user_profile)
+        # Cache on session so frontend can access it without re-calling
+        await db.sessions.update_one(
+            {"_id": ObjectId(session_id)},
+            {"$set": {"fit_score": result}},
+        )
+        return result
+    except Exception as exc:
+        logger.warning("[fit_score] Failed for session %s: %s", session_id, exc)
+        raise HTTPException(500, f"Fit scoring failed: {exc}")

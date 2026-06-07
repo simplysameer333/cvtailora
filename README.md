@@ -280,6 +280,14 @@ POST /api/generate
 
 Quality scores are **never shown to users** — qualitative labels (Excellent / Strong / Good / Reviewed) are shown instead.
 
+**Key loop behaviours:**
+- **Best-cycle tracking** — the loop is non-monotonic; the aggregator tracks `best_resume_json` / `best_min_score` and the router always returns the highest-scoring cycle, not the last.
+- **Patch mode (cycles 2+)** — instead of regenerating the whole resume, `_weak_patch_keys()` identifies the top-2 most-mentioned failing sections (by keyword hit frequency in evaluator feedback) and regenerates only those. Patch cycles run in ~7–9 s vs ~25–30 s for a full regen.
+- **Agent memory** — `services/agent_memory.py` accumulates per-agent weakness tallies across all production and harness runs. After ≥ 5 runs, the top-3 historical weaknesses are injected into the generator's system prompt so first drafts pre-empt recurring shortfalls.
+- **Plateau early-exit** — if a cycle gains < `_PLATEAU_MARGIN` points, the loop exits early (returning best so far) rather than spending tokens on diminishing returns.
+- **Faithfulness guard** — all evaluator prompts verify the tailored resume against the original; fabricated details cap the score at 40.
+- **User actions needed** — when all cycles exhaust without passing the tier bar, the API returns a priority-ranked list of data gaps (e.g. add LinkedIn, quantify achievements) with estimated point values.
+
 ### Token Efficiency — TOON Encoding
 
 All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.0b1`) before prompt injection, cutting structured input tokens by 40–45%. Outputs remain plain JSON.
@@ -376,6 +384,8 @@ Superadmin-only (`/admin`), grouped by feature: **User Management** (Users · Au
 | `MAX_AI_CALLS_PER_SESSION` | `10` | Hard per-session AI call cap |
 | `STORAGE_BACKEND` | `local` | `local` or `s3` |
 | `ALLOWED_ORIGINS` | `http://localhost:4000` | CORS origins (comma-separated) |
+| `LANGSMITH_API_KEY` | — | LangSmith API key — enables full LangGraph traces (optional; no-op if absent) |
+| `LANGSMITH_PROJECT` | `tailormycv` | LangSmith project name for trace grouping |
 
 **Frontend env vars:**
 
@@ -442,6 +452,52 @@ Superadmin-only (`/admin`), grouped by feature: **User Management** (Users · Au
 | POST | `/api/export?session_id=` | Export DOCX + PDF |
 | GET | `/api/download/{file_id}` | Download generated file |
 | GET/POST/PUT/DELETE | `/api/professions` | Profession profile CRUD |
+
+---
+
+## Testing & CI
+
+### Eval Harness
+
+`backend/tests/pipeline_harness.py` runs the full LangGraph pipeline against any CV file and
+reports per-node timing, cycle scores, and whether the generated resume beat the original.
+
+```bash
+# Run against the fixture CV (free tier, 1 attempt)
+python backend/tests/pipeline_harness.py \
+  backend/tests/fixtures/sample_cv.txt \
+  --tiers free --attempts 1 --output-dir /tmp/harness_results
+```
+
+The harness prints a per-cycle timing table (FULL vs PATCH, score per aggregate step) and saves
+a `harness_*.json` report to `--output-dir`. Exit code 0 = generated score ≥ original; 1 = regression.
+
+**Fixture CV** — `backend/tests/fixtures/sample_cv.txt` is a realistic mid-level software
+engineer CV with intentional weaknesses (no LinkedIn, no quantified metrics, vague summary)
+so the pipeline always has meaningful improvements to make.
+
+### CI Regression Gate
+
+`.github/workflows/eval.yml` runs automatically on every push to `main` that touches:
+- `backend/services/pipeline/**`
+- `backend/services/resume_checker_service.py`
+- `backend/services/user_actions_service.py`
+- `backend/tests/**`
+
+The job fails if the generated score drops below the original score. Harness reports are saved
+as GitHub Actions artifacts for 30 days. Cost: ~$0.05–0.10 per run.
+
+**Required:** set `ANTHROPIC_API_KEY` as a GitHub repository secret.
+
+### Golden Dataset Export
+
+After a harness session, upload results to a LangSmith golden dataset for LLM-as-a-Judge
+comparison across model/prompt changes:
+
+```bash
+LANGSMITH_API_KEY=sk-lsv2-... \
+  python backend/tests/export_to_langsmith.py /tmp/harness_results/ [--dataset tailormycv-golden]
+```
 
 ---
 
