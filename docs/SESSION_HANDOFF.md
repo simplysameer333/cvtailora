@@ -1,9 +1,73 @@
 # Session Handoff — TailorMyCv
 
-> Rolling context for continuing work. **Last updated: 2026-06-06.**
+> Rolling context for continuing work. **Last updated: 2026-06-07.**
 > Branch: `main`. Railway auto-deploys both services on push.
 
 This is the broad handoff. CV-score-preview specifics live in `docs/CV_SCORE_PREVIEW_CONTEXT.md`.
+
+---
+
+## What shipped in the 2026-06-07 session — pipeline correctness + observability + CI
+
+Focus: fix two silent reliability bugs in the evaluator-optimizer loop, wire LangSmith tracing, add a CI regression gate, and establish a golden dataset for LLM-as-a-Judge evaluation. Also enforced coding principles in CLAUDE.md.
+
+### 1. Aggregator feedback-loop bug fix (`services/pipeline/agents/aggregator.py`)
+- `aggregate_node` filtered `evaluator_results` into `valid_results` for score calculation but then
+  iterated over `evaluator_results` again when building the generator feedback prompt.
+- Result: on any evaluator failure, the raw error string (e.g. `"Evaluator error: connection
+  timeout"`) appeared in the generator's improvement suggestions — noise the generator would act on.
+- **Fix:** feedback-building loop now iterates `valid_results` only. Error-free evaluator drops
+  out silently; generator receives only scored feedback.
+
+### 2. Evaluator transient-failure resilience (`evaluators/anthropic.py`, `openai.py`, `google.py`)
+- All three evaluator SDK clients were constructed with `max_retries=0` — the default disables SDK
+  retry entirely. A single transient 503/rate-limit immediately set score=None, shrinking the
+  consensus pool.
+- **Fix:** `max_retries=2` on each SDK client constructor. SDK handles exponential backoff —
+  zero application-level retry code added.
+
+### 3. Dead code removal (6 files deleted)
+- `backend/services/evaluators/` (`__init__.py`, `base.py`, `claude_evaluator.py`,
+  `gemini_evaluator.py`, `gpt4_evaluator.py`) — pre-LangGraph evaluators, fully superseded.
+- `backend/services/aggregator.py` — standalone aggregator with hardcoded `PASS_THRESHOLD = 95`
+  (never used; conflicts with tier-aware dynamic thresholds). Deleted.
+- All 6 files were import-dead after the LangGraph refactor.
+
+### 4. `agent_memory.py` silent failure logging
+- Changed `except Exception: pass` to `except Exception as exc: logger.debug(...)`.
+- Added missing `import logging` + `logger = logging.getLogger(__name__)`.
+
+### 5. LangSmith tracing wiring
+- Added `langsmith_api_key` + `langsmith_project` to `config.py`.
+- Added `_configure_langsmith()` in `main.py` — sets LangChain env vars at startup when key
+  is present; no-op when absent. No instrumentation code in pipeline nodes (LangGraph auto-detects).
+- Added `langsmith>=0.1.0` to `requirements.txt`.
+- To enable: set `LANGSMITH_API_KEY` + `LANGSMITH_PROJECT` in `.env`.
+
+### 6. GitHub Actions CI regression gate (`.github/workflows/eval.yml`)
+- New workflow triggers on pushes to `main` that touch `backend/services/pipeline/**`,
+  evaluators, or `backend/tests/**`.
+- Runs the eval harness against `backend/tests/fixtures/sample_cv.txt` (free tier, 1 attempt).
+- Exits 1 (CI fails) if generated score < original score. Uploads JSON report as artifact (30 days).
+- Estimated cost: ~$0.05–0.10 per run (1 Sonnet call × 3 cycles).
+- **Requires:** `ANTHROPIC_API_KEY` secret set in GitHub repository settings.
+
+### 7. Golden CV fixture (`backend/tests/fixtures/sample_cv.txt`)
+- Realistic mid-level software engineer CV (Alex Johnson) with intentional weaknesses:
+  no LinkedIn URL, no quantified metrics, vague summary language.
+- Used as a fixed non-trivial input for CI — the pipeline always has meaningful improvements to make.
+
+### 8. LangSmith dataset export script (`backend/tests/export_to_langsmith.py`)
+- Reads all `harness_*.json` reports from a directory and uploads each tier result as a
+  LangSmith example to dataset `tailormycv-golden` (creates dataset if absent).
+- Run after any harness session to grow the golden dataset from real executions.
+- Usage: `python tests/export_to_langsmith.py /tmp/harness_results/ [--dataset NAME]`
+- Requires only `LANGSMITH_API_KEY`.
+
+### 9. Coding principles added to `CLAUDE.md`
+- Added full "Coding behaviour principles" section with 4 rules: Think Before Coding, Simplicity
+  First, Surgical Changes, Goal-Driven Execution.
+- These apply every session — Claude reads CLAUDE.md on start and enforces them.
 
 ---
 
@@ -68,24 +132,40 @@ Focus: make the resume-tailoring pipeline hit its tier quality bar reliably whil
 ---
 
 ## AI-engineering directive (applies app-wide)
-Per `CLAUDE.md` + memory `project-ai-engineering-standards`: every AI feature must build in **evals (validation gate), context engineering, optimized calls (caching/model choice), monitoring (telemetry + audit), testing**. The template AI-generator and the CV-score grammar check follow this. **Deferred backlog**: app-wide LLM telemetry layer, prompt caching across the pipeline, eval harness, AI test suite, agent observability.
+Per `CLAUDE.md`: every AI feature must build in **evals (validation gate), context engineering, optimized calls (caching/model choice), monitoring (telemetry + audit), testing**. The template AI-generator, CV-score grammar check, and pipeline loop all follow this pattern.
+
+**AI-engineering checklist status (2026-06-07):**
+| Standard | Status |
+|----------|--------|
+| Evals / validation gate | ✅ `ResumeValidator`, `validate_template_html`, eval harness + CI gate |
+| Context engineering | ✅ Prompt caching, TOON, focused system prompts, PATCH mode, memory injection |
+| Optimized LLM calls | ✅ Haiku for extract/validate, Sonnet for generate/eval, max_tokens bounded, `max_retries=2` |
+| Monitoring | ✅ Per-call telemetry (`telemetry.py`), audit_log entries, LangSmith traces (opt-in) |
+| Testing | ✅ Eval harness (`pipeline_harness.py`), CI regression gate, golden fixture, LangSmith dataset |
 
 ---
 
 ## Current local dev state
 - Backend on `:9000` (uvicorn, no `--reload`), frontend on `:4000` (`next dev`). **Dev-bypass auth ON** (`DEV_BYPASS_AUTH=true` / `NEXT_PUBLIC_DEV_BYPASS_AUTH=true`) → admin accessible; api.ts seeds a `dev-pro` token at module load.
 - No new env vars needed; `cv_templates` + `system_config` auto-seed/create on startup.
+- **LangSmith tracing** (optional): set `LANGSMITH_API_KEY` + `LANGSMITH_PROJECT` in `.env` to enable.
+- **CI regression gate**: set `ANTHROPIC_API_KEY` as a GitHub repository secret to enable the eval workflow.
 
 ## Gotchas learned this session
 - **Windows `uvicorn --reload` is flaky** — it showed updated source but ran old bytecode. Restart the backend explicitly after backend edits rather than trusting reload.
 - **Don't run `npm run build` while `next dev` is running** — they share `.next` and it corrupts the dev server (causes 404s). Clear `.next` + restart dev if it happens.
 - **Motor `Database` objects forbid `bool()`** — use `db if db is not None else get_db()`, never `db or get_db()`.
+- **`mcp__github__push_files` cannot delete files** — use `mcp__github__delete_file` separately for each file to remove.
+- **Local git desyncs after MCP pushes** — MCP creates commits on remote. After a push, run `git fetch origin main && git reset --hard origin/main` to resync local.
 
 ## Pending / deferred (see memory for full list)
 - Verify **extra-section rendering in DOCX export** (preview handles it; DOCX may not).
 - **Jobs Applied tracking** (planned autonomous job-application agent).
 - **Billing/payment processor** (tiers are DB-driven; no payments yet).
-- AI-engineering backlog (telemetry, prompt caching, eval harness, tests).
+- **Per-criterion sub-score feedback** — evaluators return a single score today; per-rubric-axis scores would steer the generator more precisely (deferred: wait for telemetry data on which categories fail most).
+- **Drop Sonnet evaluator from refine cycles** — use Haiku for mid-cycle scoring; Sonnet only as final gate. Biggest remaining cost cut. Deferred until telemetry shows average cycles-to-pass per tier.
+- **Cache static original-résumé/JD block in evaluator human messages** — Anthropic human-message caching.
+- **Background job architecture** — needed before adding LangGraph checkpointers (persist pipeline state across restarts/crashes for long-running Pro runs).
 - Audit log: retention/TTL, search/filter.
 
 ## Uncommitted local files (not pushed)
