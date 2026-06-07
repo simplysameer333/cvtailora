@@ -984,6 +984,17 @@ export async function getCoverLetter(sessionId: string): Promise<CoverLetterResu
   return res.data as CoverLetterResult | null;
 }
 
+export async function generateCoverLetterStandalone(
+  resumeText: string,
+  jobDescription: string,
+): Promise<CoverLetterResult> {
+  const res = await api.post("/api/cover-letter/generate", {
+    resume_text: resumeText,
+    job_description: jobDescription,
+  });
+  return res.data as CoverLetterResult;
+}
+
 // ── System config (global admin master switches) ────────────────────────────────
 
 export interface SystemConfig {

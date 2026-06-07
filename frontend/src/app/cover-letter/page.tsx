@@ -1,0 +1,164 @@
+"use client";
+import { useState } from "react";
+import toast from "react-hot-toast";
+import { generateCoverLetterStandalone, type CoverLetterResult } from "@/lib/api";
+import { FiMail, FiCopy, FiCheck, FiRefreshCw, FiZap } from "react-icons/fi";
+
+// ── Result card ────────────────────────────────────────────────────────────────
+
+function CoverLetterCard({
+  result,
+  onRegenerate,
+  regenerating,
+}: {
+  result: CoverLetterResult;
+  onRegenerate: () => void;
+  regenerating: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    const text = result.subject_line
+      ? `Subject: ${result.subject_line}\n\n${result.full_text}`
+      : result.full_text;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="card space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shrink-0">
+            <FiMail className="w-4 h-4 text-white" />
+          </div>
+          <h2 className="text-base font-semibold text-slate-800">Cover Letter</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onRegenerate}
+            disabled={regenerating}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <FiRefreshCw className={`w-3.5 h-3.5 ${regenerating ? "animate-spin" : ""}`} />
+            {regenerating ? "Regenerating…" : "Regenerate"}
+          </button>
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-100 hover:border-brand-300 transition"
+          >
+            {copied ? <FiCheck className="w-3.5 h-3.5" /> : <FiCopy className="w-3.5 h-3.5" />}
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      </div>
+
+      {result.subject_line && (
+        <div>
+          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-0.5">Subject line</p>
+          <p className="text-sm font-semibold text-slate-800">{result.subject_line}</p>
+        </div>
+      )}
+
+      <div>
+        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Letter</p>
+        <textarea
+          readOnly
+          className="input resize-none text-sm font-mono h-96 text-slate-700 bg-slate-50 cursor-default"
+          value={result.full_text}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────────
+
+export default function CoverLetterPage() {
+  const [resumeText, setResumeText]   = useState("");
+  const [jobDescription, setJobDescription] = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [result, setResult]           = useState<CoverLetterResult | null>(null);
+
+  const canGenerate = resumeText.trim().length >= 100 && jobDescription.trim().length >= 100;
+
+  async function handleGenerate() {
+    if (!canGenerate) return;
+    setLoading(true);
+    try {
+      const cl = await generateCoverLetterStandalone(resumeText, jobDescription);
+      setResult(cl);
+    } catch {
+      toast.error("Failed to generate cover letter — please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6 py-8 px-4 sm:px-0">
+
+      <div>
+        <div className="flex items-center gap-2.5 mb-1">
+          <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shrink-0">
+            <FiMail className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">Cover Letter Generator</h1>
+        </div>
+        <p className="text-slate-500 text-sm ml-11.5">
+          Paste your resume and the job description — AI writes a tailored cover letter in seconds.
+        </p>
+      </div>
+
+      <div className="card space-y-5">
+        {/* Resume */}
+        <div>
+          <label className="label">Your Resume</label>
+          <textarea
+            className="input h-48 resize-none font-mono text-xs"
+            placeholder="Paste your resume text here…"
+            value={resumeText}
+            onChange={(e) => { setResumeText(e.target.value); setResult(null); }}
+          />
+          <p className="text-xs text-slate-400 mt-1">{resumeText.length} characters</p>
+        </div>
+
+        {/* Job Description */}
+        <div>
+          <label className="label">Job Description</label>
+          <textarea
+            className="input h-48 resize-none font-mono text-xs"
+            placeholder="Paste the job description here…"
+            value={jobDescription}
+            onChange={(e) => { setJobDescription(e.target.value); setResult(null); }}
+          />
+          <p className="text-xs text-slate-400 mt-1">{jobDescription.length} characters</p>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            onClick={handleGenerate}
+            disabled={!canGenerate || loading}
+            className="btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {loading
+              ? <><span className="w-4 h-4 rounded-full border-2 border-white/50 border-t-white animate-spin shrink-0" /> Generating…</>
+              : <><FiZap className="w-4 h-4" /> Generate Cover Letter</>
+            }
+          </button>
+        </div>
+      </div>
+
+      {result && (
+        <CoverLetterCard
+          result={result}
+          onRegenerate={handleGenerate}
+          regenerating={loading}
+        />
+      )}
+
+    </div>
+  );
+}

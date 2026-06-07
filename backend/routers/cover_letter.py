@@ -1,6 +1,7 @@
 """Cover letter router — generate and retrieve cover letters for a session."""
 import logging
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from bson import ObjectId
 from database import get_db
 from config import settings
@@ -9,6 +10,44 @@ from services.usage_service import check_budget, increment_usage
 
 router = APIRouter()
 logger = logging.getLogger("tailormycv")
+
+
+class StandaloneCoverLetterRequest(BaseModel):
+    resume_text: str
+    job_description: str
+
+
+@router.post("/cover-letter/generate")
+async def generate_cover_letter_standalone(
+    body: StandaloneCoverLetterRequest,
+    user: dict | None = Depends(get_optional_user),
+):
+    """Generate a cover letter from raw resume text + job description.
+
+    Standalone endpoint — no session required. Suitable for the dedicated
+    Cover Letter page where users paste their resume and JD directly.
+    """
+    if not body.resume_text.strip():
+        raise HTTPException(422, "Resume text is required.")
+    if not body.job_description.strip():
+        raise HTTPException(422, "Job description is required.")
+
+    db = get_db()
+    user_tier = (user or {}).get("tier", "free")
+    if user:
+        await check_budget(db, user, user_tier)
+
+    try:
+        from services.cover_letter_service import generate_cover_letter as _generate
+        result = await _generate(body.resume_text, body.job_description, {})
+    except Exception as exc:
+        logger.exception("[cover_letter_standalone] Generation failed: %s", exc)
+        raise HTTPException(500, f"Cover letter generation failed: {exc}")
+
+    if user:
+        await increment_usage(db, str(user.get("_id", "")), 1, 0.012)
+
+    return result
 
 
 @router.post("/sessions/{session_id}/cover-letter")
