@@ -10,8 +10,11 @@ settings so they can be changed in .env without touching code.
 
 from __future__ import annotations
 import asyncio
+import logging
 import re
 from datetime import datetime
+
+logger = logging.getLogger("tailormycv.pipeline")
 
 from config import settings
 from .state import PipelineState
@@ -47,11 +50,15 @@ _SUGGESTION_PATTERNS: list[tuple[re.Pattern, list[str]]] = [
 
 
 def _weak_patch_keys(feedback: str | None, eval_results: list[dict]) -> list[str] | None:
-    """Return the resume JSON keys to patch based on evaluator feedback.
+    """Return the top-2 resume JSON keys to patch, ranked by how often each is
+    mentioned in the evaluator feedback.
 
-    Returns None when design/layout issues are found — those require full
-    regeneration. Falls back to ["summary", "experience"] when no specific
-    section is identified (covers ~85% of score improvements).
+    Capping at 2 keeps patch output tight (~200–500 tokens). When all sections
+    need work (common on first-pass CVs), patching the worst 2 per cycle and
+    iterating converges faster than trying to fix 5 sections at once.
+
+    Returns None → design/layout issue, fall back to full regeneration.
+    Returns list  → patch only these keys and merge into current resume.
     """
     text = (feedback or "") + " " + " ".join(
         s for r in eval_results for s in (r.get("suggestions") or [])
@@ -60,11 +67,22 @@ def _weak_patch_keys(feedback: str | None, eval_results: list[dict]) -> list[str
         return None
     if re.search(r"\bdesign\b|\blayout\b|\bpage length\b|\boverflow\b|\btoo long\b|\btoo short\b", text, re.I):
         return None
-    keys: set[str] = set()
+
+    # Score each resume key by how many pattern hits appear in the feedback text.
+    # More mentions = more severe / more suggestions = fix first.
+    key_hits: dict[str, int] = {}
     for pattern, section_keys in _SUGGESTION_PATTERNS:
-        if pattern.search(text):
-            keys.update(section_keys)
-    return sorted(keys) if keys else ["summary", "experience"]
+        hits = len(pattern.findall(text))
+        if hits > 0:
+            for k in section_keys:
+                key_hits[k] = key_hits.get(k, 0) + hits
+
+    if not key_hits:
+        return ["summary", "experience"]
+
+    # Return only the top 2 most-mentioned keys — keeps patches fast and focused
+    top2 = sorted(key_hits.items(), key=lambda kv: -kv[1])[:2]
+    return sorted(k for k, _ in top2)
 
 
 async def generate_node(state: PipelineState) -> dict:
@@ -83,6 +101,7 @@ async def generate_node(state: PipelineState) -> dict:
     if cycle >= 2 and feedback and current_resume:
         patch_keys = _weak_patch_keys(feedback, state.get("eval_results") or [])
         if patch_keys:
+            logger.info("[pipeline] cycle=%d PATCH keys=%s", cycle, patch_keys)
             resume_json = await _generator.run_patch(
                 resume_text=state["resume_text"],
                 user_profile=state["user_profile"],
@@ -98,6 +117,7 @@ async def generate_node(state: PipelineState) -> dict:
             )
             return {"resume_json": resume_json}
 
+    logger.info("[pipeline] cycle=%d FULL generation", cycle)
     resume_json = await _generator.run(
         resume_text=state["resume_text"],
         user_profile=state["user_profile"],

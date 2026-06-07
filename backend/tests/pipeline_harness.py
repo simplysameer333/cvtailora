@@ -1,13 +1,14 @@
 """CV Pipeline Eval Harness — benchmark and regression-test the generate pipeline.
 
 Usage:
-    python tests/pipeline_harness.py path/to/cv.pdf [--tiers plus pro] [--cycles 4] [--attempts 2]
+    python tests/pipeline_harness.py path/to/cv.docx [--tiers plus pro] [--attempts 2]
 
 What it does:
     1. Scores the original CV (baseline)
-    2. Runs the CV Builder pipeline for each tier (full cycle budget, no plateau exit)
-    3. Reports before/after scores per category, cycle trajectory, and user actions needed
-    4. Writes a JSON result file for CI comparison and trend tracking
+    2. Runs the CV Builder pipeline for each tier, streaming per-node timings
+    3. Reports before/after scores, per-cycle segment breakdown, patch vs full-regen
+    4. Records outcomes to agent memory (so the generator learns from harness runs)
+    5. Writes a JSON result file for CI comparison and trend tracking
 
 Exit codes:
     0  All tiers beat the original score
@@ -22,6 +23,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
 import time
@@ -40,6 +42,9 @@ from services.pipeline import nodes as nodes_mod
 from services.resume_checker_service import check_resume, extract_weak_categories
 from services.pipeline.agents.evaluators.cv_score import resume_json_to_text
 from services.user_actions_service import build_user_actions
+
+# Show pipeline patch/full-regen log lines in harness output
+logging.basicConfig(level=logging.INFO, format="  [%(name)s] %(message)s")
 
 
 TIER_DEFAULTS = {
@@ -111,12 +116,35 @@ async def _score_cv(cv_text: str) -> tuple[int, list[dict]]:
 
 async def _run_attempt(cv_text: str, tier: str, tier_cfg: dict, key_skills: list[str]) -> dict:
     t0 = time.time()
-    state = await asyncio.wait_for(
-        pipeline.ainvoke(_make_state(cv_text, tier_cfg, key_skills)),
-        timeout=300,
-    )
-    elapsed = time.time() - t0
+    initial_state = _make_state(cv_text, tier_cfg, key_skills)
 
+    # segment_log: (display_cycle, node_name, elapsed_s, is_patch)
+    segment_log: list[tuple[int, str, float, bool]] = []
+    current_state: dict = dict(initial_state)
+    t_last = t0
+
+    async def _consume() -> None:
+        nonlocal t_last, current_state
+        async for chunk in pipeline.astream(initial_state, stream_mode="updates"):
+            t_now = time.time()
+            elapsed = round(t_now - t_last, 2)
+            for node_name, update in chunk.items():
+                # display_cycle: read before aggregate increments the counter
+                display_cycle = current_state.get("cycle", 0) + 1
+                # PATCH when cycle>=2 had feedback; generate_node uses same heuristic
+                is_patch = (
+                    node_name == "generate"
+                    and current_state.get("cycle", 0) >= 2
+                    and bool(current_state.get("feedback"))
+                )
+                segment_log.append((display_cycle, node_name, elapsed, is_patch))
+                current_state = {**current_state, **update}
+            t_last = t_now
+
+    await asyncio.wait_for(_consume(), timeout=300)
+    elapsed_total = round(time.time() - t0, 1)
+
+    state = current_state
     best_json = state.get("best_resume_json") or state.get("resume_json")
     best_score = state.get("best_min_score", 0)
     history = [r["min_score"] for r in state.get("eval_history", [])]
@@ -132,9 +160,23 @@ async def _run_attempt(cv_text: str, tier: str, tier_cfg: dict, key_skills: list
     if not state["all_passed"]:
         user_actions = build_user_actions(eval_results, tier_cfg["bar"], final_score)
 
+    # Wire harness runs into agent memory so the generator learns from testing
+    try:
+        from services.agent_memory import record_generation_outcome
+        await record_generation_outcome({
+            "first_score": history[0] if history else 0,
+            "cycles": state.get("cycle", 0),
+            "cost_usd": 0,
+            "passed": state.get("all_passed", False),
+            "tier": tier,
+            "evaluators": eval_results,
+        })
+    except Exception:
+        pass
+
     return {
         "tier": tier,
-        "elapsed_s": round(elapsed, 1),
+        "elapsed_s": elapsed_total,
         "cycles_run": state["cycle"],
         "cycle_scores": history,
         "in_loop_best": best_score,
@@ -144,6 +186,7 @@ async def _run_attempt(cv_text: str, tier: str, tier_cfg: dict, key_skills: list
         "categories": final_cats,
         "user_actions_needed": user_actions,
         "resume_json": best_json,
+        "segment_log": segment_log,
     }
 
 
@@ -196,6 +239,19 @@ async def run_harness(
                     f"done {result['elapsed_s']}s | cycles={result['cycles_run']} "
                     f"scores={trajectory} | final={result['final_score']}"
                 )
+                # Per-cycle segment timing
+                segs = result.get("segment_log", [])
+                if segs:
+                    cycle_score_map = {i + 1: s for i, s in enumerate(trajectory)}
+                    print(f"  {'Cycle':>5}  {'Node':<12}  {'Mode':<5}  {'Time':>6}")
+                    print(f"  {'─'*36}")
+                    for cyc, node, elapsed, is_patch in segs:
+                        mode = "PATCH" if is_patch else ("FULL" if node == "generate" else "")
+                        score_str = (
+                            f"  → score={cycle_score_map[cyc]}"
+                            if node == "aggregate" and cyc in cycle_score_map else ""
+                        )
+                        print(f"  {cyc:>5}  {node:<12}  {mode:<5}  {elapsed:>5.1f}s{score_str}")
                 if best_result is None or result["final_score"] > best_result["final_score"]:
                     best_result = result
             except asyncio.TimeoutError:
