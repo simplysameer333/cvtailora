@@ -8,14 +8,17 @@ import {
   setSessionTemplate,
   syncResumeToSession,
   isPipelineResult,
+  generateCoverLetter,
+  getCoverLetter,
   type GeneratedResume,
   type EvalSummary,
+  type CoverLetterResult,
 } from "@/lib/api";
 import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
 import { useAuth } from "@/lib/useAuth";
 import Link from "next/link";
-import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSquare, FiTrash2, FiZap } from "react-icons/fi";
+import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSquare, FiTrash2, FiZap, FiCopy, FiMail } from "react-icons/fi";
 import { SUPPORT_EMAIL, hasFeature } from "@/lib/config";
 import { EvalSummaryPanel } from "@/components/EvalQualityPanel";
 
@@ -57,6 +60,8 @@ export default function PreviewPage() {
   });
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState(0);
+  const [coverLetter, setCoverLetter] = useState<CoverLetterResult | null>(null);
+  const [coverLetterLoading, setCoverLetterLoading] = useState(false);
 
   useEffect(() => {
     const storedResume = localStorage.getItem(LS_RESUME);
@@ -81,6 +86,15 @@ export default function PreviewPage() {
       } catch { /* fall through */ }
     }
     runGenerate();
+  }, []);
+
+  // Auto-load cover letter if one was previously generated for this session
+  useEffect(() => {
+    const sid = getSessionId();
+    if (!sid) return;
+    getCoverLetter(sid)
+      .then((cl) => { if (cl?.body) setCoverLetter(cl); })
+      .catch(() => { /* no cover letter yet — silently ignore */ });
   }, []);
 
   async function persistTemplateToSession(sessionId: string) {
@@ -199,6 +213,21 @@ export default function PreviewPage() {
       toast.error("Failed to save locked facts.");
     } finally {
       setSavingFacts(false);
+    }
+  }
+
+  async function handleGenerateCoverLetter() {
+    const sessionId = getSessionId();
+    if (!sessionId) { toast.error("No session found."); return; }
+    setCoverLetterLoading(true);
+    try {
+      const result = await generateCoverLetter(sessionId);
+      setCoverLetter(result);
+      toast.success("Cover letter generated!");
+    } catch {
+      toast.error("Could not generate cover letter — please try again.");
+    } finally {
+      setCoverLetterLoading(false);
     }
   }
 
@@ -685,6 +714,14 @@ export default function PreviewPage() {
         />
       </div>
 
+      {/* ── Cover Letter ── */}
+      <CoverLetterCard
+        coverLetter={coverLetter}
+        loading={coverLetterLoading}
+        onGenerate={handleGenerateCoverLetter}
+        onRegenerate={handleGenerateCoverLetter}
+      />
+
       <div className="flex justify-between pt-2">
         <button onClick={() => router.back()} className="btn-secondary">
           ← Back
@@ -697,6 +734,116 @@ export default function PreviewPage() {
   );
 }
 
+
+// ── Cover Letter card ──────────────────────────────────────────────────────────
+
+function CoverLetterCard({
+  coverLetter,
+  loading,
+  onGenerate,
+  onRegenerate,
+}: {
+  coverLetter: CoverLetterResult | null;
+  loading: boolean;
+  onGenerate: () => void;
+  onRegenerate: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    if (!coverLetter) return;
+    const text = coverLetter.subject
+      ? `Subject: ${coverLetter.subject}\n\n${coverLetter.body}`
+      : coverLetter.body;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="card space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FiMail className="w-4 h-4 text-brand-500 shrink-0" />
+          <div>
+            <h2 className="font-semibold text-slate-800 text-sm">Cover Letter</h2>
+            <p className="text-xs text-slate-400 mt-0.5">AI-generated cover letter tailored to this job description</p>
+          </div>
+        </div>
+        {coverLetter && !loading && (
+          <button
+            onClick={onRegenerate}
+            className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 disabled:opacity-50"
+          >
+            <FiRefreshCw className="w-3 h-3" />
+            Regenerate
+          </button>
+        )}
+      </div>
+
+      {/* Generate button — shown when no cover letter yet */}
+      {!coverLetter && !loading && (
+        <button
+          onClick={onGenerate}
+          className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
+        >
+          <FiMail className="w-4 h-4" />
+          Generate Cover Letter
+        </button>
+      )}
+
+      {/* Loading state */}
+      {loading && (
+        <div className="flex items-center gap-3 py-4 text-sm text-slate-500">
+          <span className="w-4 h-4 rounded-full border-2 border-brand-400 border-t-transparent animate-spin shrink-0" />
+          Writing cover letter…
+        </div>
+      )}
+
+      {/* Generated cover letter */}
+      {coverLetter && !loading && (
+        <div className="space-y-3">
+          {coverLetter.subject && (
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-0.5">Subject line</p>
+              <p className="text-sm font-semibold text-slate-800">{coverLetter.subject}</p>
+            </div>
+          )}
+
+          <div className="relative">
+            <textarea
+              readOnly
+              className="input resize-none text-sm font-mono h-72 text-slate-700 bg-slate-50 cursor-default"
+              value={coverLetter.body}
+            />
+          </div>
+
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 text-sm btn-secondary"
+            >
+              {copied
+                ? <><FiCheckCircle className="w-3.5 h-3.5 text-teal-500" /> Copied!</>
+                : <><FiCopy className="w-3.5 h-3.5" /> Copy to clipboard</>
+              }
+            </button>
+            <button
+              onClick={onRegenerate}
+              disabled={loading}
+              className="flex items-center gap-1.5 text-sm btn-secondary disabled:opacity-50"
+            >
+              <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              Regenerate
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LockedFactsPanel({
   facts,
