@@ -129,9 +129,7 @@ async def _run_attempt(cv_text: str, tier: str, tier_cfg: dict, key_skills: list
             t_now = time.time()
             elapsed = round(t_now - t_last, 2)
             for node_name, update in chunk.items():
-                # display_cycle: read before aggregate increments the counter
                 display_cycle = current_state.get("cycle", 0) + 1
-                # PATCH when cycle>=2 had feedback; generate_node uses same heuristic
                 is_patch = (
                     node_name == "generate"
                     and current_state.get("cycle", 0) >= 2
@@ -150,7 +148,6 @@ async def _run_attempt(cv_text: str, tier: str, tier_cfg: dict, key_skills: list
     history = [r["min_score"] for r in state.get("eval_history", [])]
     eval_results = state.get("eval_results") or []
 
-    # Re-score with full category breakdown
     final_score, final_cats = 0, []
     if best_json:
         gen_text = resume_json_to_text(best_json)
@@ -158,9 +155,8 @@ async def _run_attempt(cv_text: str, tier: str, tier_cfg: dict, key_skills: list
 
     user_actions = None
     if not state["all_passed"]:
-        user_actions = build_user_actions(eval_results, tier_cfg["bar"], final_score)
+        user_actions = build_user_actions(eval_results, tier_cfg["bar"], final_score, best_json)
 
-    # Wire harness runs into agent memory so the generator learns from testing
     try:
         from services.agent_memory import record_generation_outcome
         await record_generation_outcome({
@@ -239,7 +235,6 @@ async def run_harness(
                     f"done {result['elapsed_s']}s | cycles={result['cycles_run']} "
                     f"scores={trajectory} | final={result['final_score']}"
                 )
-                # Per-cycle segment timing
                 segs = result.get("segment_log", [])
                 if segs:
                     cycle_score_map = {i + 1: s for i, s in enumerate(trajectory)}
@@ -264,7 +259,6 @@ async def run_harness(
 
         results_by_tier[tier] = best_result
 
-        # Category delta table
         print(f"\n  Best result for {tier.upper()} (score={best_result['final_score']}/100):")
         print(f"  {'Category':<30} {'Orig':>5} {'Gen':>5} {'Delta':>6}  Status")
         print(f"  {'-'*56}")
@@ -288,7 +282,6 @@ async def run_harness(
         else:
             print(f"\n  ✓ Threshold reached: {best_result['final_score']}/{cfg['bar']}")
 
-    # Final comparison
     print(f"\n{'='*64}")
     print("SUMMARY")
     print(f"{'='*64}")
@@ -304,7 +297,6 @@ async def run_harness(
             regression = True
         print(f"{tier.upper():<8} {orig_score:>8} {gen_s:>10} {delta_str:>6} {res['threshold']:>10} {passed:>7}")
 
-    # Write JSON output
     report = {
         "timestamp": datetime.utcnow().isoformat(),
         "cv_path": cv_path,
@@ -317,7 +309,6 @@ async def run_harness(
     if output_dir:
         out_path = Path(output_dir) / f"harness_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        # Don't dump full resume_json to keep report readable
         clean = {k: v for k, v in report.items() if k != "tier_results"}
         clean["tier_results"] = {
             t: {k: v for k, v in r.items() if k != "resume_json"}
