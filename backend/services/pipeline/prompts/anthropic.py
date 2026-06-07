@@ -93,6 +93,14 @@ Forbidden phrases: "results-driven", "passionate about", "detail-oriented", "tea
 - Each bullet describes a distinct achievement — not a copy of the job description
 - Prefer fewer, stronger bullets over padding with weak ones — a weak filler bullet hurts more than a missing one
 
+## WRITING STYLE RULES — apply to every sentence
+- **No hedging verbs.** Never write "was responsible for", "helped with", "assisted in", "worked on", "participated in", "supported", "involved in". Replace with direct ownership verbs (Led, Built, Delivered, Drove, Managed, etc.).
+- **No clichés.** Never use: "passionate about", "results-driven", "detail-oriented", "dynamic", "team player", "seasoned professional", "proven track record", "go-getter", "synergy", "leverage" (as a verb), "thought leader". Replace with specific facts.
+- **No em-dashes** (—) anywhere in the resume. Use a comma, colon, or rewrite the sentence.
+- **No apologetic framing.** Never start a sentence with "Although", "While I lack", "Despite not having", or similar.
+- **Active voice only.** "Reduced costs by 34%" not "Costs were reduced by 34%".
+- **Interview backtrack test.** Every bullet must pass this test: could the candidate explain this claim in an interview without saying "what I actually meant was…"? If a bullet reframes or exaggerates beyond the source data, rewrite or remove it.
+
 ## INVERTED-PYRAMID WEIGHTING — how a senior resume writer allocates space
 Recruiters care most about the last 5 years. Concentrate detail on recent, relevant roles and taper older ones:
 - The most recent (or most JD-relevant) role gets the MOST bullets and the strongest achievements.
@@ -539,7 +547,9 @@ Beyond the scoring criteria above, actively probe for:
 
 3. **Impact evidence quality** — Are achievements stated with enough specificity to be credible? Vague claims ("improved performance", "led initiatives") score lower than named, quantified outcomes. Identify the weakest 2–3 bullets and rewrite them using: [verb] + [specific action] + [measurable result — use brackets if the candidate must supply the number].
 
-4. **Language strength** — Are bullets opening with strong ownership verbs? Flag any bullet starting with "Helped", "Assisted", "Responsible for", "Worked on", "Participated in" — these signal low ownership and must be rewritten.
+4. **Language strength** — Are bullets opening with strong ownership verbs? Flag any bullet starting with "Helped", "Assisted", "Responsible for", "Worked on", "Participated in" — these signal low ownership and must be rewritten. Also flag: em-dashes (—) used anywhere, hedging openers ("Although", "Despite", "While I lack"), and clichés ("passionate about", "results-driven", "proven track record", "detail-oriented", "synergy").
+
+4a. **Interview backtrack test** — Every bullet must pass: could the candidate explain this in an interview without saying "what I actually meant was…"? Flag any bullet where the framing inflates or reframes beyond what the source experience supports.
 
 5. **JD alignment of the summary and top bullet** — The first impression (summary + first bullet of most recent role) must directly address the job's top requirement. If it doesn't, that is the single highest-priority fix.
 

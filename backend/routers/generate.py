@@ -577,3 +577,39 @@ async def set_locked_facts(
     if result.matched_count == 0:
         raise HTTPException(404, "Session not found.")
     return {"locked_facts": locked}
+
+
+@router.post("/sessions/{session_id}/fit-score")
+async def fit_score(session_id: str):
+    """Pre-generation fit assessment — scores candidate-job match before running the pipeline.
+
+    Requires a session with both a parsed resume and a job description.
+    Returns fit scores across 3 dimensions + skill gap analysis.
+    Runs a single Haiku call (~3–5 s, ~$0.001).
+    """
+    db = get_db()
+    session = await db.sessions.find_one({"_id": ObjectId(session_id)})
+    if not session:
+        raise HTTPException(404, "Session not found.")
+
+    resume_text = (session.get("resume_parsed") or {}).get("raw_text", "")
+    job_description = session.get("job_description") or ""
+    user_profile = session.get("user_profile") or {}
+
+    if not resume_text:
+        raise HTTPException(422, "No resume found in session. Please upload a CV first.")
+    if not job_description.strip():
+        raise HTTPException(422, "No job description in session. Please paste a job description first.")
+
+    try:
+        from services.fit_scoring_service import score_fit
+        result = await score_fit(resume_text, job_description, user_profile)
+        # Cache on session so frontend can access it without re-calling
+        await db.sessions.update_one(
+            {"_id": ObjectId(session_id)},
+            {"$set": {"fit_score": result}},
+        )
+        return result
+    except Exception as exc:
+        logger.warning("[fit_score] Failed for session %s: %s", session_id, exc)
+        raise HTTPException(500, f"Fit scoring failed: {exc}")
