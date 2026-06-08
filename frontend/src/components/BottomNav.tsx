@@ -1,15 +1,16 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FiCheckSquare, FiEdit2, FiMail, FiBriefcase, FiUser } from "react-icons/fi";
+import { FiCheckSquare, FiEdit2, FiMail, FiBookOpen, FiBriefcase } from "react-icons/fi";
 import { useAuth } from "@/lib/useAuth";
 
+// Mirrors the desktop top-nav tools exactly. Profile lives in the avatar menu (top-right).
 const TABS = [
-  { href: "/cv-score",     icon: FiCheckSquare, label: "CV Score"      },
-  { href: "/builder/upload", icon: FiEdit2,     label: "Builder"       },
-  { href: "/cover-letter", icon: FiMail,        label: "Cover Letter"  },
-  { href: "/jobs",         icon: FiBriefcase,   label: "Jobs"          },
-  { href: "/profile",      icon: FiUser,        label: "Profile"       },
+  { href: "/cv-score",       icon: FiCheckSquare, label: "CV Score"     },
+  { href: "/builder/upload", icon: FiEdit2,       label: "Builder"      },
+  { href: "/cover-letter",   icon: FiMail,        label: "Cover Letter" },
+  { href: "/interview-prep", icon: FiBookOpen,    label: "Interview"    },
+  { href: "/jobs",           icon: FiBriefcase,   label: "Jobs"         },
 ];
 
 export default function BottomNav() {

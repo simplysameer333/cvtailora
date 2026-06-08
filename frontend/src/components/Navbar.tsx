@@ -65,9 +65,10 @@ export default function Navbar() {
   const tier = user?.tier;
   const tierLabel = tier ? TIER_LABEL[tier] : null;
 
-  // Primary nav. Icon always shows; the text label only appears at lg+ so the
-  // bar fits on one line inside the max-w-6xl container and never wraps. Below
-  // the lg breakpoint the buttons are icon-only; below sm the BottomNav covers them.
+  // Primary nav. Icon always shows; the text label only appears at xl+ (1280px),
+  // where the max-w-6xl container has fully expanded and the full bar fits on one
+  // line without clipping the logo. Between sm and xl the buttons are icon-only;
+  // below sm the BottomNav covers them.
   const navLinks = [
     { href: "/cv-score",       icon: FiCheckSquare, label: "CV Score",       active: onChecker,       authOnly: false },
     { href: "/builder/upload", icon: FiEdit2,       label: "CV Builder",     active: onBuilder,       authOnly: true  },
@@ -96,7 +97,7 @@ export default function Navbar() {
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" />
-                <span className="hidden lg:inline">{label}</span>
+                <span className="hidden xl:inline">{label}</span>
               </Link>
             ) : null
           )}

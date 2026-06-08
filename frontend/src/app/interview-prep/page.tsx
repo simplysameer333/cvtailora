@@ -75,7 +75,7 @@ export default function InterviewPrepPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 py-8 px-4 sm:px-0">
+    <div className="max-w-6xl mx-auto space-y-6 py-8 px-4 sm:px-0">
 
       <div>
         <div className="flex items-center gap-2.5 mb-1">

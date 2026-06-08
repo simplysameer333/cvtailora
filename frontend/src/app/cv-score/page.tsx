@@ -222,7 +222,7 @@ export default function CvScorePage() {
   const c = result ? scoreColor(result.overall_score) : null;
 
   return (
-    <div className="max-w-4xl mx-auto px-5 sm:px-6 py-10 space-y-10">
+    <div className="max-w-6xl mx-auto px-5 sm:px-6 py-10 space-y-10">
 
       {/* ── Hero ── */}
       <div className="text-center">

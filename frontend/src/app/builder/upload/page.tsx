@@ -137,7 +137,7 @@ function UploadPageInner() {
   const hasLibrary  = libraryLoaded && library.length > 0;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8">
 
       {/* ── Step badge + hero ── */}
       <div className="text-center space-y-2 pt-2">

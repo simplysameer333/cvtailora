@@ -141,7 +141,7 @@ export default function ProfilePage() {
   // ── AI extraction loading state ───────────────────────────────────────────
   if (prefilling) {
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-1">Your Profile</h1>
         </div>
@@ -185,7 +185,7 @@ export default function ProfilePage() {
 
   // ── Profile form ──────────────────────────────────────────────────────────
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-1">Your Profile</h1>
         <p className="text-slate-500">

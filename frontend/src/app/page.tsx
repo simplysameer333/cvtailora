@@ -1,8 +1,7 @@
 "use client";
 import Link from "next/link";
 import { FiUpload, FiZap, FiDownload } from "react-icons/fi";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import AppShell from "@/components/AppShell";
 import PricingTiers from "@/components/PricingTiers";
 
 const steps = [
@@ -31,9 +30,7 @@ const steps = [
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen flex flex-col bg-white">
-
-      <Navbar />
+    <AppShell className="bg-white">
 
       {/* ── Hero ── */}
       <section className="flex flex-1 flex-col items-center justify-center text-center px-5 sm:px-8 py-16 sm:py-24 bg-gradient-to-b from-brand-50 to-white rounded-b-[2.5rem] sm:rounded-none shadow-sm sm:shadow-none">
@@ -86,7 +83,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <Footer />
-    </main>
+    </AppShell>
   );
 }

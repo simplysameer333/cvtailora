@@ -472,7 +472,7 @@ export default function TemplatePage() {
   // ── Gallery + modal overlay ───────────────────────────────────────────────
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
 
       {/* Modal overlay — renders over the gallery */}
       {detailInfo && (
