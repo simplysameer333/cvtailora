@@ -22,6 +22,12 @@ import json
 import logging
 import re
 from config import settings
+from services.prompt_store import get_override
+from services.engagement_context import (
+    build_engagement_context,
+    context_to_prompt_block,
+    detected_role as _detected_role,
+)
 
 logger = logging.getLogger("tailormycv")
 
@@ -47,6 +53,9 @@ Every claim must be grounded in the candidate's resume or profile. Never invent 
 ## COMPANY NAME EXTRACTION
 Extract the company name from the job description. If not present, use "your organisation".
 
+## USING THE PROVIDED ANALYSIS
+A pre-analysed CANDIDATE PROFILE and TARGET ROLE PROFILE may precede the resume and JD. When present, match the candidate's standout achievements to the role's key responsibilities and screening focus. Still ground every claim in the resume.
+
 ## OUTPUT FORMAT
 Return ONLY valid JSON — no preamble, no markdown fences:
 {
@@ -64,10 +73,20 @@ async def generate_cover_letter(
     resume_text: str,
     job_description: str,
     user_profile: dict,
+    context: dict | None = None,
+    role_override: str = "",
 ) -> dict:
-    """Generate a tailored cover letter. Returns structured dict or raises on failure."""
+    """Generate a tailored cover letter. Returns structured dict or raises on failure.
+
+    ``context`` is the shared engagement context ({candidate_profile, jd_profile}); when
+    omitted it is built here. ``role_override`` re-targets the letter at a corrected role.
+    The returned dict includes ``detected_role`` for display in the UI.
+    """
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
+
+    if context is None:
+        context = await build_engagement_context(resume_text, job_description, user_profile, role_override)
 
     from langchain_anthropic import ChatAnthropic
     from langchain_core.messages import SystemMessage, HumanMessage
@@ -92,14 +111,17 @@ async def generate_cover_letter(
         f"Additional notes: {additional_notes}" if additional_notes else "",
     ]))
 
+    ctx_block = context_to_prompt_block(context)
     content = (
-        f"## CANDIDATE PROFILE\n{profile_block}\n\n"
-        f"## CANDIDATE RESUME (source of truth — all facts must come from here)\n{resume_text[:5000]}\n\n"
-        f"## JOB DESCRIPTION\n{job_description[:3000]}\n\n"
-        "Write a targeted cover letter. Return only JSON."
+        (f"{ctx_block}\n\n" if ctx_block else "")
+        + f"## CANDIDATE PROFILE\n{profile_block}\n\n"
+        + f"## CANDIDATE RESUME (source of truth — all facts must come from here)\n{resume_text[:5000]}\n\n"
+        + f"## JOB DESCRIPTION\n{job_description[:3000]}\n\n"
+        + "Write a targeted cover letter. Return only JSON."
     )
 
-    response = await llm.ainvoke([SystemMessage(content=_SYSTEM), HumanMessage(content=content)])
+    system = (await get_override("cover_letter_system")) or _SYSTEM
+    response = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=content)])
     raw = response.content.strip()
     if raw.startswith("```"):
         raw = re.sub(r"^```(?:json)?\n?", "", raw)
@@ -130,4 +152,5 @@ async def generate_cover_letter(
         "sign_off": data.get("sign_off", "Yours sincerely,"),
         "candidate_name": name,
         "full_text": full_text,
+        "detected_role": role_override or _detected_role(context),
     }

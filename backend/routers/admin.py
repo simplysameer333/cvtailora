@@ -37,6 +37,10 @@ from services.resume_checker_service import (
     _VALIDATE_SYSTEM as _CV_VALIDATE_SYSTEM, _VALIDATE_PROMPT as _CV_VALIDATE_PROMPT,
     _GRAMMAR_SYSTEM as _CV_GRAMMAR_SYSTEM, _GRAMMAR_PROMPT as _CV_GRAMMAR_PROMPT,
 )
+from services.candidate_profile_service import _SYSTEM as _CANDIDATE_PROFILE_SYSTEM
+from services.job_profile_service import _SYSTEM as _JOB_PROFILE_SYSTEM
+from services.interview_prep_service import _SYSTEM as _INTERVIEW_PREP_SYSTEM
+from services.cover_letter_service import _SYSTEM as _COVER_LETTER_SYSTEM
 
 DEFAULTS: dict[str, str] = {
     "generator_system": _GENERATOR_SYSTEM_BASE,
@@ -54,6 +58,10 @@ DEFAULTS: dict[str, str] = {
     "cv_score_validate_prompt": _CV_VALIDATE_PROMPT,
     "cv_score_grammar_system": _CV_GRAMMAR_SYSTEM,
     "cv_score_grammar_prompt": _CV_GRAMMAR_PROMPT,
+    "candidate_profile_system": _CANDIDATE_PROFILE_SYSTEM,
+    "job_profile_system": _JOB_PROFILE_SYSTEM,
+    "interview_prep_system": _INTERVIEW_PREP_SYSTEM,
+    "cover_letter_system": _COVER_LETTER_SYSTEM,
 }
 
 router = APIRouter()

@@ -981,6 +981,7 @@ export interface CoverLetterResult {
   sign_off: string;
   candidate_name: string;
   full_text: string;
+  detected_role?: string;
 }
 
 export async function generateCoverLetter(sessionId: string): Promise<CoverLetterResult> {
@@ -996,10 +997,12 @@ export async function getCoverLetter(sessionId: string): Promise<CoverLetterResu
 export async function generateCoverLetterStandalone(
   resumeText: string,
   jobDescription: string,
+  roleOverride = "",
 ): Promise<CoverLetterResult> {
   const res = await api.post("/api/cover-letter/generate", {
     resume_text: resumeText,
     job_description: jobDescription,
+    role_override: roleOverride,
   });
   return res.data as CoverLetterResult;
 }
@@ -1016,6 +1019,7 @@ export interface InterviewQuestion {
 export interface InterviewPrepResult {
   questions: InterviewQuestion[];
   prep_tip: string;
+  detected_role?: string;
 }
 
 export async function generateInterviewPrep(sessionId: string): Promise<InterviewPrepResult> {
@@ -1031,10 +1035,12 @@ export async function getInterviewPrep(sessionId: string): Promise<InterviewPrep
 export async function generateInterviewPrepStandalone(
   resumeText: string,
   jobDescription: string,
+  roleOverride = "",
 ): Promise<InterviewPrepResult> {
   const res = await api.post("/api/interview-prep/generate", {
     resume_text: resumeText,
     job_description: jobDescription,
+    role_override: roleOverride,
   });
   return res.data as InterviewPrepResult;
 }

@@ -15,6 +15,7 @@ logger = logging.getLogger("tailormycv")
 class StandaloneCoverLetterRequest(BaseModel):
     resume_text: str
     job_description: str
+    role_override: str = ""  # user-corrected target role; re-targets the letter
 
 
 @router.post("/cover-letter/generate")
@@ -39,7 +40,7 @@ async def generate_cover_letter_standalone(
 
     try:
         from services.cover_letter_service import generate_cover_letter as _generate
-        result = await _generate(body.resume_text, body.job_description, {})
+        result = await _generate(body.resume_text, body.job_description, {}, role_override=body.role_override)
     except Exception as exc:
         logger.exception("[cover_letter_standalone] Generation failed: %s", exc)
         raise HTTPException(500, f"Cover letter generation failed: {exc}")
@@ -82,7 +83,9 @@ async def generate_cover_letter(
 
     try:
         from services.cover_letter_service import generate_cover_letter as _generate
-        result = await _generate(resume_text, job_description, user_profile)
+        from services.engagement_context import get_or_build_session_context
+        context = await get_or_build_session_context(db, session_id, session)
+        result = await _generate(resume_text, job_description, user_profile, context=context)
     except Exception as exc:
         logger.exception("[cover_letter] Generation failed for session %s: %s", session_id, exc)
         raise HTTPException(500, f"Cover letter generation failed: {exc}")

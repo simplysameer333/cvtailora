@@ -28,6 +28,11 @@ PROMPT_KEYS: dict[str, str] = {
     "cv_score_validate_prompt": "Layout Validator — User Prompt (keep {page_count} {targets} {source_block} {resume_json})",
     "cv_score_grammar_system": "Grammar & Spelling — System Prompt",
     "cv_score_grammar_prompt": "Grammar & Spelling — User Prompt (keep {resume_text})",
+    # ── AI Tools (Cover Letter, Interview Prep + their shared profilers) ───────
+    "candidate_profile_system": "Candidate Profiler — System Prompt",
+    "job_profile_system": "Job Profiler — System Prompt",
+    "interview_prep_system": "Interview Prep — System Prompt",
+    "cover_letter_system": "Cover Letter — System Prompt",
 }
 
 # Which feature each prompt belongs to — drives the admin sub-tabs.
@@ -47,6 +52,10 @@ PROMPT_CATEGORIES: dict[str, str] = {
     "cv_score_validate_prompt": "cv_score",
     "cv_score_grammar_system": "cv_score",
     "cv_score_grammar_prompt": "cv_score",
+    "candidate_profile_system": "tools",
+    "job_profile_system": "tools",
+    "interview_prep_system": "tools",
+    "cover_letter_system": "tools",
 }
 
 

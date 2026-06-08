@@ -13,6 +13,7 @@ logger = logging.getLogger("tailormycv")
 class StandaloneInterviewPrepRequest(BaseModel):
     resume_text: str
     job_description: str
+    role_override: str = ""  # user-corrected target role; re-targets the questions
 
 
 @router.post("/sessions/{session_id}/interview-prep")
@@ -45,7 +46,9 @@ async def generate_interview_prep_for_session(
 
     try:
         from services.interview_prep_service import generate_interview_prep
-        result = await generate_interview_prep(resume_text, job_description)
+        from services.engagement_context import get_or_build_session_context
+        context = await get_or_build_session_context(db, session_id, session)
+        result = await generate_interview_prep(resume_text, job_description, context=context)
         await db.sessions.update_one(
             {"_id": ObjectId(session_id)},
             {"$set": {"interview_prep": result}},
@@ -88,7 +91,9 @@ async def generate_interview_prep_standalone(
 
     try:
         from services.interview_prep_service import generate_interview_prep
-        return await generate_interview_prep(body.resume_text, body.job_description)
+        return await generate_interview_prep(
+            body.resume_text, body.job_description, role_override=body.role_override,
+        )
     except Exception as exc:
         logger.exception("[interview_prep_standalone] Failed: %s", exc)
         raise HTTPException(500, f"Interview prep generation failed: {exc}")

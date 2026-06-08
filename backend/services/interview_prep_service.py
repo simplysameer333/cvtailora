@@ -13,6 +13,12 @@ import json
 import logging
 import re
 from config import settings
+from services.prompt_store import get_override
+from services.engagement_context import (
+    build_engagement_context,
+    context_to_prompt_block,
+    detected_role as _detected_role,
+)
 
 logger = logging.getLogger("tailormycv")
 
@@ -32,6 +38,9 @@ the interviewer IS VERY LIKELY to ask at this specific role. For each question p
 - Behavioral questions must map to experiences visible (or notably absent) in the resume.
 - No generic filler questions ("Where do you see yourself in 5 years?") unless the JD explicitly signals career-path focus.
 - Output EXACTLY 15 questions total, in this EXACT mix: 10 Technical, 2 Behavioral, 2 Situational, 1 Culture Fit. Order them Technical first, then Behavioral, then Situational, then Culture Fit. These are the candidate's TOP 15 most-likely questions — prioritise the highest-signal ones.
+
+## USING THE PROVIDED ANALYSIS
+A pre-analysed CANDIDATE PROFILE and TARGET ROLE PROFILE may precede the resume and JD. When present, prioritise questions around the role's "screening_focus", pitch them at the candidate's seniority and domains, and probe their visible gaps. Still ground every question in the JD or resume.
 
 ## OUTPUT
 Return ONLY valid JSON — no markdown fences, no explanation:
@@ -73,10 +82,23 @@ def _enforce_distribution(questions: list[dict]) -> list[dict]:
     return ordered
 
 
-async def generate_interview_prep(resume_text: str, job_description: str) -> dict:
-    """Generate targeted interview questions for the given resume + JD pair."""
+async def generate_interview_prep(
+    resume_text: str,
+    job_description: str,
+    context: dict | None = None,
+    role_override: str = "",
+) -> dict:
+    """Generate targeted interview questions for the given resume + JD pair.
+
+    ``context`` is the shared engagement context ({candidate_profile, jd_profile}); when
+    omitted it is built here. ``role_override`` re-targets the questions at a corrected
+    role. The returned dict includes ``detected_role`` for display in the UI.
+    """
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
+
+    if context is None:
+        context = await build_engagement_context(resume_text, job_description, role_override=role_override)
 
     from langchain_anthropic import ChatAnthropic
     from langchain_core.messages import SystemMessage, HumanMessage
@@ -89,13 +111,16 @@ async def generate_interview_prep(resume_text: str, job_description: str) -> dic
         max_retries=2,
     )
 
+    ctx_block = context_to_prompt_block(context)
     content = (
-        f"## CANDIDATE RESUME\n{resume_text[:4000]}\n\n"
-        f"## JOB DESCRIPTION\n{job_description[:3000]}\n\n"
-        "Generate targeted interview questions. Return only JSON."
+        (f"{ctx_block}\n\n" if ctx_block else "")
+        + f"## CANDIDATE RESUME\n{resume_text[:4000]}\n\n"
+        + f"## JOB DESCRIPTION\n{job_description[:3000]}\n\n"
+        + "Generate targeted interview questions. Return only JSON."
     )
 
-    response = await llm.ainvoke([SystemMessage(content=_SYSTEM), HumanMessage(content=content)])
+    system = (await get_override("interview_prep_system")) or _SYSTEM
+    response = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=content)])
     raw = response.content.strip()
     if raw.startswith("```"):
         raw = re.sub(r"^```(?:json)?\n?", "", raw)
@@ -105,4 +130,5 @@ async def generate_interview_prep(resume_text: str, job_description: str) -> dic
     return {
         "questions": _enforce_distribution(data.get("questions") or []),
         "prep_tip": data.get("prep_tip", ""),
+        "detected_role": role_override or _detected_role(context),
     }

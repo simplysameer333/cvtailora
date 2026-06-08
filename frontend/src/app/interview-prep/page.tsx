@@ -58,15 +58,17 @@ export default function InterviewPrepPage() {
   const [jobDescription, setJobDescription] = useState("");
   const [loading, setLoading]               = useState(false);
   const [result, setResult]                 = useState<InterviewPrepResult | null>(null);
+  const [roleInput, setRoleInput]           = useState("");
 
   const canGenerate = resumeText.trim().length >= 100 && jobDescription.trim().length >= 100;
 
-  async function handleGenerate() {
+  async function handleGenerate(roleOverride = "") {
     if (!canGenerate) return;
     setLoading(true);
     try {
-      const prep = await generateInterviewPrepStandalone(resumeText, jobDescription);
+      const prep = await generateInterviewPrepStandalone(resumeText, jobDescription, roleOverride);
       setResult(prep);
+      setRoleInput(prep.detected_role ?? "");
     } catch {
       toast.error("Failed to generate questions — please try again.");
     } finally {
@@ -114,7 +116,7 @@ export default function InterviewPrepPage() {
 
         <div className="flex justify-end pt-1">
           <button
-            onClick={handleGenerate}
+            onClick={() => handleGenerate()}
             disabled={!canGenerate || loading}
             className="btn-primary flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
           >
@@ -128,19 +130,34 @@ export default function InterviewPrepPage() {
 
       {result && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-slate-800">
-              {result.questions.length} questions for this role
-            </h2>
-            <button
-              onClick={handleGenerate}
-              disabled={loading}
-              className="flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700 disabled:opacity-50"
-            >
-              <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-              Regenerate
-            </button>
+          {/* Detected role — editable; lets the user re-target if the role was misread */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+              Questions target this role
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                className="input flex-1"
+                value={roleInput}
+                onChange={(e) => setRoleInput(e.target.value)}
+                placeholder="e.g. Senior Backend Engineer"
+                onKeyDown={(e) => { if (e.key === "Enter" && roleInput.trim()) handleGenerate(roleInput.trim()); }}
+              />
+              <button
+                onClick={() => handleGenerate(roleInput.trim())}
+                disabled={loading || !roleInput.trim()}
+                className="btn-secondary flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                Regenerate for this role
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">Not the right role? Edit it and regenerate to re-target the questions.</p>
           </div>
+
+          <h2 className="text-base font-semibold text-slate-800">
+            {result.questions.length} questions
+          </h2>
 
           <div className="space-y-2">
             {result.questions.map((q, i) => <QuestionCard key={i} q={q} />)}
