@@ -10,6 +10,33 @@ import { FiZap, FiCpu } from "react-icons/fi";
 
 const TONES = ["Professional", "Conversational", "Executive"];
 
+// Module-level so its identity is stable across renders. Defining it INSIDE the
+// page component made React remount every input on each keystroke (cursor jumped
+// out / "focus lost"). Form value + handler are passed in as props.
+function Field({
+  label, name, type = "text", placeholder = "", required = false, form, onChange,
+}: {
+  label: string; name: string; type?: string; placeholder?: string; required?: boolean;
+  form: Record<string, unknown>;
+  onChange: React.ChangeEventHandler<HTMLInputElement>;
+}) {
+  return (
+    <div>
+      <label className="label">
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      <input
+        className="input"
+        type={type}
+        name={name}
+        placeholder={placeholder}
+        value={(form[name] as string) ?? ""}
+        onChange={onChange}
+      />
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   useStepGuard("profile");
   const router = useRouter();
@@ -118,26 +145,6 @@ export default function ProfilePage() {
     }
   }
 
-  const Field = ({
-    label, name, type = "text", placeholder = "", required = false,
-  }: {
-    label: string; name: string; type?: string; placeholder?: string; required?: boolean;
-  }) => (
-    <div>
-      <label className="label">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      <input
-        className="input"
-        type={type}
-        name={name}
-        placeholder={placeholder}
-        value={(form as Record<string, unknown>)[name] as string}
-        onChange={onChange}
-      />
-    </div>
-  );
-
   // ── AI extraction loading state ───────────────────────────────────────────
   if (prefilling) {
     return (
@@ -195,13 +202,13 @@ export default function ProfilePage() {
 
       <form onSubmit={handleSubmit} className="card space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <Field label="Full Name"      name="full_name"       placeholder="Jane Doe"                      required />
-          <Field label="Email"          name="email"           type="email" placeholder="jane@example.com" required />
-          <Field label="Phone"          name="phone"           placeholder="+1 555 000 0000" />
-          <Field label="Location"       name="location"        placeholder="New York, NY" />
-          <Field label="LinkedIn URL"   name="linkedin"        placeholder="https://linkedin.com/in/jane" />
-          <Field label="GitHub Username" name="github_username" placeholder="janedoe" />
-          <Field label="Target Role"    name="target_role"     placeholder="Senior Software Engineer" />
+          <Field label="Full Name"      name="full_name"       placeholder="Jane Doe"                      required form={form} onChange={onChange} />
+          <Field label="Email"          name="email"           type="email" placeholder="jane@example.com" required form={form} onChange={onChange} />
+          <Field label="Phone"          name="phone"           placeholder="+1 555 000 0000" form={form} onChange={onChange} />
+          <Field label="Location"       name="location"        placeholder="New York, NY" form={form} onChange={onChange} />
+          <Field label="LinkedIn URL"   name="linkedin"        placeholder="https://linkedin.com/in/jane" form={form} onChange={onChange} />
+          <Field label="GitHub Username" name="github_username" placeholder="janedoe" form={form} onChange={onChange} />
+          <Field label="Target Role"    name="target_role"     placeholder="Senior Software Engineer" form={form} onChange={onChange} />
         </div>
 
         <div>
