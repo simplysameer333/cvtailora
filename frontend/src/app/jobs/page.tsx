@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
@@ -434,6 +434,13 @@ export default function JobsPage() {
   // ── Search state ────────────────────────────────────────────────────────────
   const [queryTags, setQueryTags] = useState<string[]>([]);
   const [locationTags, setLocationTags] = useState<string[]>([]);
+  // Typed-but-not-yet-committed text in the inputs (no Enter pressed). Included in
+  // the search so e.g. "Dubai" typed in the location box is actually used.
+  const [pendingQuery, setPendingQuery] = useState("");
+  const [pendingLocation, setPendingLocation] = useState("");
+  // The exact query/location sent to the last search — pagination reuses these so
+  // page 2+ keeps the same location instead of rebuilding from committed tags only.
+  const lastSearchRef = useRef<{ q: string; loc: string }>({ q: "", loc: "" });
   const [pageSize, setPageSize] = useState<JsearchPageSize>(JSEARCH_DEFAULT_PAGE_SIZE);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [hasProfileResume, setHasProfileResume] = useState(false);
@@ -472,6 +479,7 @@ export default function JobsPage() {
   // ── Search ──────────────────────────────────────────────────────────────────
   const runSearch = useCallback(async (q: string, loc: string, p: number, ps: number) => {
     if (!q.trim()) return;
+    lastSearchRef.current = { q, loc };
     setLoading(true);
     try {
       const result = await searchJobs(q, loc, p, ps);
@@ -539,10 +547,13 @@ export default function JobsPage() {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (!queryTags.length) return;
+    // Include any text typed but not committed as a tag (no Enter pressed).
+    const q = [...queryTags, pendingQuery.trim()].filter(Boolean).join(" ");
+    const loc = [...locationTags, pendingLocation.trim()].filter(Boolean).join(" OR ");
+    if (!q.trim()) return;
     setPage(1);
     setHasMore(false);
-    await runSearch(queryTags.join(" "), locationTags.join(" OR "), 1, pageSize);
+    await runSearch(q, loc, 1, pageSize);
   }
 
   async function handleSave(job: Job) {
@@ -692,6 +703,7 @@ export default function JobsPage() {
               <TagInput
                 value={queryTags}
                 onChange={setQueryTags}
+                onInputChange={setPendingQuery}
                 fetchSuggestions={searchCatalogRoles}
                 placeholder="Job title, keywords, or company…"
                 className="h-full"
@@ -701,13 +713,14 @@ export default function JobsPage() {
               <TagInput
                 value={locationTags}
                 onChange={setLocationTags}
+                onInputChange={setPendingLocation}
                 fetchSuggestions={async () => []}
                 placeholder="City, country, or Remote…"
                 className="h-full"
               />
             </div>
             <div className="flex gap-2 shrink-0 self-end">
-              <button type="submit" disabled={loading || !queryTags.length} className="btn-primary">
+              <button type="submit" disabled={loading || (!queryTags.length && !pendingQuery.trim())} className="btn-primary">
                 {loading ? "Searching…" : "Search"}
               </button>
               {/* Save as alert — brand-coloured, visible when query exists */}
@@ -863,7 +876,7 @@ export default function JobsPage() {
                                   const ps = Number(e.target.value) as JsearchPageSize;
                                   setPageSize(ps);
                                   setPage(1);
-                                  if (searched) runSearch(queryTags.join(" "), locationTags.join(" OR "), 1, ps);
+                                  if (searched) runSearch(lastSearchRef.current.q, lastSearchRef.current.loc, 1, ps);
                                 }}
                                 className="border border-slate-200 rounded-lg text-xs py-1 px-2 bg-white cursor-pointer hover:border-brand-400 transition focus:outline-none focus:ring-2 focus:ring-brand-100"
                               >
@@ -895,7 +908,7 @@ export default function JobsPage() {
                   <div className="flex items-center justify-center gap-1 pt-2 flex-wrap">
                     <button
                       disabled={page === 1}
-                      onClick={() => { const p = page - 1; setPage(p); runSearch(queryTags.join(" "), locationTags.join(" OR "), p, pageSize); }}
+                      onClick={() => { const p = page - 1; setPage(p); runSearch(lastSearchRef.current.q, lastSearchRef.current.loc, p, pageSize); }}
                       className="flex items-center gap-1 px-3 h-9 rounded-full text-sm text-slate-600 hover:text-brand-600 hover:bg-brand-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       ← Prev
@@ -908,7 +921,7 @@ export default function JobsPage() {
                       ) : (
                         <button
                           key={n}
-                          onClick={() => { if (n !== page) { setPage(n); runSearch(queryTags.join(" "), locationTags.join(" OR "), n, pageSize); } }}
+                          onClick={() => { if (n !== page) { setPage(n); runSearch(lastSearchRef.current.q, lastSearchRef.current.loc, n, pageSize); } }}
                           className={`w-9 h-9 rounded-full text-sm font-medium transition ${
                             n === page
                               ? "bg-brand-600 text-white shadow-sm"
@@ -921,7 +934,7 @@ export default function JobsPage() {
                     )}
                     <button
                       disabled={!hasMore}
-                      onClick={() => { const p = page + 1; setPage(p); runSearch(queryTags.join(" "), locationTags.join(" OR "), p, pageSize); }}
+                      onClick={() => { const p = page + 1; setPage(p); runSearch(lastSearchRef.current.q, lastSearchRef.current.loc, p, pageSize); }}
                       className="flex items-center gap-1 px-3 h-9 rounded-full text-sm text-slate-600 hover:text-brand-600 hover:bg-brand-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       Next →

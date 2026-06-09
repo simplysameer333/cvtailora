@@ -11,6 +11,9 @@ interface TagInputProps {
   /** When true, only one tag is allowed at a time */
   single?: boolean;
   className?: string;
+  /** Reports the current typed-but-not-yet-committed input text, so callers can
+   *  include it in a search even if the user didn't press Enter to make a tag. */
+  onInputChange?: (value: string) => void;
 }
 
 export default function TagInput({
@@ -20,6 +23,7 @@ export default function TagInput({
   placeholder = "Type to search…",
   single = false,
   className = "",
+  onInputChange,
 }: TagInputProps) {
   const [input, setInput] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -68,11 +72,13 @@ export default function TagInput({
     if (!trimmed) return;
     if (value.includes(trimmed)) {
       setInput("");
+      onInputChange?.("");
       setOpen(false);
       return;
     }
     onChange(single ? [trimmed] : [...value, trimmed]);
     setInput("");
+    onInputChange?.("");
     setSuggestions([]);
     setOpen(false);
     setActiveIdx(-1);
@@ -135,7 +141,7 @@ export default function TagInput({
           <input
             ref={inputRef}
             value={input}
-            onChange={(e) => { setInput(e.target.value); fetchDebounced(e.target.value); }}
+            onChange={(e) => { setInput(e.target.value); onInputChange?.(e.target.value); fetchDebounced(e.target.value); }}
             onKeyDown={handleKeyDown}
             onFocus={() => input && suggestions.length > 0 && setOpen(true)}
             className="flex-1 min-w-[40px] text-sm outline-none bg-transparent placeholder:text-slate-400 py-0.5"
