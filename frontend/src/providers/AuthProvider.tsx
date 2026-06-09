@@ -1,5 +1,5 @@
 "use client";
-import { SessionProvider, useSession } from "next-auth/react";
+import { SessionProvider, useSession, signOut } from "next-auth/react";
 import { useEffect, useRef } from "react";
 import { setApiToken, fetchTierConfig } from "@/lib/api";
 import { setTierConfig } from "@/lib/tierConfig";
@@ -19,6 +19,7 @@ const TIER_SENSITIVE_KEYS = [
 function TokenSync() {
   const { data: session } = useSession();
   const prevTierRef = useRef<string | null>(null);
+  const signedOutRef = useRef(false);
 
   // Fetch tier config from MongoDB at app startup — populates the runtime store
   // so hasFeature() and getTierLimit() reflect the live database config.
@@ -45,6 +46,32 @@ function TokenSync() {
     }
     prevTierRef.current = newTier;
   }, [session?.user?.tier]);
+
+  // Gracefully recover from an expired/invalid token. The API interceptor fires an
+  // "auth-error" event on every 401 ("Invalid or expired token"), but nothing was
+  // listening — so the user was stranded. Here we sign them out and send them to
+  // re-login to mint a fresh token. (Dev-bypass uses DevProvider, so this never runs there.)
+  useEffect(() => {
+    function onAuthError() {
+      if (signedOutRef.current) return;   // one sign-out per burst of 401s
+      signedOutRef.current = true;
+      import("react-hot-toast").then(({ default: toast }) =>
+        toast.error("Your session expired — please sign in again.", { id: "auth-expired", duration: 5000 }),
+      );
+      signOut({ callbackUrl: "/auth/login" });
+    }
+    function onSessionExpired() {
+      import("react-hot-toast").then(({ default: toast }) =>
+        toast("Your builder session expired — please start again.", { id: "session-expired", duration: 5000 }),
+      );
+    }
+    window.addEventListener("auth-error", onAuthError);
+    window.addEventListener("session-expired", onSessionExpired);
+    return () => {
+      window.removeEventListener("auth-error", onAuthError);
+      window.removeEventListener("session-expired", onSessionExpired);
+    };
+  }, []);
 
   return null;
 }
