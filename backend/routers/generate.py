@@ -57,14 +57,17 @@ router = APIRouter()
 logger = logging.getLogger("tailormycv")
 _job_analyzer = JobAnalyzerAgent()
 
-# Every tier now scores with the SAME engine the user sees: CV-Score (cv_score
-# evaluator → check_resume, Haiku). One cheap call per cycle, and "the builder
-# reached 80" == "the user sees 80". The old JD-alignment panel (anthropic/openai/
-# google) stays available but is off by default.
+# Every tier scores with the SAME engine the user sees: CV-Score (cv_score
+# evaluator → check_resume). Plus/Pro additionally run cross-provider
+# JD-alignment evaluators (OpenAI gpt-4o-mini, Google Gemini Flash) — user
+# decision 2026-06-11: keep multi-provider calls to reduce single-model bias.
+# Both are cheap and run in parallel with cv_score (asyncio.gather), so they
+# add pennies, not latency. The Sonnet anthropic evaluator stays off (the
+# generator is already Sonnet — same-model self-grading adds cost, not signal).
 _TIER_EVALUATORS: dict[str, set[str]] = {
     "free": {"cv_score"},
-    "plus": {"cv_score"},
-    "pro":  {"cv_score"},
+    "plus": {"cv_score", "openai"},
+    "pro":  {"cv_score", "openai", "google"},
 }
 
 
@@ -211,6 +214,11 @@ async def generate(
 
     _TIER_THRESHOLDS = {"free": 70, "plus": 80, "pro": 90}
     tier_bar = _TIER_THRESHOLDS.get((user or {}).get("tier", "free"), settings.pass_threshold)
+    # Start telemetry BEFORE the first LLM call of the request — the original
+    # CV-score, job analyzer and CV-score evaluator calls were previously
+    # uncaptured, so est_cost_usd (and the budget caps charged from it)
+    # undercounted real spend by roughly half.
+    telemetry.start_capture()
     original_score = await _original_cv_score(db, resume_text)
     pass_threshold = min(100, max(tier_bar, int(original_score * 0.90)))
     _TIER_MAX_CYCLES = {"free": 3, "plus": 4, "pro": 5}
@@ -272,7 +280,6 @@ async def generate(
                 "Section-level regeneration is not available on your plan. Visit /settings/plan to upgrade.",
             )
         await _check_cost_limit(db, session_id)
-        telemetry.start_capture()
         try:
             result = await generator.run_section(
                 resume_text=resume_text,
@@ -368,7 +375,6 @@ async def generate(
         async for state in pipeline.astream(initial_state, stream_mode="values"):
             _snap[0] = state
 
-    telemetry.start_capture()
     try:
         await asyncio.wait_for(_stream(), timeout=pipeline_timeout)
     except asyncio.TimeoutError:
@@ -400,9 +406,13 @@ async def generate(
     # ── Reviewer sub-agent — post-loop polish pass ────────────────────────────
     # A second focused Sonnet call reviews the finished draft against the JD with
     # fresh eyes: framing, emphasis, verb precision, JD keyword alignment.
-    # Runs only when a JD is present (tailored run). Non-fatal: keeps loop output
-    # on any failure. Skipped on timed-out runs to avoid extending a slow request.
-    if not _timed_out and final_state.get("resume_json") and job_description.strip():
+    # Runs only when a JD is present (tailored run) AND the loop did NOT reach
+    # the tier bar — on a passing run the draft already cleared the same score
+    # the user sees, and the reviewer's output is never re-scored, so running it
+    # there spends a full Sonnet call on an unmeasured (possibly regressive) edit.
+    # Non-fatal: keeps loop output on any failure. Skipped on timed-out runs.
+    if (not _timed_out and final_state.get("resume_json") and job_description.strip()
+            and not final_state.get("all_passed")):
         try:
             from services.pipeline.agents.reviewer import ReviewerAgent
             reviewed = await ReviewerAgent().run(
@@ -486,10 +496,10 @@ async def generate(
     layout_validation = None
     if final_state.get("resume_json"):
         try:
-            layout_validation = await validate_resume_layout(
+            # Deterministic pure function — no LLM call, no latency.
+            layout_validation = validate_resume_layout(
                 resume=final_state["resume_json"],
                 page_count=template_pages,
-                anthropic_key=settings.anthropic_api_key,
                 source_resume_text=resume_text,
             )
             if layout_validation.get("truncated") or not layout_validation.get("page_breaks_clean", True):

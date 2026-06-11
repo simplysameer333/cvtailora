@@ -93,6 +93,8 @@ class ReviewerAgent:
                 SystemMessage(content=_SYSTEM),
                 HumanMessage(content=content),
             ])
+            from ..telemetry import record as record_usage
+            record_usage(settings.generator_model, "reviewer", response)
             raw = response.content.strip()
             if raw.startswith("```"):
                 raw = re.sub(r"^```(?:json)?\n?", "", raw)

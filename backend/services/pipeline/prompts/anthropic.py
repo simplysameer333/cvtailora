@@ -27,6 +27,52 @@ def _cached_system(text: str) -> SystemMessage:
     """
     return SystemMessage(content=[{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}])
 
+
+def _cached_human(stable: str, volatile: str) -> HumanMessage:
+    """HumanMessage split into a cached stable prefix + uncached volatile suffix.
+
+    The candidate's résumé, profile, JD, sample CV and key skills are identical
+    across every generator/patch/section call within a request (and across the
+    refine cycles), so marking that prefix with cache_control gives a ~90%
+    input discount on every call after the first. Per-cycle content (evaluator
+    feedback, current sections, output schema) goes in the uncached suffix so
+    it can change without invalidating the prefix.
+    """
+    return HumanMessage(content=[
+        {"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": volatile},
+    ])
+
+
+def _stable_input_blocks(
+    resume_text: str,
+    user_profile: dict,
+    job_description: str,
+    key_skills: list,
+    sample_cv_text: str | None = None,
+) -> str:
+    """The static candidate-input blocks shared VERBATIM by the generator, patch
+    and section builders. Must stay byte-identical across all three so a patch
+    call (cycle 2+) reads the cache entry the full-generation call wrote."""
+    parts = [
+        f"## EXISTING RESUME\n{resume_text}",
+        f"## CANDIDATE PROFILE\n{toon_encode(user_profile)}",
+        f"## JOB DESCRIPTION\n{job_description}",
+    ]
+    if sample_cv_text:
+        parts.append(
+            f"## FORMATTING REFERENCE (mirror section names, order, and structure — do NOT copy content)\n"
+            f"{sample_cv_text}"
+        )
+    if key_skills:
+        skills_block = "\n".join(f"- {s}" for s in key_skills)
+        parts.append(
+            f"## KEY SKILLS TO EMPHASISE (pre-analysed from the job description)\n"
+            f"Weave these through the output only where the candidate's resume genuinely supports them:\n"
+            f"{skills_block}"
+        )
+    return "\n\n".join(parts)
+
 # ── Generator ─────────────────────────────────────────────────────────────────
 
 _GENERATOR_SYSTEM_BASE = """You are an expert resume writer for TailorMyCv. Your sole purpose is to produce the strongest possible tailored resume for this specific candidate applying to this specific role.
@@ -332,23 +378,8 @@ async def generator_messages(
 ) -> list:
     """Build the full message list for a generator run (full resume generation)."""
     system = await _build_generator_system(tone, profession_config, locked_facts, template_pages)
-    parts = [
-        f"## EXISTING RESUME\n{resume_text}",
-        f"## CANDIDATE PROFILE\n{toon_encode(user_profile)}",
-        f"## JOB DESCRIPTION\n{job_description}",
-    ]
-    if sample_cv_text:
-        parts.append(
-            f"## FORMATTING REFERENCE (mirror section names, order, and structure — do NOT copy content)\n"
-            f"{sample_cv_text}"
-        )
-    if key_skills:
-        skills_block = "\n".join(f"- {s}" for s in key_skills)
-        parts.append(
-            f"## KEY SKILLS TO EMPHASISE (pre-analysed from the job description)\n"
-            f"Weave these through the output only where the candidate's resume genuinely supports them:\n"
-            f"{skills_block}"
-        )
+    stable = _stable_input_blocks(resume_text, user_profile, job_description, key_skills, sample_cv_text)
+    parts = []
     if feedback:
         parts.append(
             f"## EVALUATOR FEEDBACK (from previous cycle — address every suggestion)\n{feedback}"
@@ -356,7 +387,7 @@ async def generator_messages(
     # Dynamic output schema — always last before the generation trigger
     parts.append(_build_output_schema_instruction(has_reference_cv=bool(sample_cv_text)))
     parts.append("Generate the tailored resume JSON now.")
-    return [_cached_system(system), HumanMessage(content="\n\n".join(parts))]
+    return [_cached_system(system), _cached_human(stable, "\n\n" + "\n\n".join(parts))]
 
 
 def _build_patch_schema(patch_keys: list[str]) -> str:
@@ -404,22 +435,16 @@ async def patch_messages(
     Outputs a partial JSON containing only patch_keys — ~200–600 tokens instead
     of 2000–3000 for a full resume, so each patch cycle runs in ~8 s vs ~30 s.
     The caller merges the result back into the current resume.
-    Reuses the same cached system prompt as generator_messages for cache hits.
+    Reuses the same cached system prompt AND the same cached stable input prefix
+    as generator_messages, so patch cycles read the cache the first cycle wrote.
     """
     system = await _build_generator_system(tone, profession_config, locked_facts, template_pages)
     current_subset = {k: current_resume[k] for k in patch_keys if k in current_resume}
+    stable = _stable_input_blocks(resume_text, user_profile, job_description, key_skills)
     parts = [
-        f"## EXISTING RESUME (source of truth — never fabricate)\n{resume_text}",
-        f"## CANDIDATE PROFILE\n{toon_encode(user_profile)}",
-        f"## JOB DESCRIPTION\n{job_description}",
-    ]
-    if key_skills:
-        skills_block = "\n".join(f"- {s}" for s in key_skills)
-        parts.append(f"## KEY SKILLS TO EMPHASISE\n{skills_block}")
-    parts.append(
         f"## CURRENT SECTIONS TO FIX (improve these; do not regress what is already strong)\n"
         f"{toon_encode(current_subset)}"
-    )
+    ]
     parts.append(f"## EVALUATOR FEEDBACK (address every suggestion below)\n{feedback}")
     keys_str = ", ".join(f'"{k}"' for k in patch_keys)
     schema = _build_patch_schema(patch_keys)
@@ -430,7 +455,7 @@ async def patch_messages(
         f"{schema}"
     )
     parts.append(f"Rewrite {keys_str} to address the feedback above. Return only those keys.")
-    return [_cached_system(system), HumanMessage(content="\n\n".join(parts))]
+    return [_cached_system(system), _cached_human(stable, "\n\n" + "\n\n".join(parts))]
 
 
 async def section_messages(
@@ -447,27 +472,15 @@ async def section_messages(
 ) -> list:
     """Build the full message list for a section-only regeneration."""
     system = await _build_generator_system(tone, profession_config, locked_facts)
-    parts = [
-        f"## EXISTING RESUME\n{resume_text}",
-        f"## CANDIDATE PROFILE\n{toon_encode(user_profile)}",
-        f"## JOB DESCRIPTION\n{job_description}",
-    ]
-    if sample_cv_text:
-        parts.append(
-            f"## FORMATTING REFERENCE (mirror section names, order, and structure — do NOT copy content)\n"
-            f"{sample_cv_text}"
-        )
-    if key_skills:
-        skills_list = "\n".join(f"- {s}" for s in key_skills)
-        parts.append(f"## KEY SKILLS TO EMPHASISE\n{skills_list}")
-    parts.append(f"## CURRENT FULL RESUME (for context)\n{toon_encode(existing_resume)}")
+    stable = _stable_input_blocks(resume_text, user_profile, job_description, key_skills, sample_cv_text)
+    parts = [f"## CURRENT FULL RESUME (for context)\n{toon_encode(existing_resume)}"]
     parts.append(_build_output_schema_instruction(has_reference_cv=bool(sample_cv_text)))
     parts.append(
         f'Regenerate ONLY the "{section}" section. '
         f"Return the complete resume JSON with the regenerated section replacing the existing one. "
         f"Preserve all other sections exactly as they are in the CURRENT FULL RESUME."
     )
-    return [_cached_system(system), HumanMessage(content="\n\n".join(parts))]
+    return [_cached_system(system), _cached_human(stable, "\n\n" + "\n\n".join(parts))]
 
 
 # ── Job Analyzer ──────────────────────────────────────────────────────────────

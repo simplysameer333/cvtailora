@@ -1,9 +1,75 @@
 # Session Handoff — TailorMyCv
 
-> Rolling context for continuing work. **Last updated: 2026-06-07.**
+> Rolling context for continuing work. **Last updated: 2026-06-11.**
 > Branch: `main`. Railway auto-deploys both services on push.
 
 This is the broad handoff. CV-score-preview specifics live in `docs/CV_SCORE_PREVIEW_CONTEXT.md`.
+
+---
+
+## What shipped in the 2026-06-11 session — LLM cost reduction + correctness
+
+Focus: reduce per-run LLM cost without sacrificing quality. Plan agreed with user before
+final changes; user decisions recorded inline.
+
+### 1. URGENT — generator model retirement fix
+- `claude-sonnet-4-20250514` **retires 2026-06-15**. Swapped generator + anthropic evaluator
+  to `claude-sonnet-4-6` (drop-in, same $3/$15 price) in `config.py` defaults and local `.env`.
+- **ACTION REQUIRED: update `GENERATOR_MODEL` + `ANTHROPIC_EVALUATOR_MODEL` on Railway before June 15.**
+- New `job_analyzer_model` setting — **kept on Sonnet by user decision** ("Haiku calls are very
+  bad… need to use better model"); do not downgrade quality-bearing calls to Haiku.
+
+### 2. Multi-provider evaluators restored (user decision — reduce single-model bias)
+- `_TIER_EVALUATORS` in `routers/generate.py`: Free = cv_score; Plus = cv_score + OpenAI
+  (gpt-4o-mini); Pro = cv_score + OpenAI + Google (gemini-2.5-flash). Run in parallel — cheap, no
+  latency. `.env`: OPENAI/GOOGLE_EVALUATOR_ENABLED=true, GOOGLE_EVALUATOR_MODEL→gemini-2.5-flash.
+- Sonnet anthropic evaluator stays OFF (generator is already Sonnet; self-grading adds cost not signal).
+
+### 3. Prompt caching — static human-message prefix (former deferred opt #5)
+- `prompts/anthropic.py`: new `_stable_input_blocks()` + `_cached_human()`. Résumé/profile/JD/
+  sample/skills now form ONE byte-identical cached prefix across generator/patch/section calls;
+  per-cycle content (feedback, current sections, output schema) sits in an uncached suffix.
+  Cycles 2+ and patch calls read the prefix at ~0.1× input price.
+- Cache-minimum gotcha learned from current docs: **Haiku 4.5 minimum cacheable prefix is 4096
+  tokens** — the CV-score Haiku prompts (~2.4k tok) can never cache; their `cache_control` markers
+  are silent no-ops. Output tokens dominate those calls, not input.
+
+### 4. Telemetry now covers ALL calls (budget caps were under-charging ~40-50%)
+- `telemetry.record_anthropic()` records raw AsyncAnthropic responses; instrumented
+  check_resume / extract / grammar (`cv_score_quality|extract|grammar` agents) + the reviewer.
+- `start_capture()` moved to before the FIRST llm call in `/generate` (original-score + job
+  analyzer were previously uncaptured; section-regen path no longer re-captures).
+- Audit-log data that drove this (9 runs): avg $0.076 tracked vs ≈$0.13–0.16 true; all 9 runs
+  FAILED their tier bar (65–78 vs Plus 80/Pro 90) and plateau-exited at 2 cycles.
+
+### 5. Reviewer gate
+- Post-loop Sonnet reviewer now SKIPPED when the loop already passed the tier bar — its output is
+  never re-scored, so on a passing run it was an unmeasured (possibly regressive) extra Sonnet call.
+  Still runs on failing runs.
+
+### 6. Layout validator → pure function (was a Haiku call)
+- `validate_resume_layout` in `resume_checker_service.py` is now deterministic (line-count
+  heuristics the old prompt asked the LLM to compute). Sync, no `anthropic_key` param. Removes
+  1 Haiku call + 3–5 s per generation. Unit tests: `tests/test_layout_validator.py` (7 passing).
+- Dead prompt keys `cv_score_validate_system/prompt` removed from `prompt_store.py` +
+  `routers/admin.py` DEFAULTS.
+
+### Verified
+- 7/7 unit tests pass; full backend imports clean; smoke test confirms cached message structure
+  + byte-identical prefixes across generator/patch/section builders.
+- Mongo `prompt_overrides` is EMPTY — all live prompts are the code defaults.
+
+### Process note (user feedback)
+- **Plan first, get explicit agreement, then implement.** Do not start multi-file changes from a
+  "come up with a plan" request without confirming the steps.
+
+### Deferred / next
+- Trim in-loop CV-score output (54 check labels echoed every cycle ≈ 1.5k wasted output tokens)
+  — biggest remaining cut; gated on the now-accurate telemetry + the score-unification decision.
+- Watch new telemetry: cache_read share after the prefix caching, true $/run, effect of the
+  restored OpenAI/Google evaluators on cycles-to-pass (min over mixed rubrics may raise cycles).
+- All 9 recent runs failed the tier bar → first-pass quality is the real cost lever; revisit
+  generator prompt/model settings (e.g. Sonnet 4.6 `effort`) with eval-harness data.
 
 ---
 

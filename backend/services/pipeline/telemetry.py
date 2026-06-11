@@ -100,6 +100,36 @@ def record(model: str, agent: str, response) -> None:
     })
 
 
+def record_anthropic(model: str, agent: str, message) -> None:
+    """Record usage from a raw Anthropic SDK `Message` (not LangChain).
+
+    The CV-score family of calls (check_resume, grammar, extract) uses
+    AsyncAnthropic directly, so their spend was invisible to per-run telemetry
+    — and therefore to the user budget caps. This closes that gap.
+    No-op outside an active capture (e.g. standalone CV-score page requests).
+    """
+    bucket = _calls.get()
+    if bucket is None:
+        return
+    usage = getattr(message, "usage", None)
+    it = int(getattr(usage, "input_tokens", 0) or 0)
+    ot = int(getattr(usage, "output_tokens", 0) or 0)
+    cr = int(getattr(usage, "cache_read_input_tokens", 0) or 0)
+    cc = int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
+    # Anthropic SDK reports input_tokens EXCLUDING cached tokens; estimate_cost
+    # expects the inclusive total (LangChain convention), so add them back.
+    it_total = it + cr + cc
+    bucket.append({
+        "agent": agent,
+        "model": model,
+        "input_tokens": it_total,
+        "output_tokens": ot,
+        "cache_read_tokens": cr,
+        "cache_creation_tokens": cc,
+        "cost_usd": estimate_cost(model, it_total, ot, cr, cc),
+    })
+
+
 def summary() -> dict:
     """Collapse the capture into totals for logging / audit / persistence."""
     bucket = _calls.get() or []

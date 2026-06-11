@@ -463,6 +463,9 @@ async def check_resume(resume_text: str, anthropic_key: str) -> dict:
         system=_cache_system(system),
         messages=[{"role": "user", "content": prompt}],
     )
+    # Lazy import avoids a module-level cycle with the pipeline package.
+    from services.pipeline.telemetry import record_anthropic
+    record_anthropic("claude-haiku-4-5-20251001", "cv_score_quality", message)
 
     raw = message.content[0].text.strip()
     # Strip markdown code fences if the model wrapped the JSON
@@ -591,6 +594,8 @@ async def extract_resume_for_preview(resume_text: str, anthropic_key: str) -> di
         system=_cache_system(system),
         messages=[{"role": "user", "content": prompt}],
     )
+    from services.pipeline.telemetry import record_anthropic
+    record_anthropic("claude-haiku-4-5-20251001", "cv_score_extract", message)
 
     raw = message.content[0].text.strip()
     if raw.startswith("```"):
@@ -616,130 +621,166 @@ async def extract_resume_for_preview(resume_text: str, anthropic_key: str) -> di
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Dedicated resume QA validator — checks fit, optimisation, completeness
+# Resume QA validator — page-fit, optimisation, completeness. PURE FUNCTION.
 # ═══════════════════════════════════════════════════════════════════════════════
-# A SEPARATE focused LLM call (one job: QA a structured resume against the page
-# budget and best-practice counts). Used after generation in the builder and
-# after extraction in the CV-score preview. Best-effort — callers should tolerate
-# failure and treat a missing verdict as "not validated", never a hard error.
+# Previously a Haiku call whose prompt instructed the model to do line-count
+# arithmetic; LLMs do that inconsistently and the call cost ~$0.01 + 3-5s per
+# generation. The same heuristics computed deterministically are more reliable,
+# free, and unit-testable (see tests/test_layout_validator.py).
 
-_VALIDATE_SYSTEM = (
-    "You are a senior resume QA reviewer. You receive a structured resume and a page "
-    "budget, and you judge three things only: (1) does the content fit the page budget "
-    "without overflowing or leaving the page badly underfilled, (2) is each section sized "
-    "to best practice, (3) are all expected sections present. You return a strict JSON "
-    "verdict and nothing else."
-)
+_LINES_PER_PAGE = 47  # a single A4 page holds ~45-50 text lines at resume font sizes
 
-# Best-practice targets the validator scores against — kept in sync with
-# _page_rules() in services/pipeline/prompts/anthropic.py.
-_VALIDATE_TARGETS = {
-    1: "1 A4 page. Targets: summary ≤2 sentences; skills 6–8; show 3 most recent roles; "
-       "bullets per role most-recent 3–4, then 2–3, then 1–2; each bullet ≤18 words.",
-    2: "2 A4 pages. Targets: summary 3 sentences; skills 8–10; show 4–5 roles; "
-       "bullets per role most-recent 4–5, mid 3, oldest 1–2; each bullet ≤22 words.",
+# Best-practice targets — kept in sync with _page_rules() in
+# services/pipeline/prompts/anthropic.py (the generator's page-count rules).
+_LAYOUT_TARGETS = {
+    1: {"summary_sentences": 2, "skills_max": 8,  "roles_max": 3,
+        "bullets_by_role": [4, 3, 2],       "bullet_words_max": 18},
+    2: {"summary_sentences": 3, "skills_max": 10, "roles_max": 5,
+        "bullets_by_role": [5, 3, 3, 2, 2], "bullet_words_max": 22},
 }
 
-_VALIDATE_PROMPT = """\
-Validate this resume against its page budget. Respond with ONLY the JSON object.
+_SKILLS_TITLE_RE = re.compile(r"skill|competenc|technolog|expertise|tool", re.I)
 
-PAGE BUDGET: {page_count} A4 page(s).
-BEST-PRACTICE TARGETS: {targets}
-
-{source_block}RESUME (structured JSON):
-{resume_json}
-
-Return EXACTLY this structure:
-{{
-  "estimated_pages": <number — how many A4 pages this content actually needs when rendered, e.g. 1.0, 1.5, 2.3>,
-  "truncated": <true if estimated_pages exceeds the PAGE BUDGET — i.e. content will overflow and be cut off>,
-  "page_breaks_clean": <true if every role/section fits cleanly within a page, false if any block would be split across a page boundary>,
-  "optimized": <true if section sizes follow the best-practice targets, else false>,
-  "page_fit": "<good | overflow_risk | underfilled>",
-  "issues": ["<each concrete problem, e.g. 'Skills list has 14 items (max 8 for 1 page)'>"],
-  "missing_sections": ["<any section heading present in the SOURCE but absent from the resume>"],
-  "suggestions": ["<each concrete fix, e.g. 'Cut oldest role from 5 bullets to 2'>"]
-}}
-
-HOW TO ESTIMATE PAGES (a single A4 page holds roughly 45–50 text lines at this font size):
-- Header + contact ≈ 3 lines. Summary ≈ 1 line per ~14 words. Skills ≈ 1 line per ~8 skills.
-- Each experience role ≈ 2 lines (title/company/dates) + 1 line per bullet (more if a bullet is long).
-- Education ≈ 1 line per entry. Each extra section ≈ 1 line heading + its items.
-- Sum the lines, divide by ~47 lines/page, round to one decimal.
-
-RULES:
-- truncated: TRUE whenever estimated_pages > the page budget. This is the most important field — a truncated resume has content cut off at the bottom and looks broken.
-- page_breaks_clean: FALSE if any single role (with its bullets) or section is so large it would straddle a page boundary — leaving part of the block on one page and the rest on the next (e.g. a role's header at the bottom of page 1 with its bullets on page 2, or a bullet split across the boundary). When false, add a suggestion naming the block to resize so it sits within one page.
-- page_fit: "overflow_risk" if estimated_pages exceeds the budget; "underfilled" if content fills less than ~70% of the budget (large empty space); otherwise "good".
-- optimized: false if ANY section breaks its best-practice target (too many skills, too many bullets on old roles, summary too long, etc.).
-- missing_sections: ONLY sections present in the SOURCE resume but absent from the structured resume. Empty array if none or no source provided.
-- When truncated, suggestions MUST say exactly what to cut to fit (e.g. 'Reduce to 4 most recent roles', 'Trim role X to 2 bullets', 'Cut skills from 14 to 8').
-- Be specific and quantitative. Empty arrays when there is nothing to report.
-"""
+# A role block larger than this risks straddling a page boundary (header on one
+# page, bullets on the next) — roughly a third of a page.
+_MAX_CLEAN_BLOCK_LINES = 15
 
 
-async def validate_resume_layout(
+def _words(text) -> int:
+    return len(str(text or "").split())
+
+
+def _section_lines(items: list) -> int:
+    """Lines for one extra section's items: short items (skill-style) render
+    inline ~6 per line; sentence items take 1 line per ~16 words."""
+    items = [str(i) for i in (items or []) if str(i).strip()]
+    if not items:
+        return 0
+    avg_len = sum(len(i) for i in items) / len(items)
+    if avg_len <= 30:  # skill/keyword style list
+        return max(1, -(-len(items) // 6))
+    return sum(max(1, -(-_words(i) // 16)) for i in items)
+
+
+def _role_lines(role: dict) -> int:
+    """Header (title/company/dates) ≈ 2 lines + 1 line per ~16 bullet words."""
+    bullets = role.get("bullets") or []
+    return 2 + sum(max(1, -(-_words(b) // 16)) for b in bullets)
+
+
+def validate_resume_layout(
     resume: dict,
     page_count: int,
-    anthropic_key: str,
     source_resume_text: str | None = None,
 ) -> dict:
-    """QA a structured resume against its page budget via a focused LLM call.
+    """QA a structured resume against its page budget — deterministic, no LLM.
 
     Returns: {estimated_pages: float, truncated: bool, page_breaks_clean: bool,
     optimized: bool, page_fit: str, issues: [], missing_sections: [],
     suggestions: []}. `truncated` flags content overflowing the budget;
-    `page_breaks_clean` is False when a role/section would be split across a
-    page boundary. Raises on LLM/parse failure — callers treat as best-effort.
+    `page_breaks_clean` is False when a role block is large enough to straddle
+    a page boundary.
     """
-    client = AsyncAnthropic(api_key=anthropic_key)
+    targets = _LAYOUT_TARGETS.get(page_count, _LAYOUT_TARGETS[2])
+    issues: list[str] = []
+    suggestions: list[str] = []
 
-    targets = _VALIDATE_TARGETS.get(page_count, _VALIDATE_TARGETS[2])
-    source_block = ""
+    # ── Line estimate ─────────────────────────────────────────────────────────
+    lines = 3  # header + contact
+    summary = str(resume.get("summary") or "")
+    lines += max(0, -(-_words(summary) // 14))
+
+    roles = [r for r in (resume.get("experience") or []) if isinstance(r, dict)]
+    role_blocks = [(_role_lines(r), r) for r in roles]
+    lines += 1 + sum(b for b, _ in role_blocks) if role_blocks else 0  # +1 heading
+
+    education = resume.get("education") or []
+    lines += (1 + len(education)) if education else 0
+
+    sections = [s for s in (resume.get("sections") or []) if isinstance(s, dict)]
+    for sec in sections:
+        lines += 1 + _section_lines(sec.get("items") or [])
+
+    estimated_pages = round(lines / _LINES_PER_PAGE, 1)
+    truncated = estimated_pages > page_count + 0.05
+    if truncated:
+        page_fit = "overflow_risk"
+    elif estimated_pages < 0.7 * page_count:
+        page_fit = "underfilled"
+    else:
+        page_fit = "good"
+
+    # ── Page-break hygiene: oversized role blocks risk straddling a boundary ──
+    page_breaks_clean = True
+    for block_lines, role in role_blocks:
+        if block_lines > _MAX_CLEAN_BLOCK_LINES:
+            page_breaks_clean = False
+            name = role.get("company") or role.get("role") or "a role"
+            suggestions.append(
+                f"Role '{name}' spans ~{block_lines} lines — trim its bullets so the block fits within one page."
+            )
+
+    # ── Best-practice targets ─────────────────────────────────────────────────
+    summary_sentences = len([s for s in re.split(r"[.!?]+", summary) if s.strip()])
+    if summary_sentences > targets["summary_sentences"] + 1:
+        issues.append(
+            f"Summary has {summary_sentences} sentences (target {targets['summary_sentences']} for {page_count} page(s))."
+        )
+
+    if len(roles) > targets["roles_max"]:
+        issues.append(f"{len(roles)} roles shown (max {targets['roles_max']} for {page_count} page(s)).")
+        suggestions.append(f"Reduce to the {targets['roles_max']} most recent/relevant roles.")
+
+    bullets_by_role = targets["bullets_by_role"]
+    for idx, role in enumerate(roles):
+        n_bullets = len(role.get("bullets") or [])
+        cap = bullets_by_role[min(idx, len(bullets_by_role) - 1)]
+        name = role.get("company") or role.get("role") or f"role {idx + 1}"
+        if n_bullets > cap:
+            issues.append(f"Role '{name}' has {n_bullets} bullets (max {cap} at position {idx + 1}).")
+            suggestions.append(f"Trim role '{name}' to {cap} bullets.")
+        long_bullets = sum(1 for b in (role.get("bullets") or []) if _words(b) > targets["bullet_words_max"])
+        if long_bullets:
+            issues.append(
+                f"{long_bullets} bullet(s) in '{name}' exceed {targets['bullet_words_max']} words."
+            )
+
+    for sec in sections:
+        if _SKILLS_TITLE_RE.search(str(sec.get("title") or "")):
+            n_skills = len(sec.get("items") or [])
+            if n_skills > targets["skills_max"]:
+                issues.append(f"Skills list has {n_skills} items (max {targets['skills_max']} for {page_count} page(s)).")
+                suggestions.append(f"Cut skills from {n_skills} to {targets['skills_max']}.")
+
+    if truncated:
+        suggestions.insert(0, (
+            f"Content needs ~{estimated_pages} pages but the template fits {page_count} — "
+            f"cut the lowest-value bullets and compress the oldest roles until it fits."
+        ))
+
+    # ── Completeness vs the source résumé ─────────────────────────────────────
+    missing_sections: list[str] = []
     if source_resume_text:
-        source_block = f"SOURCE RESUME (the candidate's original — for completeness check):\n{source_resume_text[:6000]}\n\n"
-
-    system = await _resolved("cv_score_validate_system", _VALIDATE_SYSTEM)
-    prompt = _safe_format(
-        "cv_score_validate_prompt",
-        await _resolved("cv_score_validate_prompt", _VALIDATE_PROMPT), _VALIDATE_PROMPT,
-        page_count=page_count,
-        targets=targets,
-        source_block=source_block,
-        resume_json=json.dumps(resume, ensure_ascii=False)[:8000],
-    )
-
-    message = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1500,
-        system=system,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = message.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw)
-
-    data = json.loads(raw)
-
-    # Derive truncated deterministically from estimated_pages as a safety net,
-    # in case the model sets the boolean inconsistently with its own estimate.
-    try:
-        est_pages = float(data.get("estimated_pages") or 0)
-    except (TypeError, ValueError):
-        est_pages = 0.0
-    truncated = bool(data.get("truncated", False)) or (est_pages > page_count + 0.05)
+        source = extract_full_profile(source_resume_text)
+        resume_titles = {str(s.get("title") or "").casefold() for s in sections}
+        for src_sec in source.get("extra_sections") or []:
+            title = str(src_sec.get("title") or "").strip()
+            if title and title.casefold() not in resume_titles:
+                missing_sections.append(title)
+        if source.get("skills") and not any(_SKILLS_TITLE_RE.search(str(s.get("title") or "")) for s in sections):
+            missing_sections.append("Skills")
+        if source.get("education") and not education:
+            missing_sections.append("Education")
 
     return {
-        "estimated_pages":   round(est_pages, 1),
+        "estimated_pages":   estimated_pages,
         "truncated":         truncated,
-        "page_breaks_clean": bool(data.get("page_breaks_clean", True)),
-        "optimized":         bool(data.get("optimized", False)),
-        "page_fit":          data.get("page_fit", "good") or "good",
-        "issues":            data.get("issues") or [],
-        "missing_sections":  data.get("missing_sections") or [],
-        "suggestions":       data.get("suggestions") or [],
+        "page_breaks_clean": page_breaks_clean,
+        "optimized":         not issues,
+        "page_fit":          page_fit,
+        "issues":            issues,
+        "missing_sections":  missing_sections,
+        "suggestions":       suggestions,
     }
 
 
@@ -839,6 +880,8 @@ async def check_grammar(resume_text: str, anthropic_key: str) -> dict:
         system=_cache_system(system),
         messages=[{"role": "user", "content": prompt}],
     )
+    from services.pipeline.telemetry import record_anthropic
+    record_anthropic("claude-haiku-4-5-20251001", "cv_score_grammar", message)
 
     raw = message.content[0].text.strip()
     if raw.startswith("```"):

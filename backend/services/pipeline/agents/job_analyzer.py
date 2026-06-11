@@ -22,7 +22,8 @@ class JobAnalyzerAgent(BaseAgent):
     """Analyses the job description against the candidate profile and returns
     the top-N skills/items the generator should prioritise.
 
-    Uses the same Anthropic model as the generator so no extra API key is needed.
+    Model comes from settings.job_analyzer_model (Sonnet — skill selection
+    quality steers every generator cycle, so this call is not downgraded).
     Runs once per generate request — not inside the evaluation loop — keeping
     the added cost to a single LLM call.
     """
@@ -32,7 +33,7 @@ class JobAnalyzerAgent(BaseAgent):
     def _model(self):
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(
-            model=settings.generator_model,
+            model=settings.job_analyzer_model,
             api_key=settings.anthropic_api_key,
             max_tokens=512,
             max_retries=0,
@@ -55,7 +56,7 @@ class JobAnalyzerAgent(BaseAgent):
         try:
             messages = await job_analyzer_messages(resume_text, user_profile, job_description, count)
             response = await self._model().ainvoke(messages)
-            record_usage(settings.generator_model, self.name, response)
+            record_usage(settings.job_analyzer_model, self.name, response)
             skills = parse_json_response(response.content)
             if isinstance(skills, list):
                 return [str(s) for s in skills[:count]]

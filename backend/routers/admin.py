@@ -34,7 +34,6 @@ from services.pipeline.prompts.google import _GOOGLE_EVALUATOR_BASE
 from services.resume_checker_service import (
     _SYSTEM as _CV_QUALITY_SYSTEM, _PROMPT as _CV_QUALITY_PROMPT,
     _EXTRACT_SYSTEM as _CV_EXTRACT_SYSTEM, _EXTRACT_PROMPT as _CV_EXTRACT_PROMPT,
-    _VALIDATE_SYSTEM as _CV_VALIDATE_SYSTEM, _VALIDATE_PROMPT as _CV_VALIDATE_PROMPT,
     _GRAMMAR_SYSTEM as _CV_GRAMMAR_SYSTEM, _GRAMMAR_PROMPT as _CV_GRAMMAR_PROMPT,
 )
 from services.candidate_profile_service import _SYSTEM as _CANDIDATE_PROFILE_SYSTEM
@@ -54,8 +53,6 @@ DEFAULTS: dict[str, str] = {
     "cv_score_quality_prompt": _CV_QUALITY_PROMPT,
     "cv_score_extract_system": _CV_EXTRACT_SYSTEM,
     "cv_score_extract_prompt": _CV_EXTRACT_PROMPT,
-    "cv_score_validate_system": _CV_VALIDATE_SYSTEM,
-    "cv_score_validate_prompt": _CV_VALIDATE_PROMPT,
     "cv_score_grammar_system": _CV_GRAMMAR_SYSTEM,
     "cv_score_grammar_prompt": _CV_GRAMMAR_PROMPT,
     "candidate_profile_system": _CANDIDATE_PROFILE_SYSTEM,

@@ -13,8 +13,13 @@ class Settings(BaseSettings):
     google_api_key: str = ""
 
     # ── Model names — swap in .env without touching code ──────────────────────
-    generator_model: str = "claude-sonnet-4-20250514"
-    anthropic_evaluator_model: str = "claude-sonnet-4-20250514"
+    # claude-sonnet-4-20250514 retires 2026-06-15 — claude-sonnet-4-6 is the
+    # drop-in replacement at the same price ($3/$15 per MTok).
+    generator_model: str = "claude-sonnet-4-6"
+    anthropic_evaluator_model: str = "claude-sonnet-4-6"
+    # Sonnet by user decision (2026-06-11): skill selection quality drives every
+    # downstream generator cycle, so don't downgrade this call to Haiku.
+    job_analyzer_model: str = "claude-sonnet-4-6"
     openai_evaluator_model: str = "gpt-4o-mini"
     google_evaluator_model: str = "gemini-2.5-flash"
 
@@ -95,6 +100,8 @@ class Settings(BaseSettings):
     # How long to serve cached search results before hitting RapidAPI again (seconds).
     # Same query+location+page within this window costs zero quota.
     jsearch_cache_ttl_s: int = 7200  # 2 hours default
+    # Hide jobs posted more than this many days ago from all search results.
+    jsearch_max_job_age_days: int = 100
 
     # ── LangSmith tracing (optional) ───────────────────────────────────────────
     # Set LANGSMITH_API_KEY to enable automatic LangGraph trace export.
