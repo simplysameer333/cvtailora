@@ -633,7 +633,7 @@ _LINES_PER_PAGE = 47  # a single A4 page holds ~45-50 text lines at resume font 
 # Best-practice targets — kept in sync with _page_rules() in
 # services/pipeline/prompts/anthropic.py (the generator's page-count rules).
 _LAYOUT_TARGETS = {
-    1: {"summary_sentences": 2, "skills_max": 8,  "roles_max": 3,
+    1: {"summary_sentences": 3, "skills_max": 8,  "roles_max": 3,
         "bullets_by_role": [4, 3, 2],       "bullet_words_max": 18},
     2: {"summary_sentences": 3, "skills_max": 10, "roles_max": 5,
         "bullets_by_role": [5, 3, 3, 2, 2], "bullet_words_max": 22},
