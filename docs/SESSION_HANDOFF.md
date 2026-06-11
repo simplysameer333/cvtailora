@@ -63,6 +63,24 @@ final changes; user decisions recorded inline.
 - **Plan first, get explicit agreement, then implement.** Do not start multi-file changes from a
   "come up with a plan" request without confirming the steps.
 
+### Later same session (continued)
+- **Prompt quality pass over all 17 keys** (user-approved): generator prompt rewritten around the
+  REAL CV-Score weights (exp 25/skills 20/ats 20/summary 15/design 10/contact 7/edu 3); 1-page
+  rules aligned with grader checks (3-sentence summary, exactly 8 skills); OpenAI/Gemini evaluator
+  bases got explicit 0-100 calibration bands + "don't deduct for qualifications the candidate
+  genuinely lacks"; CV-Score calibration contradiction fixed (one ladder: 45-65 typical / 65-84
+  strong / 85+ excellent — note this shifts user-facing upload scores slightly); check count 51→52.
+- **Per-run score diagnostics**: cv_score evaluator returns per-category scores → flow through
+  aggregator into eval_history/session/quality-alert; `category_scores` added to the
+  resume.generate.complete audit entry. Answers "which category blocked the bar" per run.
+- **/health now returns the Railway commit SHA** (RAILWAY_GIT_COMMIT_SHA) — deploys are
+  externally verifiable. Used it to confirm 3bf1b42 live in prod.
+- **All prompt overrides DELETED from Mongo** (verified identical to deployed code first) —
+  code defaults are the single source of truth again; admin "Override active" badges gone.
+- Pushed: 27fa495, 312c3cb, 2ef0fcf, d60ff48, 3bf1b42. Railway deploy of 3bf1b42 confirmed.
+- STILL PENDING: Railway env vars GENERATOR_MODEL/ANTHROPIC_EVALUATOR_MODEL → claude-sonnet-4-6
+  (override code defaults; old model 404s June 15) + optional OPENAI/GOOGLE_EVALUATOR_ENABLED=true.
+
 ### Deferred / next
 - Trim in-loop CV-score output (54 check labels echoed every cycle ≈ 1.5k wasted output tokens)
   — biggest remaining cut; gated on the now-accurate telemetry + the score-unification decision.
