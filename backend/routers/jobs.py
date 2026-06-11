@@ -51,6 +51,18 @@ def _cache_key(*parts: str) -> str:
     return hashlib.md5("|".join(parts).encode()).hexdigest()
 
 
+def _is_recent(job: dict) -> bool:
+    """Return False if the job was posted more than jsearch_max_job_age_days ago."""
+    posted = job.get("job_posted_at_datetime_utc")
+    if not posted:
+        return True
+    try:
+        dt = datetime.fromisoformat(posted.replace("Z", "+00:00")).replace(tzinfo=None)
+        return (datetime.utcnow() - dt).days <= settings.jsearch_max_job_age_days
+    except (ValueError, AttributeError):
+        return True
+
+
 async def _get_cache(key: str) -> dict | None:
     db = get_db()
     cutoff = datetime.utcnow() - timedelta(seconds=settings.jsearch_cache_ttl_s)
@@ -103,6 +115,7 @@ async def search_jobs(
     cache_key = _cache_key(" ".join(q.lower().split()), str(page), str(page_size))
     cached = await _get_cache(cache_key)
     if cached:
+        cached["jobs"] = [j for j in cached.get("jobs", []) if _is_recent(j)]
         cached["from_cache"] = True
         return cached
 
@@ -123,7 +136,7 @@ async def search_jobs(
         raise HTTPException(502, f"Job search service error ({exc.response.status_code}).")
 
     data = res.json()
-    jobs = data.get("data", [])
+    jobs = [j for j in data.get("data", []) if _is_recent(j)]
 
     # Increment quota after successful call
     quota = await increment()
