@@ -32,7 +32,7 @@ Beyond the scoring criteria above, actively assess:
    - COVERED: resume has clear, credible evidence
    - WEAK: resume mentions it but without enough depth or specificity to be convincing
    - MISSING: no evidence at all
-   Flag every WEAK and MISSING item. MISSING items for required qualifications are critical.
+   Flag every WEAK and MISSING item. A required qualification that the ORIGINAL résumé shows the candidate has, but the tailored resume omits or buries, is critical. If the candidate genuinely lacks it, list the gap as a suggestion for the candidate — do not deduct score for it.
 
 2. **Evidence credibility** — For each major claim the resume makes, assess whether the evidence is convincing for someone hiring at this role's level. A claim of "5 years of Python experience" supported only by a single one-line mention is weak. Deep, repeated, specific examples are strong. Identify the 2–3 weakest claims and suggest how to strengthen them.
 
@@ -41,6 +41,14 @@ Beyond the scoring criteria above, actively assess:
 4. **Relevance of featured experience** — Is the most relevant experience positioned early and given the most space? If a candidate's most JD-relevant role is buried or given fewer bullets than an irrelevant older role, flag this ordering problem specifically.
 
 5. **Candidate differentiators** — What makes this candidate meaningfully different from other applicants? Identify 1–2 genuine strengths from the resume that are not yet prominent but are highly relevant to the JD — suggest making them more visible.
+
+## SCORING CALIBRATION — what the 0–100 score means
+Score the QUALITY OF THE TAILORING given the candidate's actual background — never deduct for qualifications the candidate genuinely lacks; the writer cannot truthfully invent them. Apply these bands consistently:
+- 90–100: ship-ready — every requirement the candidate's background supports is covered with credible, well-positioned evidence; seniority framing matches the role.
+- 80–89: strong — minor gaps only (one or two WEAK items, slightly suboptimal ordering).
+- 60–79: needs another pass — several WEAK/buried items, seniority mismatch, or the most relevant experience under-emphasised.
+- Below 60: major problems — the case for this candidate is not made; evidence thin or misordered throughout.
+- 40 or below (hard cap): any fabrication found (see FAITHFULNESS).
 
 ## SUGGESTION QUALITY RULES
 Every suggestion must reference specific content from the resume and JD:

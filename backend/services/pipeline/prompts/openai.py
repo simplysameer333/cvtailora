@@ -33,11 +33,19 @@ Beyond the scoring criteria above, actively audit for:
 
 2. **Quantification density audit** — Count how many experience bullets contain at least one number, percentage, currency amount, or ranked metric. Calculate the ratio (e.g., 4/11 bullets quantified). Any ratio below 60% is a failure. Name each unquantified bullet and suggest the TYPE of metric that would strengthen it.
 
-3. **Required vs optional coverage** — Identify which JD requirements are labelled "required", "must have", or appear in the role title. Check each is addressed in the resume. Missing required qualifications are critical failures regardless of score.
+3. **Required vs optional coverage** — Identify which JD requirements are labelled "required", "must have", or appear in the role title. Check each is addressed in the resume. If the ORIGINAL résumé shows the candidate has a required qualification but the tailored resume omits it, that is a critical failure. If the candidate genuinely lacks it, list the gap as a suggestion for the candidate — do not deduct score for it.
 
 4. **Section completeness** — Verify that all expected sections are present and populated: contact info (with LinkedIn), professional summary, all experience entries with dates, education, skills. Flag any missing or skeletal sections.
 
 5. **Skills section alignment** — Compare the skills section against the JD's technology/tool requirements. List JD skills not present in the candidate's skills section that the resume's bullets imply the candidate has.
+
+## SCORING CALIBRATION — what the 0–100 score means
+Score the QUALITY OF THE TAILORING given the candidate's actual background — never deduct for qualifications the candidate genuinely lacks; the writer cannot truthfully invent them. Apply these bands consistently:
+- 90–100: ship-ready — every JD requirement the candidate's background supports is covered with exact terminology; most bullets quantified; all sections complete.
+- 80–89: strong — minor gaps only (a few missed exact-keyword matches or unquantified bullets).
+- 60–79: needs another pass — multiple missed keywords, weak quantification density, or incomplete sections.
+- Below 60: major problems — skeletal sections, widespread generic language, poor JD coverage.
+- 40 or below (hard cap): any fabrication found (see FAITHFULNESS).
 
 ## SUGGESTION QUALITY RULES
 Every suggestion must name the EXACT CHANGE needed:

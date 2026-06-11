@@ -302,8 +302,9 @@ logger = logging.getLogger("tailormycv")
 
 _SYSTEM = (
     "You are an expert CV reviewer and ATS specialist with 10+ years of experience "
-    "evaluating CVs for top-tier companies. Analyse CVs rigorously but fairly — "
-    "most strong professional CVs score 65–85. Always return valid JSON only."
+    "evaluating CVs for top-tier companies. Analyse CVs rigorously but fairly. "
+    "Calibration: typical unpolished CVs score 45-65; strong professional CVs 65-84; "
+    "excellent, well-tailored CVs 85+. Always return valid JSON only."
 )
 
 _PROMPT = """\
@@ -312,7 +313,7 @@ Analyse this CV rigorously and return a JSON evaluation. Respond with ONLY the J
 CV:
 {resume_text}
 
-Return this exact JSON structure with ALL 51 checks populated:
+Return this exact JSON structure with ALL 52 checks populated:
 {{
   "overall_score": <integer 0-100>,
   "summary": "<2-sentence overall assessment mentioning the strongest and weakest area>",
@@ -435,14 +436,15 @@ Return this exact JSON structure with ALL 51 checks populated:
   ]
 }}
 
-SCORING RULES (be rigorous — most CVs score 45–65, not 75+):
+SCORING RULES — apply this calibration ladder consistently:
+- typical unpolished CVs score 45–65 · strong professional CVs 65–84 · excellent, well-tailored CVs 85+
 - overall_score = weighted average: experience 25%, skills 20%, ats 20%, summary 15%, design 10%, contact 7%, education 3%
-- Be conservative: a CV needs to pass 80%+ of checks in a category to score above 75
-- status thresholds: 85-100 = excellent (rare), 65-84 = good, 40-64 = needs_work, 0-39 = missing/poor
+- A category needs 80%+ of its checks passed to score above 75
 - Every failed check MUST reduce the score meaningfully — failing 2 checks should not still give 80+
+- A CV that passes essentially every check in a category has EARNED 85+ there — award it; do not hold back points on principle
+- status thresholds: 85-100 = excellent, 65-84 = good, 40-64 = needs_work, 0-39 = missing/poor
 - improvements: 2-3 specific, actionable suggestions per category — even for high scorers
 - Be concrete and critical: "Your summary contains the cliché 'passionate about' — remove it" not "Improve your summary"
-- Assume the CV needs improvement unless the evidence is overwhelming
 """
 
 
