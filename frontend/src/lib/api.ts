@@ -347,15 +347,37 @@ export interface EvaluatorResult {
   suggestions: string[];
 }
 
+export interface CategoryScore {
+  key: string;
+  name: string;
+  score: number;
+}
+
 export interface EvalSummary {
   cycles: number;
   all_passed: boolean;
   min_score: number;
-  /** Threshold that was used — read from PASS_THRESHOLD env var. */
+  /** Tier-aware threshold the score must reach (Free 70 / Plus 80 / Pro 90). */
   pass_threshold: number;
   evaluator_results: EvaluatorResult[];
   /** Profession display name resolved for this session. */
   profession: string;
+  /** User's subscription tier — labels the target in the breakdown. */
+  tier?: string;
+  /** Per-category CV-Score breakdown (same 8 categories as the CV Score page). */
+  category_scores?: CategoryScore[];
+  /** Categories below pass_threshold, weakest first — "what blocked your target". */
+  blocking_categories?: CategoryScore[];
+  /** Set when an evaluator flagged a possible unsupported claim vs the original. */
+  faithfulness_warning?: string | null;
+  /** A4 page budget of the selected template (used to show page-fit status). */
+  template_pages?: number;
+  /** Deterministic layout QA against the page budget. */
+  layout_validation?: {
+    estimated_pages?: number;
+    truncated?: boolean;
+    page_fit?: string;
+  } | null;
 }
 
 export interface PipelineResult {

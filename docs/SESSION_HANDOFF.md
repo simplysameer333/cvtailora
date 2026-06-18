@@ -1,9 +1,62 @@
 # Session Handoff — TailorMyCv
 
-> Rolling context for continuing work. **Last updated: 2026-06-11.**
+> Rolling context for continuing work. **Last updated: 2026-06-18.**
 > Branch: `main`. Railway auto-deploys both services on push.
 
 This is the broad handoff. CV-score-preview specifics live in `docs/CV_SCORE_PREVIEW_CONTEXT.md`.
+
+---
+
+## What shipped in the 2026-06-18 session — builder score = CV-Score, tier calibration, page enforcement
+
+Triggered by a report: a Plus résumé showed **40/100** in the builder but **75/100** on the
+CV Score page (same résumé), and the 3-page output overflowed a 2-page template. Root causes +
+fixes below. **Plan was agreed with the user before implementing.** Backend tests + frontend tsc green.
+
+### 1. Headline score = the cv_score engine, NOT min() across the panel
+- `aggregator.py`: the headline (`min_score` field, kept for compatibility) is now the **cv_score
+  evaluator's score** — the same `check_resume` engine the CV Score page uses — so builder == page.
+  Previously `min(panel)` let the OpenAI/Google evaluators (different JD rubric + a hard
+  fabrication cap at 40) hijack the headline (75 shown as 40). `all_passed` now gates on that
+  headline. Falls back to `min()` only if cv_score is somehow absent.
+- OpenAI/Google now drive **feedback + a non-blocking faithfulness flag** only. The flag fires when
+  a cross-provider evaluator scores ≤40 AND its #1 suggestion matches fabrication markers; surfaced
+  to the user, never folded into the score. New state field `faithfulness_warning`.
+- Tests: `backend/tests/test_aggregator_headline.py` (6 passing).
+
+### 2. Tier-aware calibration (paid users not scored conservatively)
+- `check_resume(..., conservative: bool = True)`. The standard ladder (strong CVs cap ~84) is the
+  free-tier upgrade lever; `conservative=False` appends `_PAID_CALIBRATION` to the USER message
+  (cache-safe) so Plus/Pro strong CVs reach the low-to-mid 80s and can clear their bar.
+- Threaded from tier via new state field `conservative_scoring` → only the **cv_score evaluator**
+  uses it (nodes.py `evaluate_node`). `_original_cv_score` is also tier-aware (bypasses the
+  conservative `cv_check_results` cache for paid) so "beat the original" compares like with like.
+- **DECISION / still conservative:** the **public CV Score page** (`routers/resume.py`) and template
+  previews were left on the conservative ladder (the upgrade lever; avoids free/paid cache
+  poisoning on the shared `cv_check_results` cache). If the public page should also be fair for
+  logged-in paid users, that needs a calibration-keyed cache — easy follow-up, flagged to user.
+
+### 3. Result page shows WHY the score is what it is
+- `/generate` `eval_summary` now returns `category_scores` (8-category breakdown), `blocking_categories`
+  (below the tier bar, weakest first), `faithfulness_warning`, `tier`, `template_pages`,
+  `layout_validation`. `EvalQualityPanel.tsx` renders a per-category bar breakdown + "Below your
+  {Tier} target of {N}: …" + faithfulness warning + page-fit line, on both the template result page
+  and the preview page. Flows via the existing localStorage `tailormycv_eval_summary`.
+
+### 4. Page limit is DATA + enforced
+- Deleted the hardcoded `_TEMPLATE_PAGES` dict in `generate.py` (it disagreed with the data —
+  e.g. listed TechModern=1 vs data pages=2 — and silently defaulted admin/AI templates to 2).
+  Page budget now read from the `cv_templates` doc via `_resolve_template_pages(db, key)`, which
+  **warns** instead of silently defaulting. `seed_cv_templates` backfills `pages` onto old rows.
+- **Enforcement:** on layout-validator overflow, one bounded corrective **trim pass**
+  (`GeneratorAgent.run_trim` + `trim_messages` — cut/tighten existing text, never invent, never drop
+  a section), re-validate, keep only if it improved the fit, and re-persist `generated_resume`.
+
+### Pending / notes
+- Not committed or pushed (user was away). Local working tree has the changes.
+- Railway env vars `GENERATOR_MODEL`/`ANTHROPIC_EVALUATOR_MODEL` → `claude-sonnet-4-6` were pushed
+  via API this session (fixed the prod 404 on the retired model).
+- Watch: paid scores will rise vs before (intended). The trim pass adds ≤1 Sonnet call only on overflow.
 
 ---
 

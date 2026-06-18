@@ -157,11 +157,22 @@ async def evaluate_node(state: PipelineState) -> dict:
         and tier_enabled.get(e.name, False)
         and (not profession_allowed or e.name in profession_allowed)
     ]
+    # Paid tiers score the headline (cv_score) fairly, not via the free-tier
+    # conservative ladder. Only cv_score is calibrated; the cross-provider
+    # evaluators are unaffected.
+    conservative = state.get("conservative_scoring", True)
+
+    def _kwargs(e):
+        kw = {"source_resume_text": state.get("resume_text", "")}
+        if e.name == "cv_score":
+            kw["conservative"] = conservative
+        return kw
+
     eval_results = list(
         await asyncio.gather(*[
             e.run(
                 state["resume_json"], state["job_description"], state["profession_config"],
-                source_resume_text=state.get("resume_text", ""),
+                **_kwargs(e),
             )
             for e in active
         ])
@@ -191,6 +202,7 @@ async def aggregate_node(state: PipelineState) -> dict:
         "cycle": state["cycle"] + 1,
         "all_passed": aggregated["all_passed"],
         "min_score": min_score,
+        "faithfulness_warning": aggregated.get("faithfulness_warning"),
         # How much this cycle improved on the best so far (can be negative on a
         # regression). should_continue uses it for plateau early-exit.
         "last_gain": min_score - prev_best,

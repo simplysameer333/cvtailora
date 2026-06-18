@@ -50,7 +50,19 @@ class PipelineState(TypedDict):
     seen_suggestions: Annotated[list, operator.add]
     # ── aggregated decision ───────────────────────────────────────────────────
     all_passed: bool
+    # The HEADLINE score = the cv_score evaluator's score (the same number the
+    # user-facing CV Score page shows). Named min_score for historical reasons;
+    # it is no longer min() across the panel — the cross-provider evaluators
+    # (openai/google) drive feedback only, never the headline. See aggregator.
     min_score: int
+    # Free/anon → True (conservative upgrade-lever calibration); paid → False
+    # (fair calibration). Set by the generate router from the user's tier and
+    # consumed only by the cv_score evaluator.
+    conservative_scoring: bool
+    # Set when a cross-provider evaluator flags possible fabrication against the
+    # ORIGINAL résumé. Surfaced to the user as a non-blocking warning; does not
+    # affect the headline score. None when no concern was raised.
+    faithfulness_warning: Optional[str]
     # ── per-request evaluator selection ──────────────────────────────────────
     # Set by the generate router based on the user's subscription tier so each
     # request runs only the evaluators their tier is entitled to.

@@ -91,6 +91,25 @@ class GeneratorAgent(BaseAgent):
                 result[key] = value
         return result
 
+    async def run_trim(
+        self,
+        resume_json: dict,
+        template_pages: int,
+        overflow_note: str,
+    ) -> dict:
+        """One-shot layout trim: cut/tighten content to fit the page budget.
+
+        Fires only when the deterministic layout validator flags overflow. Returns
+        the trimmed resume, or the original unchanged if the response can't be
+        parsed (never worse than the input).
+        """
+        from ..prompts.anthropic import trim_messages
+        messages = await trim_messages(resume_json, template_pages, overflow_note)
+        response = await self._model(max_tokens=3000, timeout=60).ainvoke(messages)
+        record_usage(settings.generator_model, "generator_trim", response)
+        trimmed = parse_json_response(response.content)
+        return trimmed if isinstance(trimmed, dict) and trimmed.get("experience") else resume_json
+
     async def run_section(
         self,
         resume_text: str,

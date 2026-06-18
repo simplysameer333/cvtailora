@@ -447,9 +447,32 @@ SCORING RULES — apply this calibration ladder consistently:
 - Be concrete and critical: "Your summary contains the cliché 'passionate about' — remove it" not "Improve your summary"
 """
 
+# Paid-tier calibration. The standard ladder above is intentionally conservative
+# (strong CVs cap at ~84) — it nudges free users to upgrade. Paid users have
+# already paid, so their résumé is scored fairly: a genuinely strong CV reaches
+# the 80s and can actually clear its tier bar. Appended to the USER message (not
+# the cached system prompt) so it is the model's last instruction and does not
+# disturb the shared system-prompt cache.
+_PAID_CALIBRATION = (
+    "\n\nPAID-TIER CALIBRATION — OVERRIDES THE SCORING LADDER ABOVE:\n"
+    "This is a paying customer; do NOT score conservatively. Apply this ladder instead:\n"
+    "- typical CVs: 55–72\n"
+    "- strong professional CVs: 78–90\n"
+    "- excellent, well-tailored CVs: 90+\n"
+    "A solid professional CV with only minor gaps MUST land in the low-to-mid 80s — "
+    "never hold a clearly strong CV in the 70s. Reserve sub-70 scores for CVs with "
+    "multiple real, substantive weaknesses. Keep per-category scoring rules; only the "
+    "overall calibration bands change."
+)
 
-async def check_resume(resume_text: str, anthropic_key: str) -> dict:
-    """Analyse CV text and return structured quality check results."""
+
+async def check_resume(resume_text: str, anthropic_key: str, conservative: bool = True) -> dict:
+    """Analyse CV text and return structured quality check results.
+
+    conservative=True applies the standard (free-tier) calibration ladder.
+    conservative=False applies the paid-tier ladder so strong CVs are not held
+    in the 70s — used by the builder pipeline for Plus/Pro users.
+    """
     client = AsyncAnthropic(api_key=anthropic_key)
 
     system = await _resolved("cv_score_quality_system", _SYSTEM)
@@ -458,6 +481,8 @@ async def check_resume(resume_text: str, anthropic_key: str) -> dict:
         await _resolved("cv_score_quality_prompt", _PROMPT), _PROMPT,
         resume_text=resume_text[:8000],
     )
+    if not conservative:
+        prompt = prompt + _PAID_CALIBRATION
 
     message = await client.messages.create(
         model="claude-haiku-4-5-20251001",

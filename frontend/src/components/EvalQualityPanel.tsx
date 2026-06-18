@@ -3,7 +3,7 @@
  * Resume quality score panel — shared between builder/preview and builder/template.
  * Displays the multi-evaluator score, quality label, progress bar, and cycle count.
  */
-import { FiAward, FiCheckCircle, FiShield } from "react-icons/fi";
+import { FiAward, FiCheckCircle, FiShield, FiAlertTriangle } from "react-icons/fi";
 import type { EvalSummary } from "@/lib/api";
 
 function qualityLabel(score: number, threshold: number): string {
@@ -11,6 +11,77 @@ function qualityLabel(score: number, threshold: number): string {
   if (score >= threshold + 15) return "Strong";
   if (score >= threshold) return "Good";
   return "Reviewed";
+}
+
+// Per-category bar colour — absolute bands, matching the CV Score page.
+function catBar(score: number): string {
+  if (score >= 80) return "bg-green-500";
+  if (score >= 65) return "bg-amber-500";
+  return "bg-red-500";
+}
+
+/**
+ * Per-category breakdown + "what blocked your target" + faithfulness warning.
+ * Renders the SAME 8 categories the CV Score page shows, so the builder result
+ * explains exactly why the headline score is what it is. No-op when the backend
+ * sent no category data (older sessions / cached results).
+ */
+function ScoreBreakdown({ summary }: { summary: EvalSummary }) {
+  const cats = summary.category_scores ?? [];
+  if (cats.length === 0) return null;
+  const blocking = summary.blocking_categories ?? [];
+  const target = summary.pass_threshold;
+  const tierLabel = summary.tier ? summary.tier[0].toUpperCase() + summary.tier.slice(1) : "your";
+
+  return (
+    <div className="mt-3 pt-3 border-t border-white/60 flex flex-col gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+        {cats.map(c => (
+          <div key={c.key} className="flex items-center gap-2 text-xs">
+            <span className="w-24 shrink-0 text-slate-600 truncate">{c.name}</span>
+            <div className="flex-1 h-1.5 bg-white/70 rounded-full overflow-hidden border border-white">
+              <div className={`h-full rounded-full ${catBar(c.score)}`}
+                style={{ width: `${Math.min(100, Math.max(0, c.score))}%` }} />
+            </div>
+            <span className="w-7 text-right font-semibold text-slate-700 shrink-0">{c.score}</span>
+          </div>
+        ))}
+      </div>
+
+      {!summary.all_passed && blocking.length > 0 && (
+        <p className="text-xs text-slate-600 leading-relaxed">
+          <span className="font-semibold text-slate-700">Below your {tierLabel} target of {target}: </span>
+          {blocking.slice(0, 3).map(c => `${c.name} (${c.score})`).join(", ")}
+          {blocking.length > 3 ? ` +${blocking.length - 3} more` : ""}. Improving these raises your score.
+        </p>
+      )}
+
+      {summary.faithfulness_warning && (
+        <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+          <FiAlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span><span className="font-semibold">Check this claim: </span>{summary.faithfulness_warning}</span>
+        </div>
+      )}
+
+      <PageFit summary={summary} />
+    </div>
+  );
+}
+
+/** One-line page-fit status against the template's A4 page budget. */
+function PageFit({ summary }: { summary: EvalSummary }) {
+  const lv = summary.layout_validation;
+  const budget = summary.template_pages;
+  if (!lv || !budget) return null;
+  const overflow = lv.truncated || lv.page_fit === "overflow_risk";
+  return (
+    <p className={`text-xs ${overflow ? "text-amber-700" : "text-slate-500"}`}>
+      {overflow ? <FiAlertTriangle className="inline w-3 h-3 mr-1 -mt-0.5" /> : null}
+      {overflow
+        ? `Content runs to ~${lv.estimated_pages} pages on this ${budget}-page template — consider a 2-page template or trimming.`
+        : `Fits the ${budget}-page template.`}
+    </p>
+  );
 }
 
 function qualityColors(score: number, threshold: number) {
@@ -47,6 +118,7 @@ export function EvalQualityPanel({ evalSummary }: { evalSummary: EvalSummary }) 
       <p className="text-xs text-slate-500">
         {evaluator_results.length} evaluator{evaluator_results.length !== 1 ? "s" : ""} · {cycles} cycle{cycles !== 1 ? "s" : ""} · {all_passed ? "All passed" : "Best version selected"}
       </p>
+      <ScoreBreakdown summary={evalSummary} />
     </div>
   );
 }
@@ -87,6 +159,7 @@ export function EvalSummaryPanel({ summary }: { summary: EvalSummary }) {
           ))}
         </div>
       )}
+      <ScoreBreakdown summary={summary} />
     </div>
   );
 }

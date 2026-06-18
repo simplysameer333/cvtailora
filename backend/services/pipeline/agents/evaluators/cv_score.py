@@ -133,11 +133,13 @@ class CvScoreEvaluatorAgent(BaseEvaluatorAgent):
         return bool(settings.anthropic_api_key)
 
     async def run(self, resume_json: dict, job_description: str, profession_config: dict,
-                  source_resume_text: str = "") -> dict:
+                  source_resume_text: str = "", conservative: bool = True) -> dict:
         from services.resume_checker_service import check_resume, extract_weak_categories
         try:
             text = resume_json_to_text(resume_json)
-            result = await check_resume(text, settings.anthropic_api_key)
+            # conservative=False for paid tiers: the headline the user sees is scored
+            # fairly, not via the free-tier upgrade-lever calibration.
+            result = await check_resume(text, settings.anthropic_api_key, conservative=conservative)
             score = int(result.get("overall_score", 0) or 0)
             # Feedback = improvement hints from weak categories, shared with the
             # refinement loop via extract_weak_categories for consistency.

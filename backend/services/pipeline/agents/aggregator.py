@@ -32,8 +32,31 @@ class AggregatorAgent(BaseAgent):
         # Skip evaluators that returned None (infrastructure failure — not a quality signal).
         valid_results = [r for r in evaluator_results if r.get("score") is not None]
         scores = [r["score"] for r in valid_results]
-        min_score = min(scores) if scores else 0
-        all_passed = bool(scores) and all(s >= threshold for s in scores)
+
+        # HEADLINE = the cv_score evaluator's score (same engine the CV Score page
+        # uses), so the builder number and the user-facing number are identical.
+        # We do NOT use min() across the panel: the cross-provider evaluators
+        # (openai/google) use a different JD-alignment rubric with a punitive
+        # fabrication cap, and min() let the harshest one hijack the headline
+        # (e.g. CV Score 75 shown as 40). They now drive feedback + a faithfulness
+        # flag only. Falls back to min() if cv_score is somehow absent.
+        cv = next((r["score"] for r in valid_results if r.get("model") == "cv_score"), None)
+        min_score = cv if cv is not None else (min(scores) if scores else 0)
+        all_passed = min_score >= threshold
+
+        # Cross-provider evaluators cap their score at 40 on detected fabrication and
+        # make it suggestion #1. Surface that as an explicit, NON-blocking warning
+        # (the headline no longer drops for it) so the user can verify the claim.
+        _FAB_MARKERS = ("fabricat", "invent", "not supported", "not in the original",
+                        "unsupported", "does not appear in the original", "no evidence")
+        faithfulness_warning = None
+        for r in valid_results:
+            if r.get("model") == "cv_score" or r["score"] > 40:
+                continue
+            top = (r.get("suggestions") or [""])[0]
+            if any(m in top.lower() for m in _FAB_MARKERS):
+                faithfulness_warning = top
+                break
 
         lines = []
 
@@ -57,6 +80,7 @@ class AggregatorAgent(BaseAgent):
         return {
             "all_passed": all_passed,
             "min_score": min_score,
+            "faithfulness_warning": faithfulness_warning,
             "feedback_prompt": "\n".join(lines),
             "evaluator_results": evaluator_results,
             "new_seen_suggestions": new_seen,

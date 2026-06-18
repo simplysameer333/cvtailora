@@ -40,16 +40,27 @@ from services.pipeline.agents.job_analyzer import JobAnalyzerAgent
 from services.resume_checker_service import validate_resume_layout
 from services.user_actions_service import build_user_actions
 
-# Maps template key → number of A4 pages the template is designed for.
-# Used to give the LLM a hard content-length constraint during generation.
-_TEMPLATE_PAGES: dict[str, int] = {
-    "Cambridge":   1, "Swift":      1, "Catalyst":  1, "Canvas":    1,
-    "TechModern":  1, "SalesImpact":1,
-    "Horizon":     2, "Prestige":   2, "Admiral":   2, "Jade":      2,
-    "Prism":       2, "Vivid":      2, "Chronicle": 2, "Summit":    2,
-    "Symmetry":    2, "Scholar":    2, "Luxe":      2, "Pulse":     2,
-    "HexagonPro":  2, "Healthcare": 2,
-}
+async def _resolve_template_pages(db, template_key: str) -> int:
+    """Page budget for the selected template — read from the cv_templates DATA.
+
+    Templates are data, not code (see CLAUDE.md), so the page count lives on the
+    template doc. Falls back to 2 with a WARNING when the template or its `pages`
+    field is missing, so a new admin/AI-generated template never silently gets
+    the wrong budget without a trace in the logs.
+    """
+    if not template_key:
+        return 2
+    try:
+        doc = await db.cv_templates.find_one({"key": template_key}, {"pages": 1})
+    except Exception as exc:
+        logger.warning("[generate] template page lookup failed for %r: %s — defaulting to 2.", template_key, exc)
+        return 2
+    if doc and doc.get("pages"):
+        return int(doc["pages"])
+    logger.warning("[generate] template %r has no page count in cv_templates — defaulting to 2.", template_key)
+    return 2
+
+
 from services.profession_service import resolve_profession_for_role
 from services.email_service import send_quality_alert, send_error_alert
 
@@ -135,25 +146,30 @@ async def _increment_call_count(db, session_id: str, count: int):
     )
 
 
-async def _original_cv_score(db, resume_text: str) -> int:
+async def _original_cv_score(db, resume_text: str, conservative: bool = True) -> int:
     """CV-Score of the UPLOADED résumé — the floor the generated one must not drop below.
 
     Reuses the cached score from the upload/score flow when present (free); otherwise
     computes it once with check_resume (Haiku, cheap). Returns 0 on any failure so the
     gate falls back to the plain tier bar.
+
+    conservative must match the calibration the generated résumé is scored with
+    (paid → False) so "beat the original" compares like with like. The shared
+    cv_check_results cache holds conservative scores, so we bypass it for paid.
     """
     if not resume_text.strip():
         return 0
     text_hash = hashlib.sha256(resume_text[:8000].encode()).hexdigest()
-    try:
-        doc = await db.cv_check_results.find_one({"text_hash": text_hash}, sort=[("created_at", -1)])
-        if doc and doc.get("overall_score") is not None:
-            return int(doc["overall_score"] or 0)
-    except Exception:
-        pass
+    if conservative:
+        try:
+            doc = await db.cv_check_results.find_one({"text_hash": text_hash}, sort=[("created_at", -1)])
+            if doc and doc.get("overall_score") is not None:
+                return int(doc["overall_score"] or 0)
+        except Exception:
+            pass
     try:
         from services.resume_checker_service import check_resume
-        result = await check_resume(resume_text, settings.anthropic_api_key)
+        result = await check_resume(resume_text, settings.anthropic_api_key, conservative=conservative)
         return int(result.get("overall_score", 0) or 0)
     except Exception:
         return 0
@@ -214,12 +230,16 @@ async def generate(
 
     _TIER_THRESHOLDS = {"free": 70, "plus": 80, "pro": 90}
     tier_bar = _TIER_THRESHOLDS.get((user or {}).get("tier", "free"), settings.pass_threshold)
+    # Paid tiers are scored fairly; free/anon get the conservative calibration
+    # (the upgrade lever). Threaded into the original-score floor and the
+    # pipeline's cv_score evaluator so both use one consistent ladder.
+    conservative_scoring = (user or {}).get("tier", "free") not in ("plus", "pro")
     # Start telemetry BEFORE the first LLM call of the request — the original
     # CV-score, job analyzer and CV-score evaluator calls were previously
     # uncaptured, so est_cost_usd (and the budget caps charged from it)
     # undercounted real spend by roughly half.
     telemetry.start_capture()
-    original_score = await _original_cv_score(db, resume_text)
+    original_score = await _original_cv_score(db, resume_text, conservative=conservative_scoring)
     pass_threshold = min(100, max(tier_bar, int(original_score * 0.90)))
     _TIER_MAX_CYCLES = {"free": 3, "plus": 4, "pro": 5}
     max_cycles = _TIER_MAX_CYCLES.get((user or {}).get("tier", "free"), settings.max_eval_cycles)
@@ -339,7 +359,7 @@ async def generate(
     active_evaluator_count = sum(enabled_evaluators.values())
     await _check_cost_limit(db, session_id)
 
-    template_pages = _TEMPLATE_PAGES.get(template_id, 2)
+    template_pages = await _resolve_template_pages(db, template_id)
 
     initial_state = {
         "resume_text": resume_text,
@@ -354,6 +374,7 @@ async def generate(
         "pass_threshold": pass_threshold,
         "max_cycles": max_cycles,
         "template_pages": template_pages,
+        "conservative_scoring": conservative_scoring,
         "cycle": 0,
         "feedback": None,
         "resume_json": None,
@@ -365,6 +386,7 @@ async def generate(
         "last_gain": 0,
         "all_passed": False,
         "min_score": 0,
+        "faithfulness_warning": None,
     }
 
     pipeline_timeout = 300.0
@@ -465,15 +487,22 @@ async def generate(
         "evaluators": final_state.get("eval_results") or [],
     })
 
-    # Final-cycle CV-Score category scores — the per-run answer to "which
-    # category kept the score below the bar". Shown in the admin Audit tab.
-    category_scores = next(
-        ({c["key"]: c["score"] for c in (r.get("categories") or [])}
+    # Final-cycle CV-Score categories — the per-run answer to "which category
+    # kept the score below the bar". The dict feeds the admin Audit tab; the full
+    # list (with display names) feeds the result-page breakdown the user sees.
+    cv_categories = next(
+        ((r.get("categories") or [])
          for r in (final_state.get("eval_results") or []) if r.get("model") == "cv_score"),
-        {},
+        [],
     )
+    category_scores = {c["key"]: c["score"] for c in cv_categories if c.get("key")}
     if category_scores:
         logger.info("[generate] CATEGORY SCORES session=%s %s", session_id, category_scores)
+    # Categories below the tier bar, weakest first — "what blocked your target".
+    blocking_categories = sorted(
+        [c for c in cv_categories if int(c.get("score", 0) or 0) < pass_threshold],
+        key=lambda c: int(c.get("score", 0) or 0),
+    )
 
     if user:
         log_audit(user, "resume.generate.complete", {
@@ -513,6 +542,43 @@ async def generate(
                 page_count=template_pages,
                 source_resume_text=resume_text,
             )
+            # ── Enforce the page budget ───────────────────────────────────────
+            # The generator is told the limit every cycle but can still overflow.
+            # On overflow, run ONE deterministic-gated corrective trim pass (cut/
+            # tighten existing content, never invent) and re-validate. Bounded:
+            # at most one extra Sonnet call, only when the résumé actually overflows.
+            if layout_validation.get("truncated") and not _timed_out:
+                try:
+                    from services.pipeline.agents.generator import GeneratorAgent
+                    overflow_note = (
+                        f"Estimated {layout_validation.get('estimated_pages')} pages vs a "
+                        f"{template_pages}-page budget. "
+                        + " ".join(layout_validation.get("suggestions") or [])
+                    )
+                    trimmed = await GeneratorAgent().run_trim(
+                        final_state["resume_json"], template_pages, overflow_note,
+                    )
+                    if trimmed is not final_state["resume_json"]:
+                        revalid = validate_resume_layout(
+                            resume=trimmed, page_count=template_pages, source_resume_text=resume_text,
+                        )
+                        # Keep the trim only if it actually helped the fit.
+                        if revalid.get("estimated_pages", 99) <= layout_validation.get("estimated_pages", 0):
+                            final_state["resume_json"] = trimmed
+                            layout_validation = revalid
+                            # generated_resume was persisted before this point; re-save
+                            # so export/library get the trimmed version, not the overflow.
+                            await db.sessions.update_one(
+                                {"_id": ObjectId(session_id)},
+                                {"$set": {"generated_resume": trimmed}},
+                            )
+                            logger.info(
+                                "[generate] LAYOUT trim applied session %s: now est %s pages (budget %s), truncated=%s.",
+                                session_id, revalid.get("estimated_pages"), template_pages, revalid.get("truncated"),
+                            )
+                except Exception as _trim_exc:
+                    logger.warning("[generate] Layout trim skipped (non-fatal): %s", _trim_exc)
+
             if layout_validation.get("truncated") or not layout_validation.get("page_breaks_clean", True):
                 logger.warning(
                     "[generate] LAYOUT — session %s: est %s pages (template %s), truncated=%s, clean_breaks=%s. Fixes: %s",
@@ -553,10 +619,18 @@ async def generate(
         "original_score": original_score,
         "beat_original": (not original_score) or final_score >= original_score,
         "pass_threshold": pass_threshold,
+        "tier": user_tier,
         "evaluator_results": final_state["eval_results"],
+        # Per-category CV-Score breakdown (same engine as the CV Score page) +
+        # which categories fell below the tier bar — so the result page can show
+        # the user EXACTLY why the score is what it is.
+        "category_scores": cv_categories,
+        "blocking_categories": blocking_categories,
+        "faithfulness_warning": final_state.get("faithfulness_warning"),
         "profession": profession_config.get("display_name", "General"),
         "key_skills": key_skills,
         "layout_validation": layout_validation,
+        "template_pages": template_pages,
         "user_actions_needed": user_actions,
         "timed_out": _timed_out,
     }

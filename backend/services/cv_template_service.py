@@ -292,6 +292,20 @@ async def seed_cv_templates(db) -> int:
         inserted += 1
     if inserted:
         logger.info("cv_template.seed inserted=%s", inserted)
+    # Backfill the page count onto rows seeded before `pages` existed, so the
+    # generator's page-budget lookup reads real data instead of silently
+    # defaulting to 2. Idempotent: only touches rows missing the field.
+    backfilled = 0
+    for t in BUILTIN_TEMPLATES:
+        if not t.get("pages"):
+            continue
+        res = await db.cv_templates.update_one(
+            {"key": t["key"], "pages": {"$exists": False}},
+            {"$set": {"pages": t["pages"], "updated_at": now}},
+        )
+        backfilled += res.modified_count
+    if backfilled:
+        logger.info("cv_template.seed backfilled pages on %s rows", backfilled)
     return inserted
 
 

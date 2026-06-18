@@ -477,6 +477,37 @@ async def section_messages(
     return [_cached_system(system), _cached_human(stable, "\n\n" + "\n\n".join(parts))]
 
 
+# ── Layout trim (overflow enforcement) ───────────────────────────────────────
+# Focused, single-purpose corrective pass: fires ONLY when the deterministic
+# layout validator says the finished résumé overflows its template page budget.
+# It cuts/tightens existing text to fit — it never generates or invents content.
+_TRIM_SYSTEM = (
+    "You are a precise résumé layout editor. You receive a structured résumé JSON and a hard "
+    "page budget, and you trim the content so it fits when rendered on A4 pages — WITHOUT "
+    "changing its meaning or inventing anything.\n\n"
+    "RULES:\n"
+    "- NEVER drop an entire section, an entire role, or the contact/education info.\n"
+    "- Trim by shortening or merging the LOWEST-VALUE bullets and compressing the OLDEST roles; "
+    "keep the most recent roles and every quantified achievement intact.\n"
+    "- Keep every bullet to a single line (roughly 16 words or fewer).\n"
+    "- Only cut and tighten EXISTING text. Do not invent, add metrics, or introduce new claims.\n"
+    "- Preserve the exact JSON schema and all top-level keys.\n"
+    "Return ONLY the trimmed résumé JSON — no preamble, no markdown."
+)
+
+
+async def trim_messages(resume_json: dict, template_pages: int, overflow_note: str) -> list:
+    """Build the message list for a one-shot layout trim to the page budget."""
+    human = (
+        TOON_LEGEND + "\n\n"
+        f"## PAGE BUDGET\nThis résumé MUST fit {template_pages} A4 page(s).\n\n"
+        f"## LAYOUT PROBLEM\n{overflow_note}\n\n"
+        f"## CURRENT RESUME JSON\n{toon_encode(resume_json)}\n\n"
+        f"Trim it to fit {template_pages} page(s) following the rules. Return only the JSON."
+    )
+    return [SystemMessage(content=_TRIM_SYSTEM), HumanMessage(content=human)]
+
+
 # ── Job Analyzer ──────────────────────────────────────────────────────────────
 
 _JOB_ANALYZER_SYSTEM = """You are a senior resume strategist and hiring specialist. Your job is to identify the exact skills and qualifications to emphasise in this candidate's tailored resume.
