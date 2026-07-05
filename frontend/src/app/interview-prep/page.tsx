@@ -77,7 +77,7 @@ export default function InterviewPrepPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 py-8 px-4 sm:px-0">
+    <div className="w-full space-y-6 py-8 px-4 sm:px-0">
 
       <div>
         <div className="flex items-center gap-2.5 mb-1">
@@ -92,26 +92,29 @@ export default function InterviewPrepPage() {
       </div>
 
       <div className="card space-y-5">
-        <div>
-          <label className="label">Your Resume</label>
-          <textarea
-            className="input h-48 resize-none font-mono text-xs"
-            placeholder="Paste your resume text here…"
-            value={resumeText}
-            onChange={(e) => { setResumeText(e.target.value); setResult(null); }}
-          />
-          <p className="text-xs text-slate-400 mt-1">{resumeText.length} characters</p>
-        </div>
+        {/* Resume + JD side by side on wide screens — uses the full page width */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div>
+            <label className="label">Your Resume</label>
+            <textarea
+              className="input h-64 resize-none font-mono text-xs"
+              placeholder="Paste your resume text here…"
+              value={resumeText}
+              onChange={(e) => { setResumeText(e.target.value); setResult(null); }}
+            />
+            <p className="text-xs text-slate-400 mt-1">{resumeText.length} characters</p>
+          </div>
 
-        <div>
-          <label className="label">Job Description</label>
-          <textarea
-            className="input h-48 resize-none font-mono text-xs"
-            placeholder="Paste the job description here…"
-            value={jobDescription}
-            onChange={(e) => { setJobDescription(e.target.value); setResult(null); }}
-          />
-          <p className="text-xs text-slate-400 mt-1">{jobDescription.length} characters</p>
+          <div>
+            <label className="label">Job Description</label>
+            <textarea
+              className="input h-64 resize-none font-mono text-xs"
+              placeholder="Paste the job description here…"
+              value={jobDescription}
+              onChange={(e) => { setJobDescription(e.target.value); setResult(null); }}
+            />
+            <p className="text-xs text-slate-400 mt-1">{jobDescription.length} characters</p>
+          </div>
         </div>
 
         <div className="flex justify-end pt-1">

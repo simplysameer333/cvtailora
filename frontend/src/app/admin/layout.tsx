@@ -1,20 +1,20 @@
-import AppShell from "@/components/AppShell";
+import SidebarShell from "@/components/SidebarShell";
 import AuthGuard from "@/components/AuthGuard";
 import { FiShield } from "react-icons/fi";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AppShell>
+    <SidebarShell>
       <AuthGuard />
-      <div className="bg-brand-600 text-white">
-        <div className="max-w-6xl mx-auto px-5 sm:px-6 py-1.5 flex items-center gap-2">
+      <div className="rounded-lg bg-brand-700 text-white mb-4">
+        <div className="px-4 py-1.5 flex items-center gap-2">
           <FiShield className="w-3.5 h-3.5 opacity-80" />
           <span className="text-xs font-semibold tracking-wide uppercase opacity-90">
             Superadmin — Admin Dashboard
           </span>
         </div>
       </div>
-      <div className="flex-1">{children}</div>
-    </AppShell>
+      {children}
+    </SidebarShell>
   );
 }

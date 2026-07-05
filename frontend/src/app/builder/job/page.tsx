@@ -201,7 +201,7 @@ export default function JobPage() {
   const showCheckFit = jd.trim().length >= 200;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
+    <div className="w-full space-y-5">
 
       <div>
         <h1 className="text-2xl font-bold text-slate-900 mb-1">Add a Job Description</h1>

@@ -1,0 +1,125 @@
+Profession Config Generator Prompt
+
+You are configuring a profession profile for TailorMyCv, an AI-powered resume builder.
+The pipeline uses these configs to tailor how it writes, evaluates, and scores resumes
+for specific professions. Each config has 6 fields that feed into different parts of the AI.
+
+═══════════════════════════════════════════════════════
+WHAT EACH FIELD DOES
+═══════════════════════════════════════════════════════
+
+1. DISPLAY NAME
+   The human-readable label shown in the UI.
+   Format: Title Case, concise, may include a slash for a broad category.
+   Examples: "Software Engineer", "Animator / Creative", "Hotel Management"
+
+2. KEYWORDS (comma-separated)
+   Matched case-insensitively against the candidate's target role to select this config.
+   Include job titles, specialisations, tools/technologies that are defining for this profession.
+   More is better — cover abbreviations, variants, and adjacent titles.
+   Format: lowercase, comma-separated, no quotes.
+
+3. GENERATOR CONTEXT
+   Injected into the AI resume writer's system prompt.
+   Tells the generator what makes a strong resume FOR THIS PROFESSION SPECIFICALLY.
+   Focus on: what to quantify, what credentials/tools to name, what signals matter to employers,
+   what action verbs to use, and what makes bullets stand out in this field.
+   Format: Start with "PROFESSION-SPECIFIC GUIDANCE — {Profession Name}:\n"
+   then 5–7 bullet points starting with "- ".
+
+4. EVALUATOR CONTEXT
+   Appended to every evaluator LLM's prompt when scoring a resume for this profession.
+   Tells the evaluator what lens to use — what to look for beyond generic resume quality.
+   Format: Start with "PROFESSION-SPECIFIC EVALUATION — {Profession Name}:\n"
+   then "Adjust your evaluation lens for a [role type] role. Probe specifically for:\n"
+   then 4–5 bullet points starting with "- ".
+
+5. SCORING CRITERIA
+   Replaces the generic 0–100 scoring rubric for this profession.
+   Must total exactly 100 points across 5 criteria. Each criterion should reflect
+   what ACTUALLY differentiates strong candidates in this field.
+   Format: "Scoring criteria (0–100) for a {Profession Name} role:\n"
+   then 5 lines: "- {Criterion}: {description} ({N} pts)"
+
+6. AGGREGATOR CONTEXT
+   Shapes how the AI combines evaluator feedback into actionable suggestions for the next
+   generation cycle. Focus on the 3–4 most common resume weaknesses in this profession
+   that the AI should actively push back on and fix.
+   Format: "Focus improvement suggestions on:\n"
+   then 3–4 numbered points.
+
+═══════════════════════════════════════════════════════
+STYLE RULES
+═══════════════════════════════════════════════════════
+- Be specific and profession-aware. Avoid generic resume advice that applies to any field.
+- Use industry vocabulary: name real tools, real certifications, real KPIs for this profession.
+- Scoring criteria must reflect what recruiters and hiring managers in this field actually weight.
+- Generator context should give instructions that produce bullets a candidate COULDN'T write
+  without knowing the profession (e.g., naming the right metrics, tools, and ownership signals).
+- Keep each field tight. Generator context: 5–7 bullets. Evaluator context: 4–5 bullets.
+  Aggregator context: 3–4 numbered items.
+
+═══════════════════════════════════════════════════════
+EXAMPLE — Software Engineer (reference only, do not copy)
+═══════════════════════════════════════════════════════
+
+DISPLAY NAME:
+Software Engineer
+
+KEYWORDS:
+software, developer, engineer, programmer, backend, frontend, fullstack, full-stack,
+full stack, devops, sre, platform, data engineer, ml engineer, machine learning,
+mobile, ios, android
+
+GENERATOR CONTEXT:
+PROFESSION-SPECIFIC GUIDANCE — Software Engineering:
+- Name the exact technologies, frameworks, and versions used in each role
+- Quantify engineering impact: system scale (users, RPS, data volume), latency
+  improvements (ms or %), cost savings ($), uptime (SLA %)
+- Lead bullets with strong engineering verbs: Architected, Engineered, Optimised,
+  Shipped, Refactored, Scaled, Automated, Migrated
+- Surface system design decisions and ownership signals (designed, led, owned)
+- Include open-source contributions, GitHub URL, or portfolio link in contact section
+- List relevant certifications: AWS, GCP, Azure, CKA, Kubernetes, etc.
+
+EVALUATOR CONTEXT:
+PROFESSION-SPECIFIC EVALUATION — Software Engineering:
+Adjust your evaluation lens for a technical role. Probe specifically for:
+- Are technologies and tools named precisely (not just 'databases' — say PostgreSQL/Redis)?
+- Is engineering impact quantified (scale, performance gains, cost reduction)?
+- Does the tech stack in the resume overlap with the JD's requirements?
+- Are there ownership and leadership signals (architected, led, owned vs. contributed to)?
+- Is there a GitHub, portfolio, or open-source presence?
+
+SCORING CRITERIA:
+Scoring criteria (0–100) for a Software Engineering role:
+- Technical specificity: named technologies, tools, versions matching the JD (25 pts)
+- Quantified engineering impact: scale, performance, cost, reliability metrics (25 pts)
+- JD tech stack alignment: candidate stack vs. required/preferred stack (20 pts)
+- Ownership and architecture signals: led/designed vs. just participated (15 pts)
+- Online presence and credentials: GitHub, portfolio, certifications (15 pts)
+
+AGGREGATOR CONTEXT:
+Focus improvement suggestions on:
+1. Adding specific technology names where the resume uses generic terms
+2. Injecting quantified metrics into bullets that currently describe actions without outcomes
+3. Strengthening ownership language (replace 'worked on' with 'led', 'owned', 'designed')
+4. Surfacing keywords from the JD's tech stack that exist in the candidate's background
+   but are not yet highlighted
+
+═══════════════════════════════════════════════════════
+YOUR TASK
+═══════════════════════════════════════════════════════
+
+Generate a complete profession config for:
+
+PROFESSION: [INSERT PROFESSION NAME HERE]
+ROLE VARIANTS TO COVER: [e.g., senior, junior, manager, specialist — or leave blank]
+INDUSTRY CONTEXT: [e.g., fintech, healthcare, agency, enterprise — or leave blank]
+
+Output all 6 fields using the exact labels and formats shown above:
+DISPLAY NAME, KEYWORDS, GENERATOR CONTEXT, EVALUATOR CONTEXT, SCORING CRITERIA, AGGREGATOR CONTEXT.
+
+Each field should be self-contained — no cross-references, no preambles, no markdown fences.
+The output will be copy-pasted directly into the admin UI.
+

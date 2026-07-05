@@ -222,7 +222,7 @@ export default function CvScorePage() {
   const c = result ? scoreColor(result.overall_score) : null;
 
   return (
-    <div className="max-w-6xl mx-auto px-5 sm:px-6 py-10 space-y-10">
+    <div className="w-full py-2 space-y-10">
 
       {/* ── Hero ── */}
       <div className="text-center">
@@ -248,7 +248,7 @@ export default function CvScorePage() {
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center mb-4">
           What we&apos;ll analyse
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
           {CATEGORIES_INFO.map(({ key, icon: Icon, name, desc }) => {
             const a = CATEGORY_ACCENT[key] ?? { bg: "bg-brand-50", text: "text-brand-600", border: "hover:border-brand-300" };
             return (

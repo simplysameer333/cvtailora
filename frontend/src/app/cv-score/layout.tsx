@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import AppShell from "@/components/AppShell";
+import SidebarShell from "@/components/SidebarShell";
 
 export const metadata = {
   title: "Free CV Score — TailorMyCv",
@@ -8,10 +8,8 @@ export const metadata = {
 
 export default function CvScoreLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AppShell>
-      <main className="flex-1">
-        <Suspense>{children}</Suspense>
-      </main>
-    </AppShell>
+    <SidebarShell>
+      <Suspense>{children}</Suspense>
+    </SidebarShell>
   );
 }

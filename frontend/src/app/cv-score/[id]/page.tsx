@@ -61,7 +61,7 @@ export default function CvScoreResultPage() {
   const totalIssues = result.categories.reduce((sum, cat) => sum + cat.checks.filter(ch => !ch.passed).length, 0);
 
   return (
-    <div className="max-w-6xl mx-auto px-5 sm:px-6 py-10 space-y-8">
+    <div className="w-full py-2 space-y-8">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">

@@ -63,6 +63,10 @@ Fields:
 - primary_skill  (the single most defining technical or professional skill, e.g. "Java", "Python", "Financial Modelling", "UX Design" — one short phrase, not a sentence)
 - key_skills  (top 8-10 skills as a JSON array)
 - summary  (2–3 sentence professional summary — write one if absent)
+- experience  (JSON array, newest first; each item {"title", "company", "start", "end", "description"} — description is 1-2 sentences, dates as written in the resume, "" if missing)
+- education  (JSON array; each item {"degree", "institution", "year"})
+- projects  (JSON array; each item {"name", "description", "url"} — [] if none)
+- certifications  (JSON array; each item {"name", "issuer", "year"} — [] if none)
 
 Return only the JSON object, no markdown fences, no explanation."""
 
@@ -72,8 +76,10 @@ async def _ai_prefill(resume_text: str) -> dict:
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     msg = await client.messages.create(
         model=settings.anthropic_evaluator_model,
-        max_tokens=1024,
-        messages=[{"role": "user", "content": f"{_PREFILL_PROMPT}\n\nResume:\n{resume_text[:4000]}"}],
+        # 12k chars in / 3k tokens out — structured experience/education arrays
+        # need the full resume body, not just the head
+        max_tokens=3000,
+        messages=[{"role": "user", "content": f"{_PREFILL_PROMPT}\n\nResume:\n{resume_text[:12000]}"}],
     )
     raw = msg.content[0].text.strip()
     raw = re.sub(r"^```[a-z]*\n?", "", raw)
@@ -86,6 +92,32 @@ async def _ai_prefill(resume_text: str) -> dict:
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
+class ExperienceItem(BaseModel):
+    title: str = ""
+    company: str = ""
+    start: str = ""
+    end: str = ""
+    description: str = ""
+
+
+class EducationItem(BaseModel):
+    degree: str = ""
+    institution: str = ""
+    year: str = ""
+
+
+class ProjectItem(BaseModel):
+    name: str = ""
+    description: str = ""
+    url: str = ""
+
+
+class CertificationItem(BaseModel):
+    name: str = ""
+    issuer: str = ""
+    year: str = ""
+
+
 class ProfileBody(BaseModel):
     full_name: str = ""
     email: str = ""
@@ -96,6 +128,10 @@ class ProfileBody(BaseModel):
     primary_skill: str = ""
     key_skills: List[str] = []
     summary: str = ""
+    experience: List[ExperienceItem] = []
+    education: List[EducationItem] = []
+    projects: List[ProjectItem] = []
+    certifications: List[CertificationItem] = []
 
 
 class FromProfileBody(BaseModel):
@@ -110,9 +146,11 @@ async def _get_profile(user_id: ObjectId) -> dict | None:
 
 
 def _serialize_profile(doc: dict) -> dict:
+    from services.profile_completeness import compute_profile_completeness
     doc = dict(doc)
     doc["id"] = str(doc.pop("_id"))
     doc["user_id"] = str(doc["user_id"])
+    doc["completeness"] = compute_profile_completeness(doc)
     return doc
 
 
@@ -188,6 +226,7 @@ async def upload_profile_resume(
                 "user_id": user["_id"],
                 "full_name": "", "email": "", "phone": "", "linkedin": "",
                 "location": "", "target_roles": [], "primary_skill": "", "key_skills": [], "summary": "",
+                "experience": [], "education": [], "projects": [], "certifications": [],
                 "created_at": now,
             },
         },
@@ -250,6 +289,28 @@ def _quality_label(min_score: int, pass_threshold: int) -> str:
     if min_score >= pass_threshold:
         return "Good"
     return "Reviewed"
+
+
+@router.get("/account/usage")
+async def get_account_usage(user: dict = Depends(get_current_user)):
+    """Today's + this month's AI spend vs the tier budget caps.
+
+    Drives the sidebar quota widget. Caps are cents (None = unlimited),
+    mirroring tier config keys daily_cost_cents / monthly_cost_cents.
+    """
+    from services import usage_service
+    from services.tier_config_service import get_limit
+
+    db = get_db()
+    tier = user.get("tier", "free")
+    u = await usage_service.get_usage(db, str(user["_id"]))
+    return {
+        "daily_used_cents": round(u["daily_cost_usd"] * 100),
+        "daily_cap_cents": get_limit(tier, "daily_cost_cents"),
+        "monthly_used_cents": round(u["monthly_cost_usd"] * 100),
+        "monthly_cap_cents": get_limit(tier, "monthly_cost_cents"),
+        "tier": tier,
+    }
 
 
 @router.get("/account/stats")

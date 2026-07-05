@@ -1,4 +1,4 @@
-import AppShell from "@/components/AppShell";
+import SidebarShell from "@/components/SidebarShell";
 import StepBar from "@/components/StepBar";
 import JobContextBanner from "@/components/JobContextBanner";
 import SessionGuard from "./SessionGuard";
@@ -6,14 +6,15 @@ import AuthGuard from "@/components/AuthGuard";
 
 export default function BuilderLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AppShell>
+    <SidebarShell>
       <AuthGuard />
       <SessionGuard />
-      <StepBar />
-      <JobContextBanner />
-      <main className="flex-1 max-w-6xl mx-auto w-full px-5 sm:px-6 py-6 sm:py-10">
+      {/* Step bar card on top, page content below (SidebarShell centers the workspace) */}
+      <div className="w-full space-y-6">
+        <StepBar />
+        <JobContextBanner />
         {children}
-      </main>
-    </AppShell>
+      </div>
+    </SidebarShell>
   );
 }

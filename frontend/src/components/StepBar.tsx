@@ -16,7 +16,7 @@ export default function StepBar() {
   const progressPct = current >= 0 ? Math.round(((current + 1) / STEPS.length) * 100) : 0;
 
   return (
-    <div className="w-full bg-white border-b border-slate-100">
+    <div className="w-full rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
 
         {/* Desktop step pills */}

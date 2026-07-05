@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import AppShell from "@/components/AppShell";
+import SidebarShell from "@/components/SidebarShell";
 
 export const metadata = {
   title: "Cover Letter Generator — TailorMyCv",
@@ -8,10 +8,10 @@ export const metadata = {
 
 export default function CoverLetterLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AppShell>
-      <main className="flex-1 max-w-6xl mx-auto w-full px-5 sm:px-6">
+    <SidebarShell>
+      <div className="w-full">
         <Suspense>{children}</Suspense>
-      </main>
-    </AppShell>
+      </div>
+    </SidebarShell>
   );
 }

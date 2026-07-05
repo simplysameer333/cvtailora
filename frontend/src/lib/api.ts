@@ -571,6 +571,37 @@ export async function getSeenJobIds(): Promise<string[]> {
 
 // ── Account profile ───────────────────────────────────────────────────────────
 
+export interface ProfileExperience {
+  title: string;
+  company: string;
+  start: string;
+  end: string;
+  description: string;
+}
+
+export interface ProfileEducation {
+  degree: string;
+  institution: string;
+  year: string;
+}
+
+export interface ProfileProject {
+  name: string;
+  description: string;
+  url: string;
+}
+
+export interface ProfileCertification {
+  name: string;
+  issuer: string;
+  year: string;
+}
+
+export interface ProfileCompleteness {
+  percent: number;
+  checklist: { key: string; label: string; complete: boolean }[];
+}
+
 export interface AccountProfile {
   id?: string;
   full_name: string;
@@ -582,7 +613,12 @@ export interface AccountProfile {
   primary_skill: string;
   key_skills: string[];
   summary: string;
+  experience: ProfileExperience[];
+  education: ProfileEducation[];
+  projects: ProfileProject[];
+  certifications: ProfileCertification[];
   resume_text?: string;
+  completeness?: ProfileCompleteness;
 }
 
 export async function searchCatalogRoles(q: string): Promise<string[]> {
@@ -600,7 +636,7 @@ export async function getAccountProfile(): Promise<AccountProfile | null> {
   return data;
 }
 
-export async function saveAccountProfile(profile: Omit<AccountProfile, "id" | "resume_text" | "target_role">): Promise<AccountProfile> {
+export async function saveAccountProfile(profile: Omit<AccountProfile, "id" | "resume_text" | "completeness">): Promise<AccountProfile> {
   const { data } = await api.put("/api/account/profile", profile);
   return data;
 }
@@ -626,6 +662,7 @@ export interface SavedResume {
   type: "uploaded" | "tailored";
   file_name?: string;
   content_type?: string;
+  resume_text?: string;
   tailored_for_job?: string;
   tailored_for_employer?: string;
   created_at: string;
@@ -821,6 +858,19 @@ export interface AccountStats {
 
 export async function getUserStats(): Promise<AccountStats> {
   const { data } = await api.get("/api/account/stats");
+  return data;
+}
+
+export interface AccountUsage {
+  daily_used_cents: number;
+  daily_cap_cents: number | null;
+  monthly_used_cents: number;
+  monthly_cap_cents: number | null;
+  tier: string;
+}
+
+export async function getAccountUsage(): Promise<AccountUsage> {
+  const { data } = await api.get("/api/account/usage");
   return data;
 }
 

@@ -1,56 +1,57 @@
 import Link from "next/link";
 import Logo from "./Logo";
 
+const LINKS = [
+  { title: "Tools", items: [
+    { href: "/cv-score",        label: "CV Score" },
+    { href: "/builder/upload",  label: "CV Builder" },
+    { href: "/cover-letter",    label: "Cover Letter" },
+    { href: "/interview-prep",  label: "Interview Prep" },
+    { href: "/jobs",            label: "Find Jobs" },
+  ]},
+  { title: "Account", items: [
+    { href: "/auth/register",     label: "Sign up free" },
+    { href: "/auth/login",        label: "Sign in" },
+    { href: "/settings/overview", label: "Settings" },
+  ]},
+  { title: "Plans", items: [
+    { href: "/auth/register?plan=free", label: "Free" },
+    { href: "/auth/register?plan=plus", label: "Plus" },
+    { href: "/auth/register?plan=pro",  label: "Pro" },
+  ]},
+];
+
 export default function Footer() {
   return (
-    <footer className="border-t border-slate-200 bg-white mt-16 hidden sm:block">
-      <div className="max-w-6xl mx-auto px-5 sm:px-6 py-10">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-8">
-
-          <div className="col-span-2 sm:col-span-1">
+    <footer className="border-t border-slate-200 bg-white mt-12 hidden sm:block">
+      <div className="w-full px-6 sm:px-10 py-6">
+        <div className="flex flex-col lg:flex-row lg:items-start gap-6 lg:gap-16">
+          <div className="max-w-xs">
             <Logo />
-            <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
               AI-powered resume builder that tailors your CV to every job description using multi-model quality evaluation.
             </p>
           </div>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Tools</p>
-            <ul className="space-y-2">
-              <li><Link href="/cv-score"        className="text-sm text-slate-600 hover:text-brand-600 transition">CV Score</Link></li>
-              <li><Link href="/builder/upload" className="text-sm text-slate-600 hover:text-brand-600 transition">CV Builder</Link></li>
-              <li><Link href="/cover-letter"   className="text-sm text-slate-600 hover:text-brand-600 transition">Cover Letter</Link></li>
-              <li><Link href="/interview-prep" className="text-sm text-slate-600 hover:text-brand-600 transition">Interview Prep</Link></li>
-              <li><Link href="/jobs"           className="text-sm text-slate-600 hover:text-brand-600 transition">Find Jobs</Link></li>
-            </ul>
+          <div className="flex-1 flex flex-wrap gap-x-16 gap-y-4">
+            {LINKS.map(({ title, items }) => (
+              <div key={title}>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{title}</p>
+                <ul className="space-y-1.5">
+                  {items.map(({ href, label }) => (
+                    <li key={href}>
+                      <Link href={href} className="text-sm text-slate-600 hover:text-brand-600 transition">{label}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Account</p>
-            <ul className="space-y-2">
-              <li><Link href="/auth/register"    className="text-sm text-slate-600 hover:text-brand-600 transition">Sign up free</Link></li>
-              <li><Link href="/auth/login"        className="text-sm text-slate-600 hover:text-brand-600 transition">Sign in</Link></li>
-              <li><Link href="/settings/overview" className="text-sm text-slate-600 hover:text-brand-600 transition">Settings</Link></li>
-            </ul>
+          <div className="text-xs text-slate-400 lg:text-right shrink-0">
+            <p>© {new Date().getFullYear()} TailorMyCv. All rights reserved.</p>
+            <p className="mt-1">Built with multi-model AI</p>
           </div>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Plans</p>
-            <ul className="space-y-2">
-              <li><Link href="/auth/register?plan=free" className="text-sm text-slate-600 hover:text-brand-600 transition">Free</Link></li>
-              <li><Link href="/auth/register?plan=plus" className="text-sm text-slate-600 hover:text-brand-600 transition">Plus</Link></li>
-              <li><Link href="/auth/register?plan=pro"  className="text-sm text-slate-600 hover:text-brand-600 transition">Pro</Link></li>
-            </ul>
-          </div>
-
-        </div>
-
-        <div className="border-t border-slate-100 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-slate-400">© {new Date().getFullYear()} TailorMyCv. All rights reserved.</p>
-          <p className="text-xs text-slate-400">Built with multi-model AI</p>
         </div>
       </div>
     </footer>
   );
 }
-

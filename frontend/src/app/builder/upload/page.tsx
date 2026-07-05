@@ -5,13 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   FiUploadCloud, FiFile, FiZap, FiX, FiBriefcase, FiLoader,
-  FiUser, FiCpu, FiLayout, FiCheckCircle, FiClock,
+  FiUser, FiCpu, FiLayout, FiCheckCircle, FiClock, FiEye,
 } from "react-icons/fi";
 import {
   uploadResume, listSavedResumes,
   createSessionFromLibraryResume, type SavedResume,
 } from "@/lib/api";
 import { setSessionId } from "@/lib/session";
+import ResumePreviewModal from "@/components/ResumePreviewModal";
 
 // ── What happens after upload ─────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ function UploadPageInner() {
   const [library, setLibrary]                   = useState<SavedResume[]>([]);
   const [libraryLoaded, setLibraryLoaded]       = useState(false);
   const [libraryLoadingId, setLibraryLoadingId] = useState<string | null>(null);
+  const [previewResume, setPreviewResume]       = useState<SavedResume | null>(null);
 
   useEffect(() => {
     localStorage.removeItem("tailormycv_tailor_job_title");
@@ -137,7 +139,8 @@ function UploadPageInner() {
   const hasLibrary  = libraryLoaded && library.length > 0;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr),380px] gap-6 items-start">
+      <div className="card space-y-8 min-w-0 sm:!p-8">
 
       {/* ── Step badge + hero ── */}
       <div className="text-center space-y-2 pt-2">
@@ -182,6 +185,13 @@ function UploadPageInner() {
                   {r.tailored_for_employer ? ` · ${r.tailored_for_employer}` : ""}
                 </span>
               </div>
+              <button
+                onClick={() => setPreviewResume(r)}
+                title="Preview resume"
+                className="p-2 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition shrink-0"
+              >
+                <FiEye className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => handleUseLibraryResume(r)}
                 disabled={!!libraryLoadingId}
@@ -262,8 +272,10 @@ function UploadPageInner() {
         </button>
       </div>
 
-      {/* ── What happens next ── */}
-      <div className="space-y-4 pt-2">
+      </div>
+
+      {/* ── What happens next — side rail on desktop, below the flow on mobile ── */}
+      <aside className="space-y-4 pt-2 xl:sticky xl:top-8">
         <div>
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">What happens next</p>
           <p className="text-sm text-slate-400">Here&apos;s the full process — you&apos;ll be done in minutes.</p>
@@ -330,8 +342,9 @@ function UploadPageInner() {
             A tailored CV matched to the job, scored by three AI models, in a professional template — ready to apply.
           </p>
         </div>
-      </div>
+      </aside>
 
+      <ResumePreviewModal resume={previewResume} onClose={() => setPreviewResume(null)} />
     </div>
   );
 }

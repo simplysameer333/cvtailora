@@ -14,12 +14,14 @@ import {
   getAccountProfile, createSessionFromProfileWithJob,
   getJobsQuota, searchCatalogRoles,
   listJobAlerts, deleteJobAlert, toggleJobAlert,
-  type Job, type QuotaStatus, type JobAlert,
+  type Job, type QuotaStatus, type JobAlert, type ProfileCompleteness,
 } from "@/lib/api";
 import { setSessionId } from "@/lib/session";
 import { useAuth } from "@/lib/useAuth";
 import ResumePickerModal from "@/components/ResumePickerModal";
 import CreateAlertModal from "@/components/CreateAlertModal";
+import ProfileCompletenessCard from "@/components/ProfileCompletenessCard";
+import ApplyChoiceModal from "@/components/ApplyChoiceModal";
 import TagInput from "@/components/TagInput";
 import { JSEARCH_PAGE_SIZES, JSEARCH_DEFAULT_PAGE_SIZE, type JsearchPageSize } from "@/lib/config";
 import { getTierLimitDynamic } from "@/lib/tierConfig";
@@ -162,18 +164,18 @@ function JobCard({
   seen,
   isFree,
   onSave,
-  onTailor,
   onUseSaved,
   onApply,
+  onApplyChoice,
 }: {
   job: Job;
   saved: boolean;
   seen: boolean;
   isFree: boolean;
   onSave: (job: Job) => void;
-  onTailor: (job: Job) => void;
   onUseSaved: (job: Job) => void;
   onApply: (job: Job) => void;
+  onApplyChoice: (job: Job) => void;
 }) {
   const salary = formatSalary(job);
   const posted = timeAgo(job.job_posted_at_datetime_utc);
@@ -182,7 +184,7 @@ function JobCard({
   const skills = (job.job_required_skills ?? []).slice(0, 4);
 
   return (
-    <div className="card flex items-start gap-4 hover:border-brand-400 transition-colors">
+    <div className="card flex flex-col sm:flex-row items-start gap-4 hover:border-brand-400 transition-colors">
 
       {/* Logo */}
       <div className="shrink-0 mt-0.5">
@@ -201,64 +203,57 @@ function JobCard({
         )}
       </div>
 
-      {/* Main info */}
+      {/* Main info — title + employer */}
       <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          {job.job_apply_link && job.job_apply_link !== "#" ? (
+            <a
+              href={job.job_apply_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => onApply(job)}
+              className="font-semibold text-slate-900 text-base leading-snug hover:text-brand-600 hover:underline underline-offset-2 transition-colors"
+            >
+              {job.job_title}
+            </a>
+          ) : (
+            <h3 className="font-semibold text-slate-900 text-base leading-snug">{job.job_title}</h3>
+          )}
+          {seen && (
+            <span className="shrink-0 text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+              Viewed
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-slate-500 truncate mt-0.5">
+          {job.employer_name}
+          {job.job_publisher && (
+            <span className="ml-2 text-xs text-slate-400">via {job.job_publisher}</span>
+          )}
+        </p>
+      </div>
 
-        {/* Row 1 — title (left) + badges + location/type/remote (right) */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            {job.job_apply_link && job.job_apply_link !== "#" ? (
-              <a
-                href={job.job_apply_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => onApply(job)}
-                className="font-semibold text-slate-900 text-base leading-snug hover:text-brand-600 hover:underline underline-offset-2 transition-colors"
-              >
-                {job.job_title}
-              </a>
-            ) : (
-              <h3 className="font-semibold text-slate-900 text-base leading-snug">{job.job_title}</h3>
-            )}
-            {seen && (
-              <span className="shrink-0 text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
-                Viewed
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-            {location && (
-              <span className="flex items-center gap-1 text-xs text-slate-500">
-                <FiMapPin className="w-3 h-3" /> {location}
-              </span>
-            )}
-            {job.job_is_remote && (
-              <span className="text-xs font-semibold text-teal-600 bg-teal-50 rounded-full px-2 py-0.5">Remote</span>
-            )}
-            {empType && (
-              <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">{empType}</span>
-            )}
-          </div>
+      {/* Right column — meta on top, actions below, bookmark on the extreme right */}
+      <div className="shrink-0 flex flex-col items-start sm:items-end gap-2.5 w-full sm:w-auto">
+        <div className="flex items-center gap-1.5 flex-wrap sm:justify-end text-xs text-slate-500">
+          {location && (
+            <span className="flex items-center gap-1">
+              <FiMapPin className="w-3 h-3" /> {location}
+            </span>
+          )}
+          {job.job_is_remote && (
+            <span className="font-semibold text-teal-600 bg-teal-50 rounded-full px-2 py-0.5">Remote</span>
+          )}
+          {empType && (
+            <span className="bg-slate-100 rounded-full px-2 py-0.5">{empType}</span>
+          )}
+          {salary && <span className="font-medium text-slate-600">{salary}</span>}
+          {posted && <span className="flex items-center gap-1 text-slate-400"><FiClock className="w-3 h-3" />{posted}</span>}
         </div>
 
-        {/* Row 2 — employer (left) + salary/posted (right) */}
-        <div className="flex items-center justify-between gap-3 mt-0.5">
-          <p className="text-sm text-slate-500 truncate">
-            {job.employer_name}
-            {job.job_publisher && (
-              <span className="ml-2 text-xs text-slate-400">via {job.job_publisher}</span>
-            )}
-          </p>
-          <div className="flex items-center gap-2 shrink-0 text-xs text-slate-400">
-            {salary && <span className="font-medium text-slate-600">{salary}</span>}
-            {posted && <span className="flex items-center gap-1"><FiClock className="w-3 h-3" />{posted}</span>}
-          </div>
-        </div>
-
-        {/* Row 3 — action buttons */}
-        <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+        <div className="flex items-center gap-2">
           {isFree ? (
-            /* Free tier — show locked upsell buttons for gated actions */
+            /* Free tier — locked upsell */
             <a
               href="/settings/plan"
               className="flex items-center gap-1.5 btn-primary text-xs px-3 py-1.5 opacity-70"
@@ -267,22 +262,22 @@ function JobCard({
               <FiLock className="w-3 h-3" /> Tailor Resume
             </a>
           ) : (
+            /* Opens the resume picker — tailor new OR apply with a saved resume */
             <button
-              onClick={() => onTailor(job)}
+              onClick={() => onUseSaved(job)}
               className="btn-primary text-xs px-3 py-1.5 gap-1.5"
-              title="AI-tailor your resume for this job"
+              title="AI-tailor a resume for this job, or apply with a saved one"
             >
               <FiZap className="w-3.5 h-3.5" /> Tailor Resume
             </button>
           )}
 
-          {!isFree && (
+          {job.job_apply_link && job.job_apply_link !== "#" && (
             <button
-              onClick={() => onUseSaved(job)}
+              onClick={() => onApplyChoice(job)}
               className="btn-secondary text-xs px-3 py-1.5 gap-1.5"
-              title="Apply using a resume from your library"
             >
-              <FiFileText className="w-3.5 h-3.5" /> Apply with Saved
+              Apply <FiExternalLink className="w-3.5 h-3.5" />
             </button>
           )}
 
@@ -307,19 +302,7 @@ function JobCard({
               <FiBookmark className={`w-4 h-4 ${saved ? "fill-brand-500" : ""}`} />
             </button>
           )}
-
-          {job.job_apply_link && job.job_apply_link !== "#" && (
-            <a
-              href={job.job_apply_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-secondary text-xs px-3 py-1.5 gap-1.5"
-            >
-              Apply <FiExternalLink className="w-3.5 h-3.5" />
-            </a>
-          )}
         </div>
-
       </div>
     </div>
   );
@@ -444,6 +427,7 @@ export default function JobsPage() {
   const [pageSize, setPageSize] = useState<JsearchPageSize>(JSEARCH_DEFAULT_PAGE_SIZE);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [hasProfileResume, setHasProfileResume] = useState(false);
+  const [completeness, setCompleteness] = useState<ProfileCompleteness | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
@@ -456,6 +440,7 @@ export default function JobsPage() {
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [quotaWarningDismissed, setQuotaWarningDismissed] = useState<string | null>(null);
   const [pickerJob, setPickerJob] = useState<Job | null>(null);
+  const [applyJob, setApplyJob] = useState<Job | null>(null);
 
   // ── Alerts state ────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<"results" | "alerts">(
@@ -530,6 +515,7 @@ export default function JobsPage() {
         if (tags.length) setQueryTags(tags);
         if (locTags.length) setLocationTags(locTags);
         setHasProfileResume(!!profile?.resume_text);
+        setCompleteness(profile?.completeness ?? null);
         setProfileLoaded(true);
         if (tags.length) runSearch(tags.join(" "), locTags.join(" OR "), 1, JSEARCH_DEFAULT_PAGE_SIZE);
       })
@@ -600,6 +586,11 @@ export default function JobsPage() {
     setSeenIds((prev) => new Set(prev).add(job.job_id));
   }
 
+  function handleManualApply(job: Job) {
+    handleApply(job);
+    window.open(job.job_apply_link, "_blank", "noopener,noreferrer");
+  }
+
   // ── Alert handlers ──────────────────────────────────────────────────────────
 
   function openCreateAlert() {
@@ -655,7 +646,9 @@ export default function JobsPage() {
       {/* Free-tier banner — search allowed but actions locked */}
       {isFree && <FreeSearchBanner />}
 
-      <>
+      {/* Two columns at xl: results + side rail (rail fills the previously empty margin) */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr),360px] gap-6 items-start">
+      <div className="flex flex-col gap-6 min-w-0">
           {/* Profile nudge */}
           {profileLoaded && !hasProfileResume && (
             <div className="flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm">
@@ -826,8 +819,9 @@ export default function JobsPage() {
                       {MOCK_JOBS.map((job) => (
                         <JobCard key={job.job_id} job={job} saved={savedIds.has(job.job_id)}
                           seen={seenIds.has(job.job_id)} isFree={isFree}
-                          onSave={handleSave} onTailor={handleTailor}
-                          onUseSaved={(j) => setPickerJob(j)} onApply={handleApply} />
+                          onSave={handleSave}
+                          onUseSaved={(j) => setPickerJob(j)} onApply={handleApply}
+                          onApplyChoice={(j) => setApplyJob(j)} />
                       ))}
                     </div>
                   </>
@@ -897,9 +891,9 @@ export default function JobsPage() {
                               seen={seenIds.has(job.job_id)}
                               isFree={isFree}
                               onSave={handleSave}
-                              onTailor={handleTailor}
                               onUseSaved={(j) => setPickerJob(j)}
                               onApply={handleApply}
+                              onApplyChoice={(j) => setApplyJob(j)}
                             />
                           ))}
                   </div>
@@ -1051,7 +1045,18 @@ export default function JobsPage() {
               )}
             </div>
           )}
-      </>
+      </div>
+
+      <aside className="hidden xl:flex flex-col gap-4 sticky top-8">
+        <ProfileCompletenessCard completeness={completeness} />
+      </aside>
+      </div>
+
+      <ApplyChoiceModal
+        job={applyJob}
+        onClose={() => setApplyJob(null)}
+        onManual={handleManualApply}
+      />
 
       <ResumePickerModal
         open={!!pickerJob}

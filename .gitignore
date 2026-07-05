@@ -26,6 +26,7 @@ client_secret_*.json
 !.env.development
 !.env.production
 !.env.uat
+.claude/
 
 # ── Uploaded user files ───────────────────────────────────────────────────────
 backend/uploads/

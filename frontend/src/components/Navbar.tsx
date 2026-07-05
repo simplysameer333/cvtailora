@@ -78,29 +78,32 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="w-full bg-white border-b border-slate-200">
-      <div className="max-w-6xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
-        <Logo />
+    <nav className="w-full bg-white border-b border-slate-200 sticky top-0 z-50">
+      <div className="w-full px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+        <Logo className="shrink-0" />
 
-        <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2">
-
+        {/* Centered primary nav — roomy spacing now that the bar spans the full page */}
+        <div className="hidden sm:flex flex-1 items-center justify-center gap-2 lg:gap-4">
           {navLinks.map(({ href, icon: Icon, label, active, authOnly }) =>
             !authOnly || status === "authenticated" ? (
               <Link
                 key={href}
                 href={href}
                 title={label}
-                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium shadow-sm transition whitespace-nowrap ${
+                className={`inline-flex items-center gap-2 rounded-lg px-3 lg:px-5 py-2.5 text-sm font-medium transition whitespace-nowrap ${
                   active
-                    ? "border-brand-400 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+                    ? "bg-brand-50 text-brand-700 border border-brand-300"
+                    : "text-slate-600 border border-transparent hover:text-brand-700 hover:bg-brand-50"
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" />
-                <span className="hidden xl:inline">{label}</span>
+                <span className="hidden lg:inline">{label}</span>
               </Link>
             ) : null
           )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
 
           {status === "loading" && (
             <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse" />

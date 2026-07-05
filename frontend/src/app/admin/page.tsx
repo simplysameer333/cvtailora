@@ -2270,7 +2270,7 @@ export default function AdminPage() {
 
   return (
     <main className="bg-slate-50">
-      <div className="max-w-6xl mx-auto px-5 sm:px-6 py-8">
+      <div className="w-full px-0 sm:px-2 py-4">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
           <p className="text-sm text-slate-500 mt-1">Superadmin only. Tabs load on first click and cache until you refresh.</p>
