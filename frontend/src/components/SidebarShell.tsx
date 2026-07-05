@@ -4,9 +4,10 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   FiUser, FiBriefcase, FiEdit2, FiShield, FiSettings,
-  FiCheckSquare, FiMail, FiBookOpen, FiChevronsLeft, FiChevronsRight, FiZap, FiLock,
+  FiCheckSquare, FiMail, FiBookOpen, FiChevronsLeft, FiChevronsRight, FiZap, FiLock, FiBarChart2,
 } from "react-icons/fi";
 import Navbar from "./Navbar";
+import Footer from "./Footer";
 import BottomNav from "./BottomNav";
 import { useAuth } from "@/lib/useAuth";
 import { getAccountUsage, type AccountUsage } from "@/lib/api";
@@ -28,8 +29,9 @@ const NAV = [
 ];
 
 const ACCOUNT_NAV = [
-  { href: "/profile",           icon: FiUser,     label: "My Profile", authOnly: true },
-  { href: "/settings/overview", icon: FiSettings, label: "Settings",   authOnly: true, match: "/settings" },
+  { href: "/profile",           icon: FiUser,      label: "My Profile", authOnly: true },
+  { href: "/analytics",         icon: FiBarChart2, label: "Analytics",  authOnly: true },
+  { href: "/settings/overview", icon: FiSettings,  label: "Settings",   authOnly: true, match: "/settings" },
 ];
 
 function DevTierSwitcher({ collapsed }: { collapsed: boolean }) {
@@ -199,19 +201,8 @@ export default function SidebarShell({
             {title && <h1 className="text-2xl font-bold text-slate-900 mb-1">{title}</h1>}
             {children}
           </main>
-          {/* Slim footer for app pages — the full marketing footer stays on marketing pages */}
-          <footer className="hidden sm:block border-t border-slate-200 bg-white">
-            <div className="w-full px-4 sm:px-8 py-4 flex items-center justify-between text-xs text-slate-400">
-              <p>© {new Date().getFullYear()} TailorMyCv</p>
-              <div className="flex items-center gap-5">
-                <Link href="/cv-score" className="hover:text-brand-600 transition">CV Score</Link>
-                <Link href="/builder/upload" className="hover:text-brand-600 transition">CV Builder</Link>
-                <Link href="/jobs" className="hover:text-brand-600 transition">Find Jobs</Link>
-                <Link href="/settings/overview" className="hover:text-brand-600 transition">Settings</Link>
-              </div>
-              <p>Built with multi-model AI</p>
-            </div>
-          </footer>
+          {/* Same footer as marketing pages — one footer everywhere */}
+          <Footer />
         </div>
       </div>
 

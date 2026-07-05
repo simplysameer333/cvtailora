@@ -291,6 +291,83 @@ def _quality_label(min_score: int, pass_threshold: int) -> str:
     return "Reviewed"
 
 
+@router.get("/account/analytics")
+async def get_account_analytics(user: dict = Depends(get_current_user)):
+    """Summary of automated actions for the user's Analytics page.
+
+    Counts come from collections; the recent-activity feed comes from audit_log
+    (which the alert scheduler and generate/export/score paths write to).
+    """
+    import asyncio as _asyncio
+    db = get_db()
+    uid = user["_id"]
+    uid_str = str(uid)
+
+    # Automated / AI actions surfaced in the feed
+    _FEED_ACTIONS = [
+        "job_alert.email_sent", "job_alert.email_no_results",
+        "resume.generate.complete", "resume.export", "resume.cv_score",
+        "interview_prep.email_sent",
+    ]
+
+    (alert_emails, resumes_generated, resumes_exported,
+     cv_scores, jobs_saved, jobs_viewed, alerts_active) = await _asyncio.gather(
+        db.audit_log.count_documents({"user_id": uid_str, "action": "job_alert.email_sent"}),
+        db.sessions.count_documents({"user_id": uid, "generated_resume": {"$ne": None}}),
+        db.audit_log.count_documents({"user_id": uid_str, "action": "resume.export"}),
+        db.audit_log.count_documents({"user_id": uid_str, "action": "resume.cv_score"}),
+        db.saved_jobs.count_documents({"user_id": uid_str}),
+        # seen_jobs keys user_id as ObjectId (jobs.py), saved_jobs as str
+        db.seen_jobs.count_documents({"user_id": uid}),
+        db.job_alerts.count_documents({"user_id": uid, "is_active": True}),
+    )
+
+    # Total jobs delivered by alert emails
+    jobs_delivered = 0
+    async for doc in db.audit_log.find(
+        {"user_id": uid_str, "action": "job_alert.email_sent"}, {"metadata.job_count": 1}
+    ):
+        jobs_delivered += int((doc.get("metadata") or {}).get("job_count", 0))
+
+    recent = []
+    cursor = db.audit_log.find(
+        {"user_id": uid_str, "action": {"$in": _FEED_ACTIONS}},
+        {"action": 1, "metadata": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(25)
+    async for doc in cursor:
+        recent.append({
+            "action": doc["action"],
+            "metadata": doc.get("metadata") or {},
+            "created_at": doc["created_at"].isoformat(),
+        })
+
+    # Daily activity counts for the last 30 days — drives the histogram
+    from datetime import timedelta
+    since = datetime.utcnow() - timedelta(days=30)
+    daily_rows = await db.audit_log.aggregate([
+        {"$match": {"user_id": uid_str, "action": {"$in": _FEED_ACTIONS}, "created_at": {"$gte": since}}},
+        {"$group": {
+            "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"_id": 1}},
+    ]).to_list(31)
+    daily = [{"date": r["_id"], "count": r["count"]} for r in daily_rows]
+
+    return {
+        "daily": daily,
+        "alert_emails_sent": alert_emails,
+        "alert_jobs_delivered": jobs_delivered,
+        "alerts_active": alerts_active,
+        "resumes_generated": resumes_generated,
+        "resumes_exported": resumes_exported,
+        "cv_scores_run": cv_scores,
+        "jobs_saved": jobs_saved,
+        "jobs_viewed": jobs_viewed,
+        "recent": recent,
+    }
+
+
 @router.get("/account/usage")
 async def get_account_usage(user: dict = Depends(get_current_user)):
     """Today's + this month's AI spend vs the tier budget caps.

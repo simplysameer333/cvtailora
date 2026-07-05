@@ -1794,8 +1794,8 @@ function TierConfigTab() {
             </button>
           )}
         </div>
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border border-slate-200 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left text-xs font-semibold text-slate-500 px-4 py-2.5 w-full">Feature</th>
@@ -1832,8 +1832,8 @@ function TierConfigTab() {
       <div>
         <h3 className="text-sm font-semibold text-slate-800 mb-1">Numeric Limits</h3>
         <p className="text-xs text-slate-400 mb-3">For unlimited: leave the box blank, type <span className="font-mono">unlimited</span> or <span className="font-mono">-1</span>, or click the <span className="font-semibold">∞</span> button. Type a number otherwise. Limits must be non-decreasing across tiers.</p>
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border border-slate-200 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left text-xs font-semibold text-slate-500 px-4 py-2.5 w-full">Limit</th>
@@ -1896,8 +1896,8 @@ function TierConfigTab() {
             <FiPlus className="w-3 h-3" /> Add currency
           </button>
         </div>
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border border-slate-200 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left text-xs font-semibold text-slate-500 px-4 py-2.5">Code</th>

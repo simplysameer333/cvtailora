@@ -33,7 +33,7 @@ const steps = [
 
 const features = [
   { icon: FiCheckSquare, title: "Free CV Score",          desc: "54 AI checks across 8 categories — ATS, content, design, grammar. No sign-in needed.",        color: "text-teal-600 bg-teal-50" },
-  { icon: FiZap,         title: "Multi-Model Tailoring",  desc: "Three AI models score and refine every resume until it beats your original.",                color: "text-amber-600 bg-amber-50" },
+  { icon: FiZap,         title: "AI Tailoring",           desc: "Three AI models score and refine every resume until it beats your original.",                color: "text-amber-600 bg-amber-50" },
   { icon: FiBriefcase,   title: "Job Search Built In",    desc: "Search live roles from Indeed, LinkedIn and Glassdoor — tailor your CV in one click.",        color: "text-brand-600 bg-brand-50" },
   { icon: FiBell,        title: "Daily Job Alerts",       desc: "Save any search and get matching roles in your inbox every morning.",                        color: "text-rose-600 bg-rose-50" },
   { icon: FiMail,        title: "Cover Letters",          desc: "A tailored, three-paragraph cover letter for any role — in seconds.",                        color: "text-sky-600 bg-sky-50" },
@@ -94,7 +94,7 @@ export default function LandingPage() {
 
           {/* Right — static product preview (CV Score card) */}
           <div className="hidden lg:flex justify-center">
-            <div className="w-full max-w-md rounded-2xl bg-white text-slate-900 shadow-2xl p-6 rotate-1 hover:rotate-0 transition-transform">
+            <div className="w-full max-w-md rounded-2xl bg-white text-slate-900 shadow-2xl p-6">
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">CV Score</p>
@@ -166,15 +166,16 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Feature showcase — fills the page width ── */}
-      <section className="py-14 sm:py-20 px-5 sm:px-10 bg-surface border-y border-slate-100">
-        <div className="text-center mb-10 sm:mb-12">
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Everything you need to land the role</h2>
-          <p className="mt-3 text-slate-500 text-sm sm:text-base max-w-xl mx-auto">
-            One workspace for the whole application — score, tailor, apply, prepare.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+      {/* ── Feature showcase — same left-aligned header pattern as How It Works ── */}
+      <section className="py-12 sm:py-16 px-5 sm:px-10 xl:px-16 bg-surface border-y border-slate-100">
+        <div className="flex flex-col lg:flex-row lg:items-start gap-8 lg:gap-12">
+          <div className="lg:w-64 shrink-0 text-center lg:text-left">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Everything you need to land the role</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              One workspace for the whole application — score, tailor, apply, prepare.
+            </p>
+          </div>
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           {features.map(({ icon: Icon, title, desc, color }) => (
             <div key={title} className="card !p-5 hover:shadow-md transition-shadow">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${color}`}>
@@ -184,6 +185,7 @@ export default function LandingPage() {
               <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
             </div>
           ))}
+          </div>
         </div>
         <div className="mt-10 flex items-center justify-center gap-8 sm:gap-14 text-center flex-wrap">
           <div><p className="text-2xl font-bold text-brand-700"><FiFileText className="inline w-5 h-5 mr-1.5 -mt-1" />DOCX + PDF</p><p className="text-xs text-slate-400 mt-1">clean, ATS-safe exports</p></div>

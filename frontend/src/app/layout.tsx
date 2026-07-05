@@ -5,7 +5,7 @@ import AuthProvider from "@/providers/AuthProvider";
 
 export const metadata: Metadata = {
   title: "TailorMyCv — AI Resume Builder",
-  description: "Generate tailored, job-winning resumes using a multi-model AI pipeline.",
+  description: "Generate tailored, job-winning resumes with AI-powered quality evaluation.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

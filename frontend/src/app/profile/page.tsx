@@ -5,8 +5,8 @@ import toast from "react-hot-toast";
 import {
   FiUpload, FiUser, FiMail, FiPhone,
   FiMapPin, FiBriefcase, FiTag, FiFileText, FiCheck, FiLoader,
-  FiDownload, FiTrash2, FiEdit2, FiPlus, FiLock, FiX,
-  FiBookOpen, FiAward, FiFolder, FiAlertCircle, FiArrowRight, FiEye,
+  FiPlus, FiX,
+  FiBookOpen, FiAward, FiFolder, FiAlertCircle, FiArrowRight,
 } from "react-icons/fi";
 import {
   getAccountProfile,
@@ -14,22 +14,14 @@ import {
   uploadProfileResume,
   searchCatalogRoles,
   searchCatalogSkills,
-  listSavedResumes,
-  uploadSavedResume,
-  deleteSavedResume,
-  renameSavedResume,
-  savedResumeDownloadUrl,
   type AccountProfile,
-  type SavedResume,
   type ProfileExperience,
   type ProfileEducation,
   type ProfileProject,
   type ProfileCertification,
 } from "@/lib/api";
-import { useAuth } from "@/lib/useAuth";
-import { hasFeature, getTierLimit } from "@/lib/config";
 import TagInput from "@/components/TagInput";
-import ResumePreviewModal from "@/components/ResumePreviewModal";
+import ResumeLibrary from "@/components/ResumeLibrary";
 
 type FormState = Omit<AccountProfile, "id" | "resume_text" | "completeness">;
 
@@ -118,32 +110,12 @@ function CompletenessRing({ percent }: { percent: number }) {
 }
 
 export default function ProfilePage() {
-  const { data: session } = useAuth();
-  const tier = session?.user?.tier ?? "free";
-  const libraryLimit = getTierLimit(tier, "resume_library");
-  const canUseLibrary = hasFeature(tier, "resume_library");
-
   const [form, setForm] = useState<FormState>(EMPTY);
   const [hasResume, setHasResume] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingResume, setUploadingResume] = useState(false);
   const [tab, setTab] = useState<TabKey>("personal");
-
-  // Resume library
-  const [library, setLibrary] = useState<SavedResume[]>([]);
-  const [libraryLoading, setLibraryLoading] = useState(false);
-  const [libraryUploading, setLibraryUploading] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
-  const [previewResume, setPreviewResume] = useState<SavedResume | null>(null);
-
-  useEffect(() => {
-    if (canUseLibrary) {
-      setLibraryLoading(true);
-      listSavedResumes().then(setLibrary).catch(() => {}).finally(() => setLibraryLoading(false));
-    }
-  }, [canUseLibrary]);
 
   useEffect(() => {
     getAccountProfile()
@@ -398,133 +370,6 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Resume Library */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-                  <FiFileText className="w-4 h-4" /> Resume Library
-                  {canUseLibrary && (
-                    <span className="text-xs font-normal text-slate-400">
-                      {libraryLimit === null
-                        ? `${library.length} saved`
-                        : `${library.length} / ${libraryLimit} used`}
-                    </span>
-                  )}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Save multiple resumes — upload directly or save tailored ones from the builder.
-                </p>
-              </div>
-              {canUseLibrary && (
-                <label className={`btn-secondary text-xs px-3 py-1.5 gap-1.5 cursor-pointer ${
-                  libraryUploading || (libraryLimit !== null && library.length >= libraryLimit)
-                    ? "opacity-50 pointer-events-none" : ""
-                }`}>
-                  {libraryUploading
-                    ? <><FiLoader className="w-3.5 h-3.5 animate-spin" /> Uploading…</>
-                    : <><FiPlus className="w-3.5 h-3.5" /> Add</>
-                  }
-                  <input
-                    type="file"
-                    accept=".pdf,.docx"
-                    className="hidden"
-                    onChange={handleLibraryUpload}
-                    disabled={libraryUploading || (libraryLimit !== null && library.length >= libraryLimit)}
-                  />
-                </label>
-              )}
-            </div>
-
-            {!canUseLibrary && (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center">
-                <FiLock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm font-medium text-slate-600">Resume Library is a Plus feature</p>
-                <p className="text-xs text-slate-400 mt-1">Upgrade to save multiple resumes and apply with one click.</p>
-              </div>
-            )}
-
-            {canUseLibrary && libraryLoading && (
-              <div className="flex items-center justify-center py-8 text-slate-400">
-                <FiLoader className="w-5 h-5 animate-spin mr-2" /> Loading…
-              </div>
-            )}
-
-            {canUseLibrary && !libraryLoading && library.length === 0 && (
-              <div className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-slate-400 text-sm">
-                No resumes saved yet. Upload one above or save a tailored resume from the builder.
-              </div>
-            )}
-
-            {canUseLibrary && !libraryLoading && library.length > 0 && (
-              <div className="flex flex-col gap-2">
-                {library.map((r) => (
-                  <div key={r.id} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center shrink-0">
-                      <FiFileText className="w-4 h-4 text-brand-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {editingId === r.id ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            autoFocus
-                            value={editingName}
-                            onChange={(e) => setEditingName(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") handleRename(r.id); if (e.key === "Escape") setEditingId(null); }}
-                            className="input text-sm py-1 px-2 h-7"
-                          />
-                          <button onClick={() => handleRename(r.id)} className="text-xs text-brand-600 font-medium hover:underline">Save</button>
-                          <button onClick={() => setEditingId(null)} className="text-xs text-slate-400 hover:text-slate-600">Cancel</button>
-                        </div>
-                      ) : (
-                        <p className="text-sm font-medium text-slate-900 truncate">{r.name}</p>
-                      )}
-                      <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
-                        <span className={`rounded-full px-1.5 py-0.5 font-medium ${
-                          r.type === "tailored" ? "bg-teal-50 text-teal-700" : "bg-slate-200 text-slate-600"
-                        }`}>
-                          {r.type === "tailored" ? "Tailored" : "Uploaded"}
-                        </span>
-                        {r.tailored_for_employer && <span>{r.tailored_for_employer}</span>}
-                        {new Date(r.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        onClick={() => setPreviewResume(r)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition"
-                        title="Preview"
-                      >
-                        <FiEye className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => { setEditingId(r.id); setEditingName(r.name); }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition"
-                        title="Rename"
-                      >
-                        <FiEdit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <a
-                        href={savedResumeDownloadUrl(r.id)}
-                        download
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition"
-                        title="Download"
-                      >
-                        <FiDownload className="w-3.5 h-3.5" />
-                      </a>
-                      <button
-                        onClick={() => handleLibraryDelete(r.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
-                        title="Delete"
-                      >
-                        <FiTrash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* ── Right: tabbed editor ──────────────────────────────────────── */}
@@ -805,7 +650,11 @@ export default function ProfilePage() {
         </form>
       </div>
 
-      <ResumePreviewModal resume={previewResume} onClose={() => setPreviewResume(null)} />
+      {/* Full-width library below the grid — the narrow rail distorted it */}
+      <ResumeLibrary
+        variant="full"
+        subtitle="Save multiple resumes — upload directly or save tailored ones from the builder."
+      />
     </div>
   );
 }

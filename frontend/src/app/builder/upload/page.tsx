@@ -156,7 +156,7 @@ function UploadPageInner() {
         </h1>
         <p className="text-slate-500 text-sm max-w-md mx-auto">
           {isTailoring
-            ? "We'll tailor your CV specifically for this role using multi-model AI."
+            ? "We'll tailor your CV specifically for this role using AI."
             : "Upload your existing CV — our AI will tailor it to any job description in minutes."}
         </p>
         {isTailoring && (
@@ -315,7 +315,7 @@ function UploadPageInner() {
                     </p>
                     {s.highlight && (
                       <span className="text-[10px] font-bold bg-teal-200 text-teal-800 px-1.5 py-0.5 rounded-full">
-                        AI ✦ Multi-model
+                        AI-powered
                       </span>
                     )}
                   </div>

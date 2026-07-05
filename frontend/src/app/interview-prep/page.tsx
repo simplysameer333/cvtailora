@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { generateInterviewPrepStandalone, type InterviewPrepResult } from "@/lib/api";
-import { FiBookOpen, FiChevronDown, FiChevronUp, FiZap, FiRefreshCw } from "react-icons/fi";
+import { generateInterviewPrepStandalone, emailInterviewPrep, type InterviewPrepResult } from "@/lib/api";
+import { FiBookOpen, FiChevronDown, FiChevronUp, FiZap, FiRefreshCw, FiMail, FiLoader } from "react-icons/fi";
 
 // ── Category colour map ────────────────────────────────────────────────────────
 
@@ -59,6 +59,9 @@ export default function InterviewPrepPage() {
   const [loading, setLoading]               = useState(false);
   const [result, setResult]                 = useState<InterviewPrepResult | null>(null);
   const [roleInput, setRoleInput]           = useState("");
+  const [questionCount, setQuestionCount]   = useState(15);
+  const [extraContext, setExtraContext]     = useState("");
+  const [emailing, setEmailing]             = useState(false);
 
   const canGenerate = resumeText.trim().length >= 100 && jobDescription.trim().length >= 100;
 
@@ -66,7 +69,9 @@ export default function InterviewPrepPage() {
     if (!canGenerate) return;
     setLoading(true);
     try {
-      const prep = await generateInterviewPrepStandalone(resumeText, jobDescription, roleOverride);
+      const prep = await generateInterviewPrepStandalone(
+        resumeText, jobDescription, roleOverride, questionCount, extraContext,
+      );
       setResult(prep);
       setRoleInput(prep.detected_role ?? "");
     } catch {
@@ -76,18 +81,32 @@ export default function InterviewPrepPage() {
     }
   }
 
+  async function handleEmail() {
+    if (!result) return;
+    setEmailing(true);
+    try {
+      await emailInterviewPrep(result);
+      toast.success("Interview prep pack sent to your email!");
+    } catch {
+      toast.error("Could not send the email — please try again.");
+    } finally {
+      setEmailing(false);
+    }
+  }
+
   return (
     <div className="w-full space-y-6 py-8 px-4 sm:px-0">
 
-      <div>
+      {/* Emerald identity — portal palette; Cover Letter uses the deep-teal variant */}
+      <div className="rounded-2xl bg-gradient-to-r from-teal-700 to-teal-500 px-6 py-5 text-white">
         <div className="flex items-center gap-2.5 mb-1">
-          <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
             <FiBookOpen className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Interview Prep</h1>
+          <h1 className="text-2xl font-bold">Interview Prep</h1>
         </div>
-        <p className="text-slate-500 text-sm ml-11.5">
-          Paste your resume and the job description — AI generates the questions you are most likely to face.
+        <p className="text-teal-100 text-sm">
+          Know what they&apos;ll ask before you walk in — AI predicts your most likely questions, with the points to hit.
         </p>
       </div>
 
@@ -131,6 +150,32 @@ export default function InterviewPrepPage() {
         </div>
       </div>
 
+      {/* Options — question count + additional context */}
+      <div className="card grid grid-cols-1 lg:grid-cols-[220px,1fr] gap-5">
+        <div>
+          <label className="label">Number of questions</label>
+          <select
+            className="input"
+            value={questionCount}
+            onChange={(e) => setQuestionCount(Number(e.target.value))}
+          >
+            <option value={5}>5 — quick prep</option>
+            <option value={10}>10 — solid prep</option>
+            <option value={15}>15 — full prep</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Additional information (optional)</label>
+          <input
+            className="input"
+            value={extraContext}
+            onChange={(e) => setExtraContext(e.target.value)}
+            placeholder="e.g. panel interview, focus on system design, second-round with the CTO…"
+          />
+          <p className="text-xs text-slate-400 mt-1">Anything you know about the interview — the questions will factor it in.</p>
+        </div>
+      </div>
+
       {result && (
         <div className="space-y-3">
           {/* Detected role — editable; lets the user re-target if the role was misread */}
@@ -158,9 +203,21 @@ export default function InterviewPrepPage() {
             <p className="text-xs text-slate-400">Not the right role? Edit it and regenerate to re-target the questions.</p>
           </div>
 
-          <h2 className="text-base font-semibold text-slate-800">
-            {result.questions.length} questions
-          </h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-slate-800">
+              {result.questions.length} questions
+            </h2>
+            <button
+              onClick={handleEmail}
+              disabled={emailing}
+              className="btn-accent text-sm gap-1.5 disabled:opacity-50"
+              title="Send this prep pack to your account email"
+            >
+              {emailing
+                ? <><FiLoader className="w-4 h-4 animate-spin" /> Sending…</>
+                : <><FiMail className="w-4 h-4" /> Email me this pack</>}
+            </button>
+          </div>
 
           <div className="space-y-2">
             {result.questions.map((q, i) => <QuestionCard key={i} q={q} />)}

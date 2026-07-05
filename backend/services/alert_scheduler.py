@@ -18,6 +18,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import settings
 from database import get_db
+from services.audit import log_audit
 from services.email_service import send_job_alert_email, send_no_results_email, send_scheduler_failure_alert
 from services.quota_service import get_quota, increment as _increment_quota
 
@@ -114,6 +115,9 @@ async def _process_alert(db, alert: dict) -> str | None:
             user_name=user.get("name", "there"),
             alert_name=alert["name"],
         )
+        log_audit(user, "job_alert.email_no_results", {
+            "alert_name": alert["name"], "query": query, "location": location,
+        })
         return
 
     seen_ids: set[str] = set(alert.get("seen_job_ids", []))
@@ -140,6 +144,17 @@ async def _process_alert(db, alert: dict) -> str | None:
             {"_id": alert["_id"]},
             {"$set": {"last_sent_at": datetime.utcnow(), "seen_job_ids": updated_seen}},
         )
+        # Audit what was sent to whom — powers the admin audit view + user analytics
+        log_audit(user, "job_alert.email_sent", {
+            "alert_name": alert["name"],
+            "query": query,
+            "location": location,
+            "job_count": len(new_jobs),
+            "jobs": [
+                {"title": j.get("job_title", ""), "employer": j.get("employer_name", "")}
+                for j in new_jobs
+            ],
+        })
         logger.info(
             "[alert-scheduler] Alert %s → %d new jobs emailed to %s",
             alert["_id"], len(new_jobs), user["email"],

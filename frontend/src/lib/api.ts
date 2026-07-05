@@ -861,6 +861,24 @@ export async function getUserStats(): Promise<AccountStats> {
   return data;
 }
 
+export interface AccountAnalytics {
+  alert_emails_sent: number;
+  alert_jobs_delivered: number;
+  alerts_active: number;
+  resumes_generated: number;
+  resumes_exported: number;
+  cv_scores_run: number;
+  jobs_saved: number;
+  jobs_viewed: number;
+  daily: { date: string; count: number }[];
+  recent: { action: string; metadata: Record<string, unknown>; created_at: string }[];
+}
+
+export async function getAccountAnalytics(): Promise<AccountAnalytics> {
+  const { data } = await api.get("/api/account/analytics");
+  return data;
+}
+
 export interface AccountUsage {
   daily_used_cents: number;
   daily_cap_cents: number | null;
@@ -1108,13 +1126,25 @@ export async function generateInterviewPrepStandalone(
   resumeText: string,
   jobDescription: string,
   roleOverride = "",
+  questionCount = 15,
+  additionalContext = "",
 ): Promise<InterviewPrepResult> {
   const res = await api.post("/api/interview-prep/generate", {
     resume_text: resumeText,
     job_description: jobDescription,
     role_override: roleOverride,
+    question_count: questionCount,
+    additional_context: additionalContext,
   });
   return res.data as InterviewPrepResult;
+}
+
+export async function emailInterviewPrep(result: InterviewPrepResult): Promise<void> {
+  await api.post("/api/interview-prep/email", {
+    questions: result.questions,
+    prep_tip: result.prep_tip ?? "",
+    detected_role: result.detected_role ?? "",
+  });
 }
 
 // ── Salary Benchmark ───────────────────────────────────────────────────────────

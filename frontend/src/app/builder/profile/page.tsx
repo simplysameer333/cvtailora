@@ -183,7 +183,7 @@ export default function ProfilePage() {
 
           {/* Step badge */}
           <div className="inline-flex items-center gap-1.5 text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded-full px-3 py-1.5 mt-2">
-            <FiZap className="w-3 h-3" /> Powered by multi-model AI
+            <FiZap className="w-3 h-3" /> AI-powered
           </div>
         </div>
       </div>

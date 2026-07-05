@@ -3,7 +3,7 @@
  * Resume quality score panel — shared between builder/preview and builder/template.
  * Displays the multi-evaluator score, quality label, progress bar, and cycle count.
  */
-import { FiAward, FiCheckCircle, FiShield, FiAlertTriangle } from "react-icons/fi";
+import { FiAward, FiAlertTriangle } from "react-icons/fi";
 import type { EvalSummary } from "@/lib/api";
 
 function qualityLabel(score: number, threshold: number): string {
@@ -95,7 +95,7 @@ function qualityColors(score: number, threshold: number) {
 // ── Compact variant — used on builder/template ────────────────────────────────
 
 export function EvalQualityPanel({ evalSummary }: { evalSummary: EvalSummary }) {
-  const { min_score, pass_threshold, all_passed, evaluator_results, cycles } = evalSummary;
+  const { min_score, pass_threshold } = evalSummary;
   const label  = qualityLabel(min_score, pass_threshold);
   const colors = qualityColors(min_score, pass_threshold);
 
@@ -115,9 +115,6 @@ export function EvalQualityPanel({ evalSummary }: { evalSummary: EvalSummary }) 
           {min_score}<span className="text-xs font-normal text-slate-400">/100</span>
         </span>
       </div>
-      <p className="text-xs text-slate-500">
-        {evaluator_results.length} evaluator{evaluator_results.length !== 1 ? "s" : ""} · {cycles} cycle{cycles !== 1 ? "s" : ""} · {all_passed ? "All passed" : "Best version selected"}
-      </p>
       <ScoreBreakdown summary={evalSummary} />
     </div>
   );
@@ -126,39 +123,26 @@ export function EvalQualityPanel({ evalSummary }: { evalSummary: EvalSummary }) 
 // ── Expanded variant — used on builder/preview ────────────────────────────────
 
 export function EvalSummaryPanel({ summary }: { summary: EvalSummary }) {
-  const { min_score, pass_threshold, all_passed, evaluator_results, cycles, profession } = summary;
+  const { min_score, pass_threshold, profession } = summary;
   const label  = qualityLabel(min_score, pass_threshold);
   const colors = qualityColors(min_score, pass_threshold);
 
   return (
     <div className={`rounded-xl border p-4 flex flex-col gap-3 ${colors.border} ${colors.bg}`}>
-      <div className="flex items-center gap-2">
-        {all_passed
-          ? <FiCheckCircle className="w-5 h-5 text-green-600 shrink-0" />
-          : <FiShield      className="w-5 h-5 text-blue-600  shrink-0" />}
-        <span className="font-semibold text-sm text-slate-800">
-          {all_passed
-            ? `Fully tailored — reviewed across ${cycles} iteration${cycles !== 1 ? "s" : ""}`
-            : `Optimized over ${cycles} iteration${cycles !== 1 ? "s" : ""} — best version selected`}
+      {/* Final score only — per-evaluator chips and iteration copy removed by design */}
+      <div className="flex items-center gap-3">
+        <FiAward className="w-5 h-5 text-slate-500 shrink-0" />
+        <span className="font-semibold text-sm text-slate-800">CV Score</span>
+        <span className="text-2xl font-bold text-slate-900">
+          {min_score}<span className="text-sm font-normal text-slate-400">/100</span>
         </span>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${colors.badge}`}>{label}</span>
         {profession && (
           <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-600 capitalize shrink-0">
             {profession}
           </span>
         )}
       </div>
-      {evaluator_results.length > 0 && (
-        <div className="flex gap-3 flex-wrap">
-          {evaluator_results.map(r => (
-            <div key={r.model} className="flex items-center gap-1.5 text-xs text-slate-600">
-              <span className="capitalize font-medium">{r.model} review</span>
-              <span className={`px-2 py-0.5 rounded font-semibold ${qualityColors(r.score, pass_threshold).badge}`}>
-                {qualityLabel(r.score, pass_threshold)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
       <ScoreBreakdown summary={summary} />
     </div>
   );

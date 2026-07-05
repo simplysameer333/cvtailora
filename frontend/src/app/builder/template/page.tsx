@@ -146,6 +146,14 @@ function TemplateModal({
   const IFRAME_W = 794;
   const PREVIEW_W = Math.round(IFRAME_W * SCALE);
   const PREVIEW_H = Math.round(IFRAME_W * 1.414 * SCALE);
+
+  // Lock the base page while the modal is open — wheel events must scroll the
+  // modal panes (overscroll-contain), never the gallery behind it.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
   const html = previewData ? getTemplateHtml(info.key, previewData) : "";
   const isPersonalised = !!(previewData?.name);
   const hdr = CATEGORY_HEADER[info.category] ?? CATEGORY_HEADER["Classic"];
@@ -160,7 +168,7 @@ function TemplateModal({
         onClick={e => e.stopPropagation()}
       >
         {/* ── Left: live preview ── */}
-        <div className="bg-slate-100 flex items-start justify-center p-6 shrink-0 overflow-y-auto">
+        <div className="bg-slate-100 flex items-start justify-center p-6 shrink-0 overflow-y-auto overscroll-contain">
           <div
             className="rounded-lg shadow-xl overflow-hidden border border-slate-200"
             style={{ width: PREVIEW_W, height: PREVIEW_H, position: "relative", background: "#fff" }}
@@ -184,7 +192,7 @@ function TemplateModal({
         </div>
 
         {/* ── Right: info panel ── */}
-        <div className="flex-1 flex flex-col overflow-y-auto">
+        <div className="flex-1 flex flex-col overflow-y-auto overscroll-contain">
 
           {/* Coloured header — category colour matches gallery card */}
           <div className={clsx("px-6 pt-5 pb-4 shrink-0", hdr.bg)}>

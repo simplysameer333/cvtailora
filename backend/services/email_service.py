@@ -502,3 +502,99 @@ async def send_error_alert(method: str, path: str, exc: Exception, tb: str) -> N
     except Exception as email_exc:
         # Never let alert delivery failure mask the original error
         logger.warning("[error-alert] Failed to send alert email: %s", email_exc)
+
+
+async def send_interview_prep_email(
+    user_email: str,
+    user_name: str,
+    role: str,
+    questions: list[dict],
+    prep_tip: str,
+) -> bool:
+    """Email the user their generated interview questions + answers guidance."""
+    from config import settings
+
+    if not settings.brevo_api_key:
+        raise RuntimeError("BREVO_API_KEY is not set — add it to .env and Railway")
+
+    frontend_url = settings.frontend_url
+
+    def _q_html(i: int, q: dict) -> str:
+        points = "".join(
+            f'<li style="font-size:13px;color:#475569;margin:2px 0;">{p}</li>'
+            for p in (q.get("key_points") or [])
+        )
+        return f"""
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin:0 0 12px;">
+        <div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;">{q.get("category", "")}</div>
+        <div style="font-size:15px;font-weight:600;color:#0f172a;margin:4px 0 6px;">{i}. {q.get("question", "")}</div>
+        <div style="font-size:12px;color:#64748b;margin:0 0 8px;"><em>Why they ask: {q.get("why_asked", "")}</em></div>
+        <div style="font-size:12px;font-weight:600;color:#334155;">Cover these points:</div>
+        <ul style="margin:4px 0 0;padding-left:18px;">{points}</ul>
+      </div>"""
+
+    questions_html = "".join(_q_html(i + 1, q) for i, q in enumerate(questions))
+    tip_html = (
+        f'<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;'
+        f'padding:14px 20px;margin:16px 0 0;font-size:13px;color:#065f46;">'
+        f'<strong>Prep tip:</strong> {prep_tip}</div>'
+        if prep_tip else ""
+    )
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:#f8fafc;margin:0;padding:0;">
+  <div style="max-width:640px;margin:32px auto;padding:0 16px;">
+    <div style="background:#0f3d3e;border-radius:16px 16px 0 0;padding:28px 32px;">
+      <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.3px;">TailorMyCv</div>
+      <div style="font-size:13px;color:#6ee7b7;margin-top:4px;">Your interview prep pack</div>
+    </div>
+    <div style="background:#f8fafc;padding:28px 32px 24px;">
+      <p style="font-size:16px;color:#1e293b;margin:0 0 8px;">Hi {user_name},</p>
+      <p style="font-size:14px;color:#475569;margin:0 0 20px;">
+        Here are your <strong>{len(questions)} most likely interview questions</strong>
+        for the <strong>{role or "target"}</strong> role — with why each gets asked
+        and the points to hit in your answer.
+      </p>
+      {questions_html}
+      {tip_html}
+      <div style="text-align:center;margin-top:24px;">
+        <a href="{frontend_url}/interview-prep"
+           style="display:inline-block;background:#059669;color:#fff;font-size:14px;
+                  font-weight:600;padding:12px 28px;border-radius:10px;text-decoration:none;">
+          Generate more questions &rarr;
+        </a>
+      </div>
+    </div>
+    <div style="background:#f1f5f9;border-radius:0 0 16px 16px;padding:16px 32px;text-align:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">
+        You requested this interview prep pack on TailorMyCv.
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    payload = {
+        "sender": {"name": "TailorMyCv", "email": settings.brevo_sender_email},
+        "to": [{"email": user_email, "name": user_name}],
+        "subject": f"Your {len(questions)} interview questions — {role or 'your target role'}",
+        "htmlContent": html,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                "https://api.brevo.com/v3/smtp/email",
+                json=payload,
+                headers={"api-key": settings.brevo_api_key, "Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+        logger.info("[interview-prep] Emailed %d questions to %s", len(questions), user_email)
+        return True
+    except httpx.HTTPStatusError as exc:
+        logger.error("[interview-prep] Brevo error %s: %s", exc.response.status_code, exc.response.text)
+        raise RuntimeError(f"Brevo {exc.response.status_code}: {exc.response.text}") from exc
+    except Exception as exc:
+        logger.error("[interview-prep] Brevo error to %s: %s", user_email, exc)
+        raise RuntimeError(str(exc)) from exc

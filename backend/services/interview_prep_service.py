@@ -56,12 +56,16 @@ Return ONLY valid JSON — no markdown fences, no explanation:
   "prep_tip": "One concrete action the candidate should take TODAY to feel more confident going into this interview."
 }"""
 
-# Fixed question mix the output must follow (category, count) — total 15.
-_TARGET_MIX = [("Technical", 10), ("Behavioral", 2), ("Situational", 2), ("Culture Fit", 1)]
+# Question mixes per supported count (category, count). 15 is the default.
+_MIXES: dict[int, list[tuple[str, int]]] = {
+    15: [("Technical", 10), ("Behavioral", 2), ("Situational", 2), ("Culture Fit", 1)],
+    10: [("Technical", 6),  ("Behavioral", 2), ("Situational", 1), ("Culture Fit", 1)],
+    5:  [("Technical", 3),  ("Behavioral", 1), ("Situational", 1)],
+}
 
 
-def _enforce_distribution(questions: list[dict]) -> list[dict]:
-    """Trim the model output to the fixed 15-question mix (10/2/2/1).
+def _enforce_distribution(questions: list[dict], mix: list[tuple[str, int]]) -> list[dict]:
+    """Trim the model output to the requested question mix.
 
     Validation gate: we never trust the raw count. Keeps at most the target
     number per category and orders them Technical → Behavioral → Situational →
@@ -74,7 +78,7 @@ def _enforce_distribution(questions: list[dict]) -> list[dict]:
         by_cat.setdefault(cat, []).append(q)
 
     ordered: list[dict] = []
-    for cat, n in _TARGET_MIX:
+    for cat, n in mix:
         picked = by_cat.get(cat, [])[:n]
         if len(picked) < n:
             logger.warning("[interview_prep] %s: model returned %d of %d expected", cat, len(picked), n)
@@ -87,13 +91,19 @@ async def generate_interview_prep(
     job_description: str,
     context: dict | None = None,
     role_override: str = "",
+    question_count: int = 15,
+    additional_context: str = "",
 ) -> dict:
     """Generate targeted interview questions for the given resume + JD pair.
 
     ``context`` is the shared engagement context ({candidate_profile, jd_profile}); when
     omitted it is built here. ``role_override`` re-targets the questions at a corrected
-    role. The returned dict includes ``detected_role`` for display in the UI.
+    role. ``question_count`` must be one of 5/10/15 (falls back to 15).
+    ``additional_context`` is free-text from the candidate (e.g. "panel interview,
+    focus on system design"). The returned dict includes ``detected_role``.
     """
+    mix = _MIXES.get(question_count, _MIXES[15])
+    mix_total = sum(n for _, n in mix)
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
 
@@ -112,10 +122,24 @@ async def generate_interview_prep(
     )
 
     ctx_block = context_to_prompt_block(context)
+    # Count override rides in the user message so the admin-overridable system
+    # prompt (written around the default 15) stays untouched.
+    mix_line = ", ".join(f"{n} {cat}" for cat, n in mix)
+    count_block = (
+        f"## QUESTION COUNT OVERRIDE\nOutput EXACTLY {mix_total} questions total, "
+        f"in this EXACT mix: {mix_line}. This overrides any other count stated above.\n\n"
+        if mix_total != 15 else ""
+    )
+    extra_block = (
+        f"## ADDITIONAL NOTES FROM THE CANDIDATE\n{additional_context.strip()[:1500]}\n\n"
+        if additional_context.strip() else ""
+    )
     content = (
         (f"{ctx_block}\n\n" if ctx_block else "")
         + f"## CANDIDATE RESUME\n{resume_text[:4000]}\n\n"
         + f"## JOB DESCRIPTION\n{job_description[:3000]}\n\n"
+        + extra_block
+        + count_block
         + "Generate targeted interview questions. Return only JSON."
     )
 
@@ -128,7 +152,7 @@ async def generate_interview_prep(
 
     data = json.loads(raw)
     return {
-        "questions": _enforce_distribution(data.get("questions") or []),
+        "questions": _enforce_distribution(data.get("questions") or [], mix),
         "prep_tip": data.get("prep_tip", ""),
         "detected_role": role_override or _detected_role(context),
     }

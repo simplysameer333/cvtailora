@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from bson import ObjectId
 from database import get_db
-from dependencies.auth import get_optional_user
+from dependencies.auth import get_current_user, get_optional_user
 
 router = APIRouter()
 logger = logging.getLogger("tailormycv")
@@ -14,6 +14,14 @@ class StandaloneInterviewPrepRequest(BaseModel):
     resume_text: str
     job_description: str
     role_override: str = ""  # user-corrected target role; re-targets the questions
+    question_count: int = 15       # 5 / 10 / 15 — service falls back to 15 otherwise
+    additional_context: str = ""   # free-text notes (interview format, focus areas…)
+
+
+class EmailPrepRequest(BaseModel):
+    questions: list[dict]
+    prep_tip: str = ""
+    detected_role: str = ""
 
 
 @router.post("/sessions/{session_id}/interview-prep")
@@ -93,7 +101,38 @@ async def generate_interview_prep_standalone(
         from services.interview_prep_service import generate_interview_prep
         return await generate_interview_prep(
             body.resume_text, body.job_description, role_override=body.role_override,
+            question_count=body.question_count, additional_context=body.additional_context,
         )
     except Exception as exc:
         logger.exception("[interview_prep_standalone] Failed: %s", exc)
         raise HTTPException(500, f"Interview prep generation failed: {exc}")
+
+
+@router.post("/interview-prep/email", status_code=204)
+async def email_interview_prep(
+    body: EmailPrepRequest,
+    user: dict = Depends(get_current_user),
+):
+    """Send the user's generated interview questions to their account email."""
+    if not body.questions:
+        raise HTTPException(422, "No questions to send.")
+
+    from services.email_service import send_interview_prep_email
+    from services.audit import log_audit
+
+    try:
+        await send_interview_prep_email(
+            user_email=user["email"],
+            user_name=user.get("name", "there"),
+            role=body.detected_role,
+            questions=body.questions[:20],
+            prep_tip=body.prep_tip,
+        )
+    except Exception as exc:
+        logger.exception("[interview_prep_email] Failed for %s: %s", user.get("email"), exc)
+        raise HTTPException(502, f"Email delivery failed: {exc}")
+
+    log_audit(user, "interview_prep.email_sent", {
+        "question_count": len(body.questions),
+        "role": body.detected_role,
+    })

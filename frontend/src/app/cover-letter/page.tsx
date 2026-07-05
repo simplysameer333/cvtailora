@@ -102,14 +102,15 @@ export default function CoverLetterPage() {
   return (
     <div className="w-full space-y-6 py-8 px-4 sm:px-0">
 
-      <div>
+      {/* Deep-teal identity — portal palette; Interview Prep uses the emerald variant */}
+      <div className="rounded-2xl bg-gradient-to-r from-brand-800 to-brand-600 px-6 py-5 text-white">
         <div className="flex items-center gap-2.5 mb-1">
-          <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
             <FiMail className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Cover Letter Generator</h1>
+          <h1 className="text-2xl font-bold">Cover Letter Generator</h1>
         </div>
-        <p className="text-slate-500 text-sm ml-11.5">
+        <p className="text-brand-100 text-sm">
           Paste your resume and the job description — AI writes a tailored cover letter in seconds.
         </p>
       </div>
