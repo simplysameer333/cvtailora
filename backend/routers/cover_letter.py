@@ -47,6 +47,8 @@ async def generate_cover_letter_standalone(
 
     if user:
         await increment_usage(db, str(user.get("_id", "")), 1, 0.012)
+        from services.audit import log_audit
+        log_audit(user, "cover_letter.generate", {"role": result.get("detected_role", "")})
 
     return result
 
@@ -99,6 +101,8 @@ async def generate_cover_letter(
     # Charge usage (1 Sonnet call)
     if user:
         await increment_usage(db, str(user.get("_id", "")), 1, 0.012)
+        from services.audit import log_audit
+        log_audit(user, "cover_letter.generate", {"role": result.get("detected_role", "")})
 
     return result
 

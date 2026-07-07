@@ -307,15 +307,19 @@ async def get_account_analytics(user: dict = Depends(get_current_user)):
     _FEED_ACTIONS = [
         "job_alert.email_sent", "job_alert.email_no_results",
         "resume.generate.complete", "resume.export", "resume.cv_score",
-        "interview_prep.email_sent",
+        "cover_letter.generate", "interview_prep.generate", "interview_prep.email_sent",
     ]
 
     (alert_emails, resumes_generated, resumes_exported,
-     cv_scores, jobs_saved, jobs_viewed, alerts_active) = await _asyncio.gather(
+     cv_scores, cover_letters, interview_preps,
+     jobs_saved, jobs_viewed, alerts_active) = await _asyncio.gather(
         db.audit_log.count_documents({"user_id": uid_str, "action": "job_alert.email_sent"}),
-        db.sessions.count_documents({"user_id": uid, "generated_resume": {"$ne": None}}),
+        # audit-based so it matches the activity feed exactly
+        db.audit_log.count_documents({"user_id": uid_str, "action": "resume.generate.complete"}),
         db.audit_log.count_documents({"user_id": uid_str, "action": "resume.export"}),
         db.audit_log.count_documents({"user_id": uid_str, "action": "resume.cv_score"}),
+        db.audit_log.count_documents({"user_id": uid_str, "action": "cover_letter.generate"}),
+        db.audit_log.count_documents({"user_id": uid_str, "action": "interview_prep.generate"}),
         db.saved_jobs.count_documents({"user_id": uid_str}),
         # seen_jobs keys user_id as ObjectId (jobs.py), saved_jobs as str
         db.seen_jobs.count_documents({"user_id": uid}),
@@ -362,6 +366,8 @@ async def get_account_analytics(user: dict = Depends(get_current_user)):
         "resumes_generated": resumes_generated,
         "resumes_exported": resumes_exported,
         "cv_scores_run": cv_scores,
+        "cover_letters": cover_letters,
+        "interview_preps": interview_preps,
         "jobs_saved": jobs_saved,
         "jobs_viewed": jobs_viewed,
         "recent": recent,

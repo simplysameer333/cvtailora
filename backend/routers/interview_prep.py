@@ -61,6 +61,12 @@ async def generate_interview_prep_for_session(
             {"_id": ObjectId(session_id)},
             {"$set": {"interview_prep": result}},
         )
+        if user:
+            from services.audit import log_audit
+            log_audit(user, "interview_prep.generate", {
+                "question_count": len(result.get("questions", [])),
+                "role": result.get("detected_role", ""),
+            })
         return result
     except Exception as exc:
         logger.exception("[interview_prep] Failed for session %s: %s", session_id, exc)
@@ -99,13 +105,21 @@ async def generate_interview_prep_standalone(
 
     try:
         from services.interview_prep_service import generate_interview_prep
-        return await generate_interview_prep(
+        result = await generate_interview_prep(
             body.resume_text, body.job_description, role_override=body.role_override,
             question_count=body.question_count, additional_context=body.additional_context,
         )
     except Exception as exc:
         logger.exception("[interview_prep_standalone] Failed: %s", exc)
         raise HTTPException(500, f"Interview prep generation failed: {exc}")
+
+    if user:
+        from services.audit import log_audit
+        log_audit(user, "interview_prep.generate", {
+            "question_count": len(result.get("questions", [])),
+            "role": result.get("detected_role", ""),
+        })
+    return result
 
 
 @router.post("/interview-prep/email", status_code=204)

@@ -138,16 +138,19 @@ function UploadZone({
           </>
         )}
       </div>
-      <button
-        onClick={onCheck}
-        disabled={!file || loading}
-        className="mt-4 w-full btn-primary py-3 text-base flex items-center justify-center gap-2 disabled:opacity-50"
-      >
-        {loading
-          ? <><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Analysing…</>
-          : <>Score My CV — It&apos;s Free</>}
-      </button>
-      <p className="text-center text-xs text-slate-400 mt-2">No sign-in required · Results in around 30–60 seconds</p>
+      {/* Standard-size CTA, centered — matches button sizing across the app */}
+      <div className="mt-4 flex flex-col items-center gap-2">
+        <button
+          onClick={onCheck}
+          disabled={!file || loading}
+          className="btn-primary px-8 disabled:opacity-50"
+        >
+          {loading
+            ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Analysing…</>
+            : <>Score My CV — It&apos;s Free</>}
+        </button>
+        <p className="text-xs text-slate-400">No sign-in required · Results in around 30–60 seconds</p>
+      </div>
     </div>
   );
 }

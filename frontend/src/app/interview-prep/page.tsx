@@ -3,6 +3,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { generateInterviewPrepStandalone, emailInterviewPrep, type InterviewPrepResult } from "@/lib/api";
 import { FiBookOpen, FiChevronDown, FiChevronUp, FiZap, FiRefreshCw, FiMail, FiLoader } from "react-icons/fi";
+import ResumeLibrary from "@/components/ResumeLibrary";
 
 // ── Category colour map ────────────────────────────────────────────────────────
 
@@ -109,6 +110,16 @@ export default function InterviewPrepPage() {
           Know what they&apos;ll ask before you walk in — AI predicts your most likely questions, with the points to hit.
         </p>
       </div>
+
+      {/* Pull a saved resume straight into the form */}
+      <ResumeLibrary
+        variant="picker"
+        requireText
+        title="Your Resume Library"
+        subtitle="Copy a saved resume into the form below — no re-pasting."
+        ctaLabel="Copy into form"
+        onUseResume={(r) => { setResumeText(r.resume_text ?? ""); setResult(null); toast.success(`"${r.name}" copied into the form.`); }}
+      />
 
       <div className="card space-y-5">
         {/* Resume + JD side by side on wide screens — uses the full page width */}

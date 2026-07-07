@@ -132,8 +132,12 @@ implementation would be entirely ours.
 | J8 | **Recent activity feed** | Sidebar panel of latest actions | Low |
 | J9 | **Job source toggles** | Greenhouse / Lever / Workable / Wellfound on-off chips above results | Low — cosmetic filter on our search |
 
-### Shipped from this list (2026-07-05 session)
-- J1 + J2 (profile completeness + tabbed structured profile) and J7 (quota widget in new sidebar shell).
+### Shipped from this list (2026-07-05/06 session)
+- **J1 + J2** — profile completeness ring/checklist + tabbed structured profile (backend scorer + tests).
+- **J7** — Daily AI budget quota widget in the new sidebar shell.
+- **J5 (UI groundwork)** — "How would you like to apply?" modal with Manual + "AI Agent (Coming soon)" options; agent itself still deferred.
+- **J8 (partial)** — Analytics page with an automated-activity feed (alert emails, tailoring runs, exports, scores).
+- Also: shared ResumeLibrary component, resume preview modal, per-user alert-email audit trail.
 
 ### What we already do better
 Multi-model quality loop, CV Score (54 checks), job alerts, resume library,

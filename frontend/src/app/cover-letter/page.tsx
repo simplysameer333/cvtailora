@@ -3,6 +3,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { generateCoverLetterStandalone, type CoverLetterResult } from "@/lib/api";
 import { FiMail, FiCopy, FiCheck, FiRefreshCw, FiZap } from "react-icons/fi";
+import ResumeLibrary from "@/components/ResumeLibrary";
 
 // ── Result card ────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,16 @@ export default function CoverLetterPage() {
           Paste your resume and the job description — AI writes a tailored cover letter in seconds.
         </p>
       </div>
+
+      {/* Pull a saved resume straight into the form */}
+      <ResumeLibrary
+        variant="picker"
+        requireText
+        title="Your Resume Library"
+        subtitle="Copy a saved resume into the form below — no re-pasting."
+        ctaLabel="Copy into form"
+        onUseResume={(r) => { setResumeText(r.resume_text ?? ""); setResult(null); toast.success(`"${r.name}" copied into the form.`); }}
+      />
 
       <div className="card space-y-5">
         {/* Resume + JD side by side on wide screens — uses the full page width */}

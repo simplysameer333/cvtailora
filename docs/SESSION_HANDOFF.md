@@ -1,9 +1,90 @@
 # Session Handoff — TailorMyCv
 
-> Rolling context for continuing work. **Last updated: 2026-06-18.**
+> Rolling context for continuing work. **Last updated: 2026-07-06.**
 > Branch: `main`. Railway auto-deploys both services on push.
 
 This is the broad handoff. CV-score-preview specifics live in `docs/CV_SCORE_PREVIEW_CONTEXT.md`.
+
+---
+
+## What shipped in the 2026-07-05/06 session — full UI redesign + JobBuddy-inspired features
+
+Driven by a competitor walkthrough (JobBuddy AI job-application agent — features catalogued as
+J1–J9 in `competitor_features.md`). Iterated live with the user across many feedback rounds.
+
+### 1. Theme + layout (app-wide)
+- **Palette** (`tailwind.config.ts`): `brand` = deep-teal scale (900 `#0f3d3e`), `teal` = emerald CTA
+  scale (500 `#10b981`), `surface` `#fafaf7` body bg, amber (Tailwind default) for scores/stats.
+  Full 50–900 scales — the old config was missing 200/300/800 so those classes silently no-oped.
+- **`SidebarShell`** wraps ALL app pages incl. `/cv-score`: common sticky `Navbar` (logo hard-left,
+  nav CENTERED with roomy spacing, account hard-right; surface-blended w/ backdrop-blur — no hard
+  white bar), deep-teal collapsible sidebar (authOnly items show disabled+lock for signed-out
+  visitors and link to /auth/login), **Daily AI budget widget** (new `GET /api/account/usage`),
+  single compact `Footer` (same on every page, visible on mobile, no top margin — a margin forced
+  scrollbars on fitting pages). Only `/` still uses AppShell.
+- **NO width caps on app pages** (user's screen ~2560 CSS px; a max-w-[1500px] workspace was tried
+  and rejected): content anchors to the sidebar `w-full`; side rails
+  (`xl:grid-cols-[minmax(0,1fr),300–420px]`) and side-by-side textareas fill the width.
+- Landing: full-bleed deep-teal hero, two-column (copy left / static CV-Score product card right —
+  no hover transform), How-It-Works = compact numbered strip, feature showcase grid (same
+  left-header alignment), pricing. "Built with multi-model AI" and all user-facing "multi-model"
+  phrasing REMOVED (backend had none).
+
+### 2. Profile rebuild (JobBuddy J1+J2)
+- Backend: `services/profile_completeness.py` — pure scorer (weights sum 100; 8 checklist items),
+  8 unit tests in `tests/test_profile_completeness.py`. Profile doc + `ProfileBody` gained
+  structured `experience/education/projects/certifications`; `_serialize_profile` embeds
+  `completeness`; `_ai_prefill` extracts the new arrays too (12k chars in / 3k tokens out).
+- Frontend: profile page = left rail (completeness ring + jump-to-fix checklist + upload strip)
+  + 6-tab editor. Client mirrors the scorer (`computeCompleteness`) for live ring updates —
+  **weights must stay in sync with the backend**. Type gotcha: `ProfileExperience/...` in api.ts,
+  NOT `ExperienceItem` (that's the CV-extractor shape).
+
+### 3. Shared `ResumeLibrary` component (+ preview/apply modals)
+- `components/ResumeLibrary.tsx` — one component everywhere resumes appear: "full" variant
+  (upload/rename/delete/download/preview; profile page, full-width section) and "picker" variant
+  (CTA per row; builder upload "Use this resume", cover letter + interview prep "Copy into form").
+  Single item spans full width; 2-col only with multiple items. `onLoaded` lets hosts adapt copy.
+- `ResumePreviewModal` — authenticated blob fetch → inline PDF iframe (thumbnails kept for page
+  nav) or resume_text fallback for DOCX/tailored; scroll-locked overlay.
+- Jobs page cards: actions right-aligned, bookmark extreme right; "Apply with Saved" button removed
+  — "Tailor Resume" opens ResumePickerModal (covers both paths). "Apply" opens `ApplyChoiceModal`
+  (manual → new tab; "Apply Automatically with AI Agent" shown as COMING SOON ahead of J5).
+- Builder preview panel (`EvalQualityPanel`): evaluator chips + "Optimized over N iterations" line
+  removed — final **CV Score N/100** + label + category breakdown only.
+
+### 4. Analytics page + full metric capture (J-adjacent)
+- New `/analytics` under ACCOUNT in sidebar: compact stat strip, activity-breakdown donut +
+  30-day histogram + resume usage + quality trend (all dependency-free SVG), then **Automated
+  activity feed LAST with fixed max-h-80 + internal scroll**. (Category-strengths and job-search
+  cards were built then removed on user decision — analytics is about automated actions only.)
+- `GET /api/account/analytics` — audit-log-based counts (so numbers match the feed) + 30-day
+  daily aggregation. **Every metric now has a capture path**: alert_scheduler logs
+  `job_alert.email_sent` (with the jobs sent) / `email_no_results`; cover_letter + interview_prep
+  generation log audits; `interview_prep.email_sent` on the email endpoint; exports/cv_score/
+  saved/seen already existed.
+
+### 5. Interview Prep upgrades + page identities
+- Question count selector (5/10/15 — `_MIXES` in `interview_prep_service.py`; count override rides
+  in the user message so the admin-overridable system prompt is untouched), additional-context
+  field, **"Email me this pack"** → `POST /api/interview-prep/email` (Brevo, deep-teal template,
+  audit-logged). Cover Letter = deep-teal identity band, Interview Prep = emerald (portal palette
+  only — sky/violet were rejected).
+
+### 6. Misc fixes
+- Template-page preview modal: body scroll locked + overscroll-contain (was scrolling the gallery).
+- Admin tables: `overflow-x-auto` wrappers (no page-level horizontal scroll on mobile).
+- Mock jobs got real-ish apply links so the full card UI shows in dev.
+- CV Score run button: standard size, centered (was a full-width bar).
+- Logo: `variant="dark"` white tile for the teal sidebar; new palette hex in the wordmark.
+
+### Decisions / notes
+- **Step order stays Upload → Profile → Job → Preview → Template.** Flipping Template before
+  Preview would let trim-enforcement target the real page budget — flagged as possible follow-up.
+- Deferred: template-preview "all sections present else ask user"; J3 job match %; J4 application
+  tracker; J5 auto-apply agent (modal UI groundwork done).
+- Commits `7dcab0f`/`bb44609` (user-made, "updates on UI to user wider areas") carry most of this;
+  the final polish round (analytics restructure, footer/navbar blend, library width) follows.
 
 ---
 

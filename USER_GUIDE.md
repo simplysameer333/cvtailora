@@ -189,7 +189,7 @@ Go to **Cover Letter** in the navbar (or the bottom tab bar on mobile) to write 
 
 ### How to use it
 
-1. **Paste your resume** into the first box (at least 100 characters).
+1. **Paste your resume** into the first box (at least 100 characters) — or click **Copy into form** on a saved resume in the **Your Resume Library** panel above the form *(Plus/Pro)*.
 2. **Paste the job description** into the second box (at least 100 characters).
 3. Click **Generate Cover Letter**.
 
@@ -210,11 +210,12 @@ Go to **Interview Prep** in the navbar to see the questions you're most likely t
 
 ### How to use it
 
-1. **Paste your resume** (≥ 100 characters).
+1. **Paste your resume** (≥ 100 characters) — or click **Copy into form** on a saved resume in the **Your Resume Library** panel *(Plus/Pro)*.
 2. **Paste the job description** (≥ 100 characters).
-3. Click **Generate Questions**.
+3. Optionally pick the **number of questions** (5 quick / 10 solid / 15 full prep) and add **additional information** about the interview (e.g. "panel interview, focus on system design") — the questions factor it in.
+4. Click **Generate Questions**.
 
-You get a fixed **15 targeted questions** (10 Technical, 2 Behavioral, 2 Situational, 1 Culture Fit), each tied to something real in the job description or your resume — not generic filler. Questions are grouped into four colour-coded categories:
+You get up to **15 targeted questions** (at full prep: 10 Technical, 2 Behavioral, 2 Situational, 1 Culture Fit), each tied to something real in the job description or your resume — not generic filler. Questions are grouped into four colour-coded categories:
 
 - **Technical** — about specific tools and skills the role names
 - **Behavioral** — about experiences (or gaps) visible in your resume
@@ -222,6 +223,8 @@ You get a fixed **15 targeted questions** (10 Technical, 2 Behavioral, 2 Situati
 - **Culture Fit** — values and working-style alignment
 
 **Tap any question** to expand it and see *why it's likely to be asked* plus **key points to cover** in your answer. A **Prep tip** at the bottom gives you one concrete action to take before the interview.
+
+Click **Email me this pack** to receive the full set of questions, rationales, and talking points in your inbox — handy for revising on the go.
 
 > **Tip:** Interview Prep also appears as a card on the builder Preview step, pre-loaded with that session's resume and job description.
 
@@ -255,11 +258,11 @@ Click the **bookmark icon** on any listing to save it. Saved jobs stay available
 
 ### One-click Tailor *(Plus & Pro)*
 
-Click **Tailor Resume** on any listing to start a builder session pre-loaded with that job's description. The job title and employer appear as a banner across all 6 builder steps.
+Click **Tailor Resume** on any listing — it opens your resume picker where you can either apply with a **saved resume from your library** or **AI-tailor a new resume** pre-loaded with that job's description. The job title and employer appear as a banner across all builder steps.
 
 ### Applying
 
-Click **Apply →** on a listing to open the original job posting in a new tab. Use **Apply with Saved** *(Plus/Pro)* to attach an existing tailored resume from your library.
+Click **Apply** on a listing and choose how to apply: **Apply Manually** opens the original job posting in a new tab, and **Apply Automatically with AI Agent** is coming soon — the agent will fill the application from your profile and track its status for you.
 
 ---
 
@@ -278,11 +281,14 @@ Go to **My Profile** (`/profile`) and scroll to the **Resume Library** section.
 | Action | Description |
 |---|---|
 | **Upload** | Add any existing CV/resume (PDF or DOCX) |
+| **Preview** (eye icon) | View the resume in a popup — PDFs render inline, others show a text preview |
 | **Download** | Download the stored file |
 | **Rename** | Give the resume a descriptive name |
 | **Delete** | Permanently remove from library |
 | **Use in builder** | Start a new session using this resume (Step 1) |
-| **Tailor for a job** | Start a new session with this resume pre-loaded |
+| **Copy into form** | On Cover Letter / Interview Prep, paste a saved resume's text into the form |
+
+The same Resume Library panel appears wherever resumes are useful: **My Profile** (manage), **CV Builder Step 1** (pick one to build with), and **Cover Letter / Interview Prep** (copy into the form).
 
 ---
 
@@ -323,15 +329,26 @@ If the job search service experiences a temporary outage, your alert is silently
 
 ## 7. Profile & Account
 
-Go to **your name** (top-right) → **My Profile** to manage:
+Go to **My Profile** in the sidebar to manage your career profile.
 
-### Personal details
+### Profile Completeness
 
-- Full name, email, phone, LinkedIn URL, location
-- **Upload your resume** to auto-fill all fields using AI extraction
-- **Import from LinkedIn** — paste your LinkedIn URL and click "Import Profile" to auto-fill name, location, summary, and key skills
-- **Target roles** — list of roles you're targeting (used to pre-fill job search)
-- **Primary skill** — your core technical or professional skill (e.g. *Python*, *Product Management*)
+A ring gauge shows how complete your profile is, with a checklist of what's missing. Click any incomplete item (or **Improve Profile**) to jump straight to the right tab. A complete profile makes tailored resumes stronger and pre-fills job searches.
+
+### Tabbed editor
+
+Your profile is organised into six tabs — all auto-filled when you upload a resume:
+
+- **Personal** — full name, email, phone, location, LinkedIn URL
+- **Career** — target roles, primary skill, key skills, professional summary
+- **Experience** — job title, company, dates, and a description per role
+- **Education** — degree, institution, year
+- **Projects** — optional side projects / portfolio pieces
+- **Certifications** — optional professional certifications
+
+### Analytics
+
+Go to **Analytics** in the sidebar to see everything the platform has done for you: alert emails sent (and which jobs they contained), resumes tailored/exported, CV scores run, cover letters, interview preps, plus a 30-day activity chart, resume usage, quality trend, and a full automated-activity feed.
 
 ### Changing your password
 

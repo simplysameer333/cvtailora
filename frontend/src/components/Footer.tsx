@@ -12,9 +12,11 @@ const LINKS = [
 
 export default function Footer() {
   return (
-    /* pb-20 on mobile clears the fixed BottomNav */
-    <footer className="border-t border-slate-200 bg-white mt-12 pb-20 sm:pb-0">
-      <div className="w-full px-5 sm:px-10 py-5 flex flex-col lg:flex-row items-center gap-4 lg:gap-8">
+    /* No top margin — the shell's main area provides spacing; a margin here
+       forces a scrollbar on pages that otherwise fit the viewport.
+       pb-20 on mobile clears the fixed BottomNav. */
+    <footer className="border-t border-slate-200 bg-white pb-20 sm:pb-0">
+      <div className="w-full px-5 sm:px-10 py-3.5 flex flex-col lg:flex-row items-center gap-3 lg:gap-8">
         <Logo />
         <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 flex-1">
           {LINKS.map(({ href, label }) => (

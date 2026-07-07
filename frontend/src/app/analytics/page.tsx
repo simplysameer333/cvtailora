@@ -2,9 +2,14 @@
 import { useEffect, useState } from "react";
 import {
   FiLoader, FiMail, FiBriefcase, FiDownload,
-  FiCheckSquare, FiEye, FiBookmark, FiBell, FiZap,
+  FiCheckSquare, FiEye, FiBookmark, FiBell, FiZap, FiBookOpen, FiTrendingUp,
 } from "react-icons/fi";
-import { getAccountAnalytics, type AccountAnalytics } from "@/lib/api";
+import {
+  getAccountAnalytics, listSavedResumes, getUserStats,
+  type AccountAnalytics, type SavedResume, type ResumeSession,
+} from "@/lib/api";
+import { useAuth } from "@/lib/useAuth";
+import { hasFeature } from "@/lib/config";
 
 const ACTION_META: Record<string, { icon: React.ComponentType<{ className?: string }>; label: (m: Record<string, unknown>) => string; color: string }> = {
   "job_alert.email_sent": {
@@ -31,6 +36,16 @@ const ACTION_META: Record<string, { icon: React.ComponentType<{ className?: stri
     icon: FiCheckSquare,
     color: "bg-violet-50 text-violet-600",
     label: () => "CV Score analysis run",
+  },
+  "cover_letter.generate": {
+    icon: FiMail,
+    color: "bg-brand-50 text-brand-600",
+    label: (m) => `Cover letter generated${m.role ? ` — ${m.role}` : ""}`,
+  },
+  "interview_prep.generate": {
+    icon: FiBookOpen,
+    color: "bg-teal-50 text-teal-600",
+    label: (m) => `Interview questions generated${m.role ? ` — ${m.role}` : ""}${m.question_count ? ` (${m.question_count})` : ""}`,
   },
   "interview_prep.email_sent": {
     icon: FiMail,
@@ -121,6 +136,107 @@ function ActivityBars({ daily }: { daily: { date: string; count: number }[] }) {
   );
 }
 
+// Resume quality trend — headline CV scores of recent tailoring runs
+function QualityTrend() {
+  const [sessions, setSessions] = useState<ResumeSession[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    getUserStats()
+      .then((s) => setSessions([...s.recent_sessions].reverse()))
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  return (
+    // h-full + flex column so this card always matches the feed card's height
+    <div className="card !p-5 h-full flex flex-col">
+      <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+        <FiTrendingUp className="w-4 h-4" /> Resume quality trend
+      </h2>
+      <p className="text-xs text-slate-400 mb-4">Headline CV score of your recent tailoring runs.</p>
+
+      {!loaded ? (
+        <div className="flex-1 flex items-center justify-center text-slate-400">
+          <FiLoader className="w-5 h-5 animate-spin" />
+        </div>
+      ) : sessions.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-slate-300">
+          <p className="text-sm text-slate-400 px-6 text-center">Tailor a resume and its score will appear here.</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex-1 flex items-end gap-2 min-h-[9rem]">
+            {sessions.slice(-12).map((s) => {
+              const color = s.min_score >= 80 ? "bg-teal-500" : s.min_score >= 65 ? "bg-amber-400" : "bg-red-400";
+              return (
+                <div key={s.id} className="flex-1 h-full flex flex-col items-center justify-end gap-1 min-w-0"
+                  title={`${s.target_role || "Resume"} — ${s.min_score}/100 (${new Date(s.created_at).toLocaleDateString()})`}>
+                  <span className="text-[10px] font-semibold text-slate-500">{s.min_score}</span>
+                  <div className={`w-full rounded-t-md ${color}`} style={{ height: `${Math.max(6, s.min_score)}%` }} />
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between text-[10px] text-slate-400 mt-1.5">
+            <span>Older</span>
+            <span>Latest</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Resume usage — how many are saved and which jobs the tailored ones targeted
+function ResumeUsageCard() {
+  const { data: session } = useAuth();
+  const tier = session?.user?.tier ?? "free";
+  const canUse = hasFeature(tier, "resume_library");
+  const [resumes, setResumes] = useState<SavedResume[]>([]);
+
+  useEffect(() => {
+    if (!canUse) return;
+    listSavedResumes().then(setResumes).catch(() => {});
+  }, [canUse]);
+
+  const uploaded = resumes.filter((r) => r.type === "uploaded").length;
+  const tailored = resumes.filter((r) => r.type === "tailored");
+
+  return (
+    <div className="card !p-5">
+      <h2 className="font-semibold text-slate-800 text-sm mb-3">Resume usage</h2>
+      {!canUse ? (
+        <p className="text-sm text-slate-400 py-6 text-center">Resume Library is a Plus feature.</p>
+      ) : resumes.length === 0 ? (
+        <p className="text-sm text-slate-400 py-6 text-center">No resumes in your library yet.</p>
+      ) : (
+        <>
+          <div className="flex items-center gap-4 text-sm mb-3">
+            <span><span className="font-bold text-slate-900">{uploaded}</span> <span className="text-slate-500">uploaded</span></span>
+            <span><span className="font-bold text-slate-900">{tailored.length}</span> <span className="text-slate-500">tailored</span></span>
+          </div>
+          {tailored.length > 0 && (
+            <div className="flex flex-col gap-1.5 border-t border-slate-100 pt-2.5">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Tailored for</p>
+              {tailored.slice(0, 5).map((r) => (
+                <p key={r.id} className="text-xs text-slate-600 truncate">
+                  <span className="font-medium text-slate-800">{r.name}</span>
+                  {(r.tailored_for_job || r.tailored_for_employer) && (
+                    <span className="text-slate-400"> → {[r.tailored_for_job, r.tailored_for_employer].filter(Boolean).join(" @ ")}</span>
+                  )}
+                </p>
+              ))}
+              {tailored.length > 5 && <p className="text-xs text-slate-400">+{tailored.length - 5} more</p>}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Compact horizontal stat — icon + number + label in one tight row
 function StatCard({ icon: Icon, label, value, sub }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -128,13 +244,15 @@ function StatCard({ icon: Icon, label, value, sub }: {
   sub?: string;
 }) {
   return (
-    <div className="card !p-5">
-      <div className="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center mb-3">
+    <div className="card !p-3.5 flex items-center gap-3">
+      <div className="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
         <Icon className="w-4 h-4" />
       </div>
-      <p className="text-3xl font-bold text-slate-900">{value}</p>
-      <p className="text-sm text-slate-500 mt-0.5">{label}</p>
-      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+      <div className="min-w-0">
+        <p className="text-xl font-bold text-slate-900 leading-tight">{value}</p>
+        <p className="text-xs text-slate-500 truncate">{label}</p>
+        {sub && <p className="text-[10px] text-slate-400 truncate">{sub}</p>}
+      </div>
     </div>
   );
 }
@@ -168,37 +286,42 @@ export default function AnalyticsPage() {
         </p>
       </div>
 
-      {/* Stat grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-        <StatCard icon={FiMail}       label="Alert emails sent"    value={data.alert_emails_sent}
+      {/* Compact stat strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+        <StatCard icon={FiMail}       label="Alert emails"     value={data.alert_emails_sent}
           sub={data.alert_jobs_delivered > 0 ? `${data.alert_jobs_delivered} jobs delivered` : undefined} />
-        <StatCard icon={FiBell}       label="Active job alerts"    value={data.alerts_active} />
-        <StatCard icon={FiZap}        label="Resumes tailored"     value={data.resumes_generated} />
-        <StatCard icon={FiDownload}   label="Resumes exported"     value={data.resumes_exported} />
-        <StatCard icon={FiCheckSquare} label="CV scores run"       value={data.cv_scores_run} />
-        <StatCard icon={FiBookmark}   label="Jobs saved"           value={data.jobs_saved} />
-        <StatCard icon={FiEye}        label="Jobs viewed"          value={data.jobs_viewed} />
+        <StatCard icon={FiBell}       label="Active alerts"    value={data.alerts_active} />
+        <StatCard icon={FiZap}        label="Resumes tailored" value={data.resumes_generated} />
+        <StatCard icon={FiDownload}   label="Exports"          value={data.resumes_exported} />
+        <StatCard icon={FiCheckSquare} label="CV scores"       value={data.cv_scores_run} />
+        <StatCard icon={FiMail}       label="Cover letters"    value={data.cover_letters} />
+        <StatCard icon={FiBookOpen}   label="Interview preps"  value={data.interview_preps} />
+        <StatCard icon={FiBookmark}   label="Jobs saved"       value={data.jobs_saved} />
+        <StatCard icon={FiEye}        label="Jobs viewed"      value={data.jobs_viewed} />
       </div>
 
-      {/* Charts — activity mix + 30-day histogram */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="card">
-          <h2 className="font-semibold text-slate-800 mb-4">Activity breakdown</h2>
+      {/* Charts row — activity mix, 30-day histogram, resume usage, quality trend */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-4 gap-4 items-stretch">
+        <div className="card !p-5">
+          <h2 className="font-semibold text-slate-800 text-sm mb-3">Activity breakdown</h2>
           <DonutChart slices={[
             { label: "Resumes tailored", value: data.resumes_generated },
             { label: "Resumes exported", value: data.resumes_exported },
             { label: "CV scores",        value: data.cv_scores_run },
+            { label: "Cover letters",    value: data.cover_letters },
+            { label: "Interview preps",  value: data.interview_preps },
             { label: "Alert emails",     value: data.alert_emails_sent },
-            { label: "Jobs saved",       value: data.jobs_saved },
           ]} />
         </div>
-        <div className="card">
-          <h2 className="font-semibold text-slate-800 mb-4">Last 30 days</h2>
+        <div className="card !p-5">
+          <h2 className="font-semibold text-slate-800 text-sm mb-3">Last 30 days</h2>
           <ActivityBars daily={data.daily ?? []} />
         </div>
+        <ResumeUsageCard />
+        <QualityTrend />
       </div>
 
-      {/* Automated activity feed */}
+      {/* Automated activity — last section: fixed height, scrolls internally as it grows */}
       <div className="card">
         <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
           <FiBriefcase className="w-4 h-4" /> Automated activity
@@ -212,7 +335,7 @@ export default function AnalyticsPage() {
             No automated activity yet — create a job alert or tailor a resume and it will show up here.
           </div>
         ) : (
-          <div className="flex flex-col">
+          <div className="flex flex-col max-h-80 overflow-y-auto overscroll-contain pr-1">
             {data.recent.map((entry, i) => {
               const meta = ACTION_META[entry.action];
               if (!meta) return null;

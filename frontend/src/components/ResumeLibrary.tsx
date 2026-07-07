@@ -27,6 +27,7 @@ export default function ResumeLibrary({
   requireText = false,
   title = "Resume Library",
   subtitle,
+  onLoaded,
 }: {
   variant?: "full" | "picker";
   ctaLabel?: string;
@@ -37,6 +38,8 @@ export default function ResumeLibrary({
   requireText?: boolean;
   title?: string;
   subtitle?: string;
+  /** Called once the list loads — lets host pages adapt copy to the count */
+  onLoaded?: (count: number) => void;
 }) {
   const { data: session } = useAuth();
   const tier = session?.user?.tier ?? "free";
@@ -51,9 +54,13 @@ export default function ResumeLibrary({
   const [previewResume, setPreviewResume] = useState<SavedResume | null>(null);
 
   useEffect(() => {
-    if (!canUse) return;
+    if (!canUse) { onLoaded?.(0); return; }
     setLoading(true);
-    listSavedResumes().then(setLibrary).catch(() => {}).finally(() => setLoading(false));
+    listSavedResumes()
+      .then((list) => { setLibrary(list); onLoaded?.(list.length); })
+      .catch(() => onLoaded?.(0))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUse]);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -146,7 +153,8 @@ export default function ResumeLibrary({
       )}
 
       {!loading && library.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+        /* Single row spans the full parent; two columns only once there are several */
+        <div className={`grid grid-cols-1 gap-2 ${library.length > 1 ? "lg:grid-cols-2" : ""}`}>
           {library.map((r) => {
             const noText = requireText && !r.resume_text;
             return (

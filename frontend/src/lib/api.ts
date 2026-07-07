@@ -868,6 +868,8 @@ export interface AccountAnalytics {
   resumes_generated: number;
   resumes_exported: number;
   cv_scores_run: number;
+  cover_letters: number;
+  interview_preps: number;
   jobs_saved: number;
   jobs_viewed: number;
   daily: { date: string; count: number }[];

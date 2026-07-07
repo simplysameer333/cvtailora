@@ -207,40 +207,6 @@ export default function ProfilePage() {
     disabled: uploadingResume,
   });
 
-  async function handleLibraryUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setLibraryUploading(true);
-    try {
-      const saved = await uploadSavedResume(file, file.name.replace(/\.[^.]+$/, ""));
-      setLibrary((prev) => [saved, ...prev]);
-      toast.success("Resume added to library.");
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(msg ?? "Upload failed.");
-    } finally {
-      setLibraryUploading(false);
-      e.target.value = "";
-    }
-  }
-
-  async function handleLibraryDelete(id: string) {
-    try {
-      await deleteSavedResume(id);
-      setLibrary((prev) => prev.filter((r) => r.id !== id));
-      toast.success("Removed.");
-    } catch { toast.error("Could not delete."); }
-  }
-
-  async function handleRename(id: string) {
-    if (!editingName.trim()) return;
-    try {
-      const updated = await renameSavedResume(id, editingName.trim());
-      setLibrary((prev) => prev.map((r) => r.id === id ? updated : r));
-      setEditingId(null);
-    } catch { toast.error("Could not rename."); }
-  }
-
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSavingProfile(true);

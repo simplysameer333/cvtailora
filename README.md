@@ -20,9 +20,12 @@ tailormycv/
 │   │
 │   ├── routers/
 │   │   ├── auth.py                  POST /api/auth/register, /login, /sync (Google OAuth), /me
-│   │   ├── account.py               GET/PUT /api/account/profile — persistent profile
+│   │   ├── account.py               GET/PUT /api/account/profile — persistent profile (structured
+│   │   │                            experience/education/projects/certifications + completeness score)
 │   │   │                            POST /api/account/profile/resume — upload + AI prefill
 │   │   │                            POST /api/sessions/from-profile — one-click tailor
+│   │   │                            GET /api/account/usage — daily/monthly AI budget vs tier caps
+│   │   │                            GET /api/account/analytics — automated-actions summary + 30-day series
 │   │   ├── resume_library.py        CRUD /api/account/resumes — save/rename/delete/download (Plus+)
 │   │   ├── resume.py                POST /api/resume/upload — parse PDF/DOCX, create session
 │   │   │                            POST /api/resume/sample-format — upload formatting reference CV
@@ -45,7 +48,8 @@ tailormycv/
 │   │   ├── export.py                POST /api/export · GET /api/download/{id}
 │   │   ├── cover_letter.py          POST /api/cover-letter/generate (standalone) ·
 │   │   │                            POST/GET /api/sessions/{id}/cover-letter (session, cached)
-│   │   ├── interview_prep.py        POST /api/interview-prep/generate (standalone) ·
+│   │   ├── interview_prep.py        POST /api/interview-prep/generate (standalone; 5/10/15 questions +
+│   │   │                            additional context) · POST /api/interview-prep/email (Brevo Q&A pack)
 │   │   │                            POST/GET /api/sessions/{id}/interview-prep (session, cached)
 │   │   ├── catalog.py               GET /api/catalog/roles?q= · /api/catalog/skills?q= (autocomplete)
 │   │   └── professions.py           CRUD /api/professions — profession profile admin
@@ -93,34 +97,52 @@ tailormycv/
 │
 └── frontend/src/
     ├── app/
-    │   ├── page.tsx                 Landing — hero, how-it-works, CTA
+    │   ├── page.tsx                 Landing — full-bleed deep-teal hero + product-preview card,
+    │   │                            How-It-Works strip, feature showcase, pricing
     │   ├── auth/
     │   │   ├── login/page.tsx       Sign in — credentials + Google OAuth (production only)
     │   │   └── register/page.tsx    Registration — email/password + Google OAuth (production only)
-    │   ├── profile/page.tsx         Account profile — resume upload (AI prefill), LinkedIn import button,
-    │   │                            career form, Resume Library (Plus+)
-    │   ├── jobs/page.tsx            Job search — TagInput query, location, JSearch results,
-    │   │                            save/unsave, Tailor Resume, Apply with Saved, My Alerts tab (Plus+)
+    │   ├── profile/page.tsx         Account profile — completeness ring + checklist, tabbed editor
+    │   │                            (Personal/Career/Experience/Education/Projects/Certifications),
+    │   │                            resume upload (AI prefill), shared Resume Library (Plus+)
+    │   ├── jobs/page.tsx            Job search — TagInput query, location, JSearch results, save/unsave,
+    │   │                            Tailor Resume (opens resume picker), Apply choice modal (manual /
+    │   │                            AI agent coming soon), completeness side rail, My Alerts tab (Plus+)
+    │   ├── analytics/page.tsx       Automated-actions analytics — stat strip, donut + 30-day histogram,
+    │   │                            resume usage, quality trend, scrolling activity feed
     │   ├── builder/
-    │   │   ├── layout.tsx           Builder shell — StepProgress bar + SessionGuard
-    │   │   ├── upload/page.tsx      Step 1 — drag-and-drop; LinkedIn import section; one-click tailor banner
+    │   │   ├── layout.tsx           Builder shell — StepBar card + SessionGuard (inside SidebarShell)
+    │   │   ├── upload/page.tsx      Step 1 — drag-and-drop; shared Resume Library picker; process rail
     │   │   ├── profile/page.tsx     Step 2 — AI pre-filled profile form
     │   │   ├── job/page.tsx         Step 3 — paste job description
-    │   │   ├── template/page.tsx    Step 4 — template gallery; sample CV; PDF format locked for free users
-    │   │   ├── preview/page.tsx     Step 5 — editable preview; locked facts; section regen; custom sections
+    │   │   ├── preview/page.tsx     Step 4 — editable preview; final CV Score panel; locked facts;
+    │   │   │                        section regen; custom sections
+    │   │   ├── template/page.tsx    Step 5 — template gallery; scroll-locked preview modal; sample CV;
+    │   │   │                        PDF format locked for free users
     │   │   └── download/page.tsx    Step 6 — Generate Files; DOCX + PDF cards; PDF locked for free users
-    │   ├── cover-letter/page.tsx    Standalone cover letter generator (paste resume + JD → letter)
-    │   ├── interview-prep/page.tsx  Standalone interview-question generator (paste resume + JD → questions)
+    │   ├── cover-letter/page.tsx    Standalone cover letter generator — deep-teal identity band,
+    │   │                            Resume Library copy-into-form, side-by-side inputs
+    │   ├── interview-prep/page.tsx  Standalone interview questions — emerald identity band, question
+    │   │                            count (5/10/15), additional context, email-me-this-pack
     │   └── settings/
     │       └── professions/page.tsx Profession CRUD admin
     ├── components/
-    │   ├── Navbar.tsx               Shared nav — avatar dropdown, tier badge, sign in/out
+    │   ├── SidebarShell.tsx         App-page shell — sticky Navbar + deep-teal collapsible sidebar
+    │   │                            (locked items for signed-out users) + daily AI budget widget + Footer
+    │   ├── Navbar.tsx               Common header — logo left, centered nav, account right; surface-blended
+    │   ├── Footer.tsx               Single compact footer used on every page (incl. mobile)
     │   ├── TagInput.tsx             Async-autocomplete tag/bubble input (profile + jobs pages)
     │   ├── PricingTiers.tsx         Plan cards; buildFeatures() reads limits dynamically at render time
-    │   ├── ResumePickerModal.tsx    "Apply with Saved" modal — resume library or tailor-new option
+    │   ├── ResumeLibrary.tsx        Shared Resume Library — "full" (manage) and "picker" (select) variants;
+    │   │                            used on profile, builder upload, cover letter, interview prep
+    │   ├── ResumePreviewModal.tsx   Resume preview overlay — inline PDF (auth blob) or text fallback
+    │   ├── ApplyChoiceModal.tsx     "How would you like to apply?" — manual / AI agent (coming soon)
+    │   ├── ProfileCompletenessCard.tsx Compact completeness card for side rails (jobs page)
+    │   ├── EvalQualityPanel.tsx     Final CV Score panel + per-category breakdown (preview/template pages)
+    │   ├── ResumePickerModal.tsx    Resume picker modal — saved resumes or tailor-new option
     │   ├── CreateAlertModal.tsx     Create/edit job alert modal
     │   ├── AuthGuard.tsx            Redirects unauthenticated users to /auth/login
-    │   └── StepProgress.tsx        Six-step indicator with completion checkmarks
+    │   └── StepBar.tsx              Builder step indicator card with completion checkmarks
     ├── lib/
     │   ├── api.ts                   Typed API client; axios interceptor for session-expiry
     │   ├── config.ts                FEATURE_TIERS, TIER_LIMITS (compile-time defaults), hasFeature(),
