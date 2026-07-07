@@ -16,8 +16,9 @@ import {
   FiChevronLeft, FiChevronRight, FiBriefcase, FiPlus, FiTrash2,
   FiChevronDown, FiChevronUp, FiToggleLeft, FiToggleRight, FiClock,
   FiDownload, FiEdit2, FiX, FiSliders, FiAlertCircle,
-  FiGrid, FiCopy, FiZap, FiEye, FiBell,
+  FiGrid, FiCopy, FiZap, FiEye, FiBell, FiShield,
 } from "react-icons/fi";
+import PageBanner from "@/components/PageBanner";
 import { adminUpdateTierConfig, fetchTierConfig, type TierConfigPayload } from "@/lib/api";
 import {
   adminListCvTemplates, adminCreateCvTemplate, adminUpdateCvTemplate,
@@ -2272,8 +2273,11 @@ export default function AdminPage() {
     <main className="bg-slate-50">
       <div className="w-full px-0 sm:px-2 py-4">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
-          <p className="text-sm text-slate-500 mt-1">Superadmin only. Tabs load on first click and cache until you refresh.</p>
+          <PageBanner
+            icon={FiShield}
+            title="Admin Dashboard"
+            subtitle="Manage users, prompts, templates, professions and system configuration."
+          />
         </div>
 
         {/* Top-level group bar (by feature) */}

@@ -3,43 +3,29 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/useAuth";
 import {
-  getUserStats, type AccountStats, type ResumeSession,
   listJobAlerts, toggleJobAlert, deleteJobAlert, type JobAlert,
 } from "@/lib/api";
 import { TIERS, buildFeatures, type Tier } from "@/components/PricingTiers";
 import CreateAlertModal from "@/components/CreateAlertModal";
 import {
-  FiGrid, FiCreditCard, FiBarChart2, FiBell,
-  FiFileText, FiBookmark, FiBriefcase, FiLock,
-  FiClock, FiArrowRight, FiCheck, FiZap, FiMail,
+  FiCreditCard, FiBell,
+  FiCheck, FiZap, FiMail,
   FiToggleLeft, FiToggleRight, FiMapPin, FiPlusCircle,
   FiEdit2, FiTrash2, FiAlertTriangle,
 } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { getPricing, detectCurrencyFromConfig, hasFeatureDynamic, getTierLimitDynamic } from "@/lib/tierConfig";
+import { useTierConfigVersion } from "@/lib/useTierConfig";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "plan" | "usage" | "alerts";
-
-function limitStr(tier: string, key: string): string {
-  const v = getTierLimitDynamic(tier, key);
-  if (v === null) return "Unlimited";
-  if (v === 0) return "—";
-  return String(v);
-}
+type Tab = "plan" | "alerts";
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">{children}</p>;
-}
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("en-GB", {
-    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
 }
 
 function timeAgo(iso?: string | null) {
@@ -53,99 +39,20 @@ function timeAgo(iso?: string | null) {
   return `${Math.floor(days / 30)} months ago`;
 }
 
-const QUALITY_STYLES: Record<ResumeSession["quality_label"], string> = {
-  Excellent: "bg-teal-50 text-teal-700 border border-teal-200",
-  Strong:    "bg-brand-50 text-brand-700 border border-brand-200",
-  Good:      "bg-amber-50 text-amber-700 border border-amber-200",
-  Reviewed:  "bg-slate-100 text-slate-500 border border-slate-200",
-};
-
 // ── Shared UI atoms ───────────────────────────────────────────────────────────
 
-function StatCard({ icon, label, value = 0, sub, comingSoon = false }: {
-  icon: React.ReactNode; label: string; value?: number | string;
-  sub?: string; comingSoon?: boolean;
-}) {
-  return (
-    <div className={`bg-white rounded-2xl border border-slate-200 p-5 flex flex-col gap-4 ${comingSoon ? "opacity-50" : ""}`}>
-      <div className="flex items-center justify-between">
-        <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${comingSoon ? "bg-slate-100 text-slate-400" : "bg-brand-50 text-brand-600"}`}>
-          {icon}
-        </span>
-        {comingSoon && <span className="flex items-center gap-1 text-xs text-slate-400"><FiLock className="w-3 h-3" /> Soon</span>}
-      </div>
-      <div>
-        <p className="text-3xl font-bold text-slate-900 leading-none">{comingSoon ? "—" : value}</p>
-        <p className="text-sm text-slate-500 mt-1.5">{label}</p>
-        {sub && !comingSoon && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
-function UsageRow({ label, description, used, limit }: {
-  label: string; description: string; used: number; limit: string;
-}) {
-  const isUnlimited = limit === "Unlimited";
-  const notIncluded = limit === "—";
-  const pct = (isUnlimited || notIncluded) ? 0 : Math.min(100, Math.round((used / Number(limit)) * 100));
-  const barColor = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-400" : "bg-teal-500";
-  return (
-    <div className="py-5 border-b border-slate-100 last:border-0">
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-800">{label}</p>
-          <p className="text-xs text-slate-400 mt-0.5">{description}</p>
-        </div>
-        <div className="text-right shrink-0">
-          {notIncluded ? <p className="text-xs text-slate-400">Not included</p>
-          : isUnlimited ? <p className="text-sm font-bold text-teal-600">{used} <span className="text-xs font-normal text-teal-500">/ ∞</span></p>
-          : <>
-              <p className="text-sm font-bold text-slate-900 tabular-nums">{used} <span className="text-slate-400 font-normal text-xs">/ {limit}</span></p>
-              <p className="text-xs text-slate-400 mt-0.5">{Math.max(0, Number(limit) - used)} remaining</p>
-            </>
-          }
-        </div>
-      </div>
-      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-        {isUnlimited ? <div className="h-full bg-teal-100 rounded-full w-full" />
-        : notIncluded ? null
-        : <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${pct}%` }} />}
-      </div>
-      {!isUnlimited && !notIncluded && <p className="text-xs text-slate-400 mt-1.5 text-right">{pct}% used</p>}
-    </div>
-  );
-}
-
-function HistoryRow({ session }: { session: ResumeSession }) {
-  return (
-    <div className="flex items-center justify-between py-3.5 border-b border-slate-100 last:border-0 gap-4">
-      <div className="flex items-center gap-3 min-w-0">
-        <span className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-          <FiClock className="w-3.5 h-3.5 text-slate-400" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-800 truncate">
-            {session.target_role || <span className="text-slate-400 italic font-normal">No role specified</span>}
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">{formatDateTime(session.created_at)}</p>
-        </div>
-      </div>
-      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${QUALITY_STYLES[session.quality_label]}`}>
-        {session.quality_label}
-      </span>
-    </div>
-  );
-}
-
 function PlanPrice({ tierId }: { tierId: string }) {
+  // Re-run when the live MongoDB config loads so the price reflects the admin's
+  // pricing rather than the pre-load fallback (config loads async post-render).
+  const version = useTierConfigVersion();
   const [price, setPrice] = useState("");
   useEffect(() => {
     const map = getPricing();
     const cur = detectCurrencyFromConfig();
-    const c = map[cur] || map["USD"] || { symbol: "$", plus: 9, pro: 19 };
+    const c = map[cur] || map[Object.keys(map)[0]];
+    if (!c) return;
     setPrice(tierId === "free" ? "Free" : tierId === "plus" ? `${c.symbol}${c.plus} / mo` : `${c.symbol}${c.pro} / mo`);
-  }, [tierId]);
+  }, [tierId, version]);
   return <p className="text-sm font-bold text-brand-600 mb-4">{price || "—"}</p>;
 }
 
@@ -239,47 +146,6 @@ function AlertCard({ alert, onToggle, onEdit, onDelete }: {
 
 // ── Tab panels ────────────────────────────────────────────────────────────────
 
-function OverviewTab({ stats, tier }: { stats: AccountStats | null; tier: Tier }) {
-  const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Overview</h1>
-        <p className="text-sm text-slate-500 mt-1.5">A snapshot of your account activity.</p>
-      </div>
-      <section>
-        <SectionLabel>Activity</SectionLabel>
-        {stats ? (
-          <div className="grid grid-cols-2 gap-4">
-            <StatCard icon={<FiFileText className="w-4 h-4" />} label="Resumes generated" value={stats.generated_count} />
-            <StatCard icon={<FiBookmark className="w-4 h-4" />} label="Jobs saved" value={stats.saved_job_count} />
-            <StatCard icon={<FiBell className="w-4 h-4" />} label="Active alerts" value={stats.active_alert_count}
-              sub={stats.alert_count > stats.active_alert_count ? `${stats.alert_count} total` : undefined} />
-            <StatCard icon={<FiBriefcase className="w-4 h-4" />} label="Jobs applied" comingSoon />
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-4">
-            {[0,1,2,3].map((i) => <div key={i} className="bg-white rounded-2xl border border-slate-200 h-32 animate-pulse" />)}
-          </div>
-        )}
-      </section>
-      <section>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between">
-          {stats ? (
-            <>
-              <div>
-                <p className="text-sm font-semibold text-slate-800">{tierLabel} Plan</p>
-                <p className="text-xs text-slate-400 mt-0.5">View plan details, limits, and upgrade options</p>
-              </div>
-              <span className="text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-100 rounded-full px-2.5 py-1">Active</span>
-            </>
-          ) : <div className="h-10 w-full bg-slate-100 rounded-xl animate-pulse" />}
-        </div>
-      </section>
-    </div>
-  );
-}
-
 function PlanTab({ tier }: { tier: Tier }) {
   const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
   return (
@@ -298,66 +164,6 @@ function PlanTab({ tier }: { tier: Tier }) {
         <p className="text-xs text-slate-400 text-center mt-5">
           Questions? <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand-600 hover:underline">Get in touch</a>
         </p>
-      </section>
-    </div>
-  );
-}
-
-function UsageTab({ stats, tier }: { stats: AccountStats | null; tier: Tier }) {
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Usage</h1>
-        <p className="text-sm text-slate-500 mt-1.5">Your plan allowance and resume history.</p>
-      </div>
-      <section>
-        <SectionLabel>Plan Allowance</SectionLabel>
-        <div className="bg-white rounded-2xl border border-slate-200 px-6">
-          {!stats ? (
-            <div className="py-6 space-y-6">
-              {[0,1,2,3].map((i) => (
-                <div key={i} className="space-y-2 animate-pulse">
-                  <div className="flex justify-between"><div className="h-4 bg-slate-100 rounded w-32" /><div className="h-4 bg-slate-100 rounded w-16" /></div>
-                  <div className="h-2 bg-slate-100 rounded-full" />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              <UsageRow label="Resume Sessions"  description="Builder sessions started"         used={stats.session_count}    limit={limitStr(tier, "resume_sessions")} />
-              <UsageRow label="Saved Resumes"    description="Resumes in your library"          used={stats.resume_count}     limit={limitStr(tier, "resume_library")} />
-              <UsageRow label="Saved Jobs"       description="Job listings bookmarked"          used={stats.saved_job_count}  limit={limitStr(tier, "saved_jobs")} />
-              <UsageRow label="Job Alerts"       description="Active daily email searches"      used={stats.alert_count}      limit={limitStr(tier, "job_alerts")} />
-            </>
-          )}
-        </div>
-      </section>
-      <section>
-        <SectionLabel>Resume History</SectionLabel>
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          {!stats ? (
-            <div className="p-6 space-y-4">
-              {[0,1,2,3].map((i) => (
-                <div key={i} className="flex items-center gap-3 animate-pulse">
-                  <div className="w-7 h-7 bg-slate-100 rounded-lg shrink-0" />
-                  <div className="flex-1 space-y-1.5"><div className="h-3.5 bg-slate-100 rounded w-48" /><div className="h-3 bg-slate-100 rounded w-32" /></div>
-                  <div className="h-5 w-16 bg-slate-100 rounded-full" />
-                </div>
-              ))}
-            </div>
-          ) : stats.recent_sessions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-4"><FiFileText className="w-5 h-5 text-slate-400" /></div>
-              <p className="text-sm font-medium text-slate-700">No resumes generated yet</p>
-              <p className="text-sm text-slate-400 mt-1">Complete the builder to see your history here.</p>
-              <Link href="/builder/upload" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 transition-colors">
-                Start tailoring <FiArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          ) : (
-            <div className="px-5">{stats.recent_sessions.map((s) => <HistoryRow key={s.id} session={s} />)}</div>
-          )}
-        </div>
       </section>
     </div>
   );
@@ -494,23 +300,14 @@ function AlertsTab({ tier }: { tier: Tier }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "overview", label: "Overview", icon: FiGrid },
   { id: "plan",     label: "Plan",     icon: FiCreditCard },
-  { id: "usage",    label: "Usage",    icon: FiBarChart2 },
   { id: "alerts",   label: "Alerts",   icon: FiBell },
 ];
 
 export default function SettingsPage() {
   const { data: session, status } = useAuth();
   const tier = (session?.user?.tier ?? "free") as Tier;
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [stats, setStats] = useState<AccountStats | null>(null);
-
-  useEffect(() => {
-    if (status === "authenticated") {
-      getUserStats().then(setStats).catch(() => {});
-    }
-  }, [status]);
+  const [activeTab, setActiveTab] = useState<Tab>("plan");
 
   if (status === "loading") return null;
 
@@ -552,7 +349,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-900 truncate leading-snug">{user?.name || "Account"}</p>
-                  <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                  <p className="text-xs text-slate-400 break-all leading-snug">{user?.email}</p>
                 </div>
               </div>
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -577,9 +374,7 @@ export default function SettingsPage() {
 
           {/* ── Content ── */}
           <main className="flex-1 min-w-0">
-            {activeTab === "overview" && <OverviewTab stats={stats} tier={tier} />}
             {activeTab === "plan"     && <PlanTab tier={tier} />}
-            {activeTab === "usage"    && <UsageTab stats={stats} tier={tier} />}
             {activeTab === "alerts"   && <AlertsTab tier={tier} />}
           </main>
 

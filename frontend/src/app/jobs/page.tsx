@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/useAuth";
 import ResumePickerModal from "@/components/ResumePickerModal";
 import CreateAlertModal from "@/components/CreateAlertModal";
 import ProfileCompletenessCard from "@/components/ProfileCompletenessCard";
+import PageBanner from "@/components/PageBanner";
 import ApplyChoiceModal from "@/components/ApplyChoiceModal";
 import TagInput from "@/components/TagInput";
 import { JSEARCH_PAGE_SIZES, JSEARCH_DEFAULT_PAGE_SIZE, type JsearchPageSize } from "@/lib/config";
@@ -635,13 +636,12 @@ export default function JobsPage() {
   const atPlusLimit = tier === "plus" && alertCount >= plusAlertLimit;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Find Jobs</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Search roles from Indeed, LinkedIn, Glassdoor and more — then tailor your resume in one click.
-        </p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageBanner
+        icon={FiBriefcase}
+        title="Find Jobs"
+        subtitle="Search roles from Indeed, LinkedIn, Glassdoor and more — then tailor your resume in one click."
+      />
 
       {/* Free-tier banner — search allowed but actions locked */}
       {isFree && <FreeSearchBanner />}

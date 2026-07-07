@@ -54,6 +54,24 @@ let _currency_zones: CurrencyZone[] = [...FALLBACK_CURRENCY_ZONES];
 
 let _initialized = false;
 
+// ── Reactivity ─────────────────────────────────────────────────────────────────
+// The config loads asynchronously (AuthProvider → GET /api/config/tiers) after the
+// first render. Components that display config-driven values (e.g. plan prices)
+// subscribe here so they re-render once the live MongoDB config arrives, instead
+// of being stuck on the pre-load fallback. Backs a useSyncExternalStore hook.
+
+let _version = 0;
+const _listeners = new Set<() => void>();
+
+export function subscribeTierConfig(cb: () => void): () => void {
+  _listeners.add(cb);
+  return () => { _listeners.delete(cb); };
+}
+
+export function getTierConfigVersion(): number {
+  return _version;
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 export function setTierConfig(
@@ -67,6 +85,8 @@ export function setTierConfig(
   if (pricing && Object.keys(pricing).length > 0) _pricing = pricing;
   if (currencyZones && currencyZones.length > 0) _currency_zones = currencyZones;
   _initialized = true;
+  _version += 1;
+  _listeners.forEach((l) => l());
 }
 
 export function hasFeatureDynamic(tier: string, feature: Feature | string): boolean {

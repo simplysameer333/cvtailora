@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { generateInterviewPrepStandalone, emailInterviewPrep, type InterviewPrepResult } from "@/lib/api";
 import { FiBookOpen, FiChevronDown, FiChevronUp, FiZap, FiRefreshCw, FiMail, FiLoader } from "react-icons/fi";
 import ResumeLibrary from "@/components/ResumeLibrary";
+import PageBanner from "@/components/PageBanner";
 
 // ── Category colour map ────────────────────────────────────────────────────────
 
@@ -96,20 +97,13 @@ export default function InterviewPrepPage() {
   }
 
   return (
-    <div className="w-full space-y-6 py-8 px-4 sm:px-0">
+    <div className="w-full space-y-5 pb-8 px-4 sm:px-0">
 
-      {/* Emerald identity — portal palette; Cover Letter uses the deep-teal variant */}
-      <div className="rounded-2xl bg-gradient-to-r from-teal-700 to-teal-500 px-6 py-5 text-white">
-        <div className="flex items-center gap-2.5 mb-1">
-          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
-            <FiBookOpen className="w-5 h-5 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold">Interview Prep</h1>
-        </div>
-        <p className="text-teal-100 text-sm">
-          Know what they&apos;ll ask before you walk in — AI predicts your most likely questions, with the points to hit.
-        </p>
-      </div>
+      <PageBanner
+        icon={FiBookOpen}
+        title="Interview Prep"
+        subtitle="Know what they'll ask before you walk in — AI predicts your most likely questions, with the points to hit."
+      />
 
       {/* Pull a saved resume straight into the form */}
       <ResumeLibrary
@@ -146,8 +140,36 @@ export default function InterviewPrepPage() {
             <p className="text-xs text-slate-400 mt-1">{jobDescription.length} characters</p>
           </div>
         </div>
+      </div>
 
-        <div className="flex justify-end pt-1">
+      {/* Options — question count + additional context, then the Generate button */}
+      <div className="card space-y-5">
+        <div className="grid grid-cols-1 lg:grid-cols-[220px,1fr] gap-5">
+          <div>
+            <label className="label">Number of questions</label>
+            <select
+              className="input"
+              value={questionCount}
+              onChange={(e) => setQuestionCount(Number(e.target.value))}
+            >
+              <option value={5}>5 — quick prep</option>
+              <option value={10}>10 — solid prep</option>
+              <option value={15}>15 — full prep</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Additional information (optional)</label>
+            <input
+              className="input"
+              value={extraContext}
+              onChange={(e) => setExtraContext(e.target.value)}
+              placeholder="e.g. panel interview, focus on system design, second-round with the CTO…"
+            />
+            <p className="text-xs text-slate-400 mt-1">Anything you know about the interview — the questions will factor it in.</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
           <button
             onClick={() => handleGenerate()}
             disabled={!canGenerate || loading}
@@ -158,32 +180,6 @@ export default function InterviewPrepPage() {
               : <><FiZap className="w-4 h-4" /> Generate Questions</>
             }
           </button>
-        </div>
-      </div>
-
-      {/* Options — question count + additional context */}
-      <div className="card grid grid-cols-1 lg:grid-cols-[220px,1fr] gap-5">
-        <div>
-          <label className="label">Number of questions</label>
-          <select
-            className="input"
-            value={questionCount}
-            onChange={(e) => setQuestionCount(Number(e.target.value))}
-          >
-            <option value={5}>5 — quick prep</option>
-            <option value={10}>10 — solid prep</option>
-            <option value={15}>15 — full prep</option>
-          </select>
-        </div>
-        <div>
-          <label className="label">Additional information (optional)</label>
-          <input
-            className="input"
-            value={extraContext}
-            onChange={(e) => setExtraContext(e.target.value)}
-            placeholder="e.g. panel interview, focus on system design, second-round with the CTO…"
-          />
-          <p className="text-xs text-slate-400 mt-1">Anything you know about the interview — the questions will factor it in.</p>
         </div>
       </div>
 

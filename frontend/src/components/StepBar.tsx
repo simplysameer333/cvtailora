@@ -16,59 +16,58 @@ export default function StepBar() {
   const progressPct = current >= 0 ? Math.round(((current + 1) / STEPS.length) * 100) : 0;
 
   return (
-    <div className="w-full rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+    // Transparent — sits on the emerald PageBanner band (see builder/layout.tsx)
+    <div className="w-full">
 
-        {/* Desktop step pills */}
-        <ol className="hidden sm:flex items-center gap-1 py-2.5">
-          {STEPS.map((step, i) => {
-            const done   = i < current;
-            const active = i === current;
-            return (
-              <li key={step.href} className="flex items-center gap-1 flex-1">
-                <div
+      {/* Desktop step pills */}
+      <ol className="hidden sm:flex items-center gap-1">
+        {STEPS.map((step, i) => {
+          const done   = i < current;
+          const active = i === current;
+          return (
+            <li key={step.href} className="flex items-center gap-1 flex-1">
+              <div
+                className={clsx(
+                  "flex items-center gap-1.5 text-xs font-semibold px-3 py-0.5 rounded-lg transition whitespace-nowrap",
+                  active && "bg-white text-teal-700 shadow-sm",
+                  done   && "text-white",
+                  !active && !done && "text-teal-100/70",
+                )}
+              >
+                <span
                   className={clsx(
-                    "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition whitespace-nowrap",
-                    active && "bg-brand-600 text-white shadow-sm",
-                    done   && "text-brand-600",
-                    !active && !done && "text-slate-400",
+                    "w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
+                    active && "bg-teal-600 text-white",
+                    done   && "bg-white/25 text-white",
+                    !active && !done && "bg-white/15 text-teal-50",
                   )}
                 >
-                  <span
-                    className={clsx(
-                      "w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
-                      active && "bg-white/20 text-white",
-                      done   && "bg-brand-600 text-white",
-                      !active && !done && "bg-slate-200 text-slate-400",
-                    )}
-                  >
-                    {done ? "✓" : i + 1}
-                  </span>
-                  {step.label}
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div className={clsx("h-px flex-1 mx-1", done ? "bg-brand-300" : "bg-slate-200")} />
-                )}
-              </li>
-            );
-          })}
-        </ol>
+                  {done ? "✓" : i + 1}
+                </span>
+                {step.label}
+              </div>
+              {i < STEPS.length - 1 && (
+                <div className={clsx("h-px flex-1 mx-1", done ? "bg-white/50" : "bg-white/20")} />
+              )}
+            </li>
+          );
+        })}
+      </ol>
 
-        {/* Mobile: label + progress bar */}
-        <div className="sm:hidden flex items-center justify-between py-2 text-xs text-slate-500 font-medium">
-          {current >= 0 && (
-            <span>Step {current + 1} of {STEPS.length} · <span className="text-brand-600 font-semibold">{STEPS[current].label}</span></span>
-          )}
-          <span className="text-slate-400">{progressPct}%</span>
-        </div>
-        <div className="sm:hidden h-1 w-full bg-slate-100 rounded-full overflow-hidden mb-2">
-          <div
-            className="h-full bg-brand-600 rounded-full transition-all duration-300"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-
+      {/* Mobile: label + progress bar */}
+      <div className="sm:hidden flex items-center justify-between py-1 text-xs text-teal-50 font-medium">
+        {current >= 0 && (
+          <span>Step {current + 1} of {STEPS.length} · <span className="text-white font-semibold">{STEPS[current].label}</span></span>
+        )}
+        <span className="text-teal-100/80">{progressPct}%</span>
       </div>
+      <div className="sm:hidden h-1 w-full bg-white/20 rounded-full overflow-hidden mt-1.5">
+        <div
+          className="h-full bg-white rounded-full transition-all duration-300"
+          style={{ width: `${progressPct}%` }}
+        />
+      </div>
+
     </div>
   );
 }

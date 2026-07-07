@@ -2,14 +2,16 @@
 import { useEffect, useState } from "react";
 import {
   FiLoader, FiMail, FiBriefcase, FiDownload,
-  FiCheckSquare, FiEye, FiBookmark, FiBell, FiZap, FiBookOpen, FiTrendingUp,
+  FiCheckSquare, FiEye, FiBookmark, FiBell, FiZap, FiBookOpen, FiTrendingUp, FiBarChart2, FiClock,
 } from "react-icons/fi";
+import PageBanner from "@/components/PageBanner";
 import {
   getAccountAnalytics, listSavedResumes, getUserStats,
-  type AccountAnalytics, type SavedResume, type ResumeSession,
+  type AccountAnalytics, type SavedResume, type ResumeSession, type AccountStats,
 } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature } from "@/lib/config";
+import { getTierLimitDynamic } from "@/lib/tierConfig";
 
 const ACTION_META: Record<string, { icon: React.ComponentType<{ className?: string }>; label: (m: Record<string, unknown>) => string; color: string }> = {
   "job_alert.email_sent": {
@@ -236,6 +238,146 @@ function ResumeUsageCard() {
   );
 }
 
+// Plan usage — how much of your plan allowance you've used this period
+function limitStr(tier: string, key: string): string {
+  const v = getTierLimitDynamic(tier, key);
+  if (v === null) return "Unlimited";
+  if (v === 0) return "—";
+  return String(v);
+}
+
+function UsageRow({ label, description, used, limit }: {
+  label: string; description: string; used: number; limit: string;
+}) {
+  const isUnlimited = limit === "Unlimited";
+  const notIncluded = limit === "—";
+  const pct = (isUnlimited || notIncluded) ? 0 : Math.min(100, Math.round((used / Number(limit)) * 100));
+  const barColor = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-400" : "bg-teal-500";
+  return (
+    <div className="py-4 border-b border-slate-100 last:border-0">
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-800">{label}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{description}</p>
+        </div>
+        <div className="text-right shrink-0">
+          {notIncluded ? <p className="text-xs text-slate-400">Not included</p>
+          : isUnlimited ? <p className="text-sm font-bold text-teal-600">{used} <span className="text-xs font-normal text-teal-500">/ ∞</span></p>
+          : <>
+              <p className="text-sm font-bold text-slate-900 tabular-nums">{used} <span className="text-slate-400 font-normal text-xs">/ {limit}</span></p>
+              <p className="text-xs text-slate-400 mt-0.5">{Math.max(0, Number(limit) - used)} remaining</p>
+            </>
+          }
+        </div>
+      </div>
+      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+        {isUnlimited ? <div className="h-full bg-teal-100 rounded-full w-full" />
+        : notIncluded ? null
+        : <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${pct}%` }} />}
+      </div>
+    </div>
+  );
+}
+
+function PlanUsage() {
+  const { data: session } = useAuth();
+  const tier = session?.user?.tier ?? "free";
+  const [stats, setStats] = useState<AccountStats | null>(null);
+
+  useEffect(() => {
+    getUserStats().then(setStats).catch(() => {});
+  }, []);
+
+  return (
+    <div className="card">
+      <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+        <FiBarChart2 className="w-4 h-4" /> Plan usage
+      </h2>
+      <p className="text-xs text-slate-400 mb-4">Your plan allowance for this billing period.</p>
+      <div className="rounded-2xl border border-slate-200 px-6">
+        {!stats ? (
+          <div className="py-6 space-y-6">
+            {[0,1,2,3].map((i) => (
+              <div key={i} className="space-y-2 animate-pulse">
+                <div className="flex justify-between"><div className="h-4 bg-slate-100 rounded w-32" /><div className="h-4 bg-slate-100 rounded w-16" /></div>
+                <div className="h-2 bg-slate-100 rounded-full" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            <UsageRow label="Resume Sessions" description="Builder sessions started"    used={stats.session_count}   limit={limitStr(tier, "resume_sessions")} />
+            <UsageRow label="Saved Resumes"   description="Resumes in your library"     used={stats.resume_count}    limit={limitStr(tier, "resume_library")} />
+            <UsageRow label="Saved Jobs"      description="Job listings bookmarked"     used={stats.saved_job_count} limit={limitStr(tier, "saved_jobs")} />
+            <UsageRow label="Job Alerts"      description="Active daily email searches" used={stats.alert_count}     limit={limitStr(tier, "job_alerts")} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Quality-label pill colours for the resume history list
+const QUALITY_STYLES: Record<ResumeSession["quality_label"], string> = {
+  Excellent: "bg-teal-50 text-teal-700 border border-teal-200",
+  Strong:    "bg-brand-50 text-brand-700 border border-brand-200",
+  Good:      "bg-amber-50 text-amber-700 border border-amber-200",
+  Reviewed:  "bg-slate-100 text-slate-500 border border-slate-200",
+};
+
+// Resume history — recent tailoring sessions with their quality label
+function ResumeHistory() {
+  const [sessions, setSessions] = useState<ResumeSession[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    getUserStats()
+      .then((s) => setSessions(s.recent_sessions))
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  return (
+    <div className="card">
+      <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+        <FiClock className="w-4 h-4" /> Resume history
+      </h2>
+      <p className="text-xs text-slate-400 mb-4">Your recent tailoring sessions and their quality.</p>
+
+      {!loaded ? (
+        <div className="py-8 flex justify-center text-slate-400"><FiLoader className="w-5 h-5 animate-spin" /></div>
+      ) : sessions.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-slate-400 text-sm">
+          No resumes generated yet — complete the builder to see your history here.
+        </div>
+      ) : (
+        <div className="flex flex-col max-h-80 overflow-y-auto overscroll-contain pr-1">
+          {sessions.map((s) => (
+            <div key={s.id} className="flex items-center justify-between py-3 border-b border-slate-100 last:border-0 gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                  <FiClock className="w-4 h-4 text-slate-400" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">
+                    {s.target_role || <span className="text-slate-400 italic font-normal">No role specified</span>}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {new Date(s.created_at).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              </div>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${QUALITY_STYLES[s.quality_label]}`}>
+                {s.quality_label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Compact horizontal stat — icon + number + label in one tight row
 function StatCard({ icon: Icon, label, value, sub }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -279,12 +421,11 @@ export default function AnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          What the platform has done for you — automated alerts, AI tailoring, exports and activity.
-        </p>
-      </div>
+      <PageBanner
+        icon={FiBarChart2}
+        title="Analytics"
+        subtitle="What the platform has done for you — automated alerts, AI tailoring, exports and activity."
+      />
 
       {/* Compact stat strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
@@ -320,6 +461,10 @@ export default function AnalyticsPage() {
         <ResumeUsageCard />
         <QualityTrend />
       </div>
+
+      {/* Plan usage + resume history — moved here from Settings */}
+      <PlanUsage />
+      <ResumeHistory />
 
       {/* Automated activity — last section: fixed height, scrolls internally as it grows */}
       <div className="card">

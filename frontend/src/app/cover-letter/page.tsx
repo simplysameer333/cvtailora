@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { generateCoverLetterStandalone, type CoverLetterResult } from "@/lib/api";
 import { FiMail, FiCopy, FiCheck, FiRefreshCw, FiZap } from "react-icons/fi";
 import ResumeLibrary from "@/components/ResumeLibrary";
+import PageBanner from "@/components/PageBanner";
 
 // ── Result card ────────────────────────────────────────────────────────────────
 
@@ -101,20 +102,13 @@ export default function CoverLetterPage() {
   }
 
   return (
-    <div className="w-full space-y-6 py-8 px-4 sm:px-0">
+    <div className="w-full space-y-5 pb-8 px-4 sm:px-0">
 
-      {/* Deep-teal identity — portal palette; Interview Prep uses the emerald variant */}
-      <div className="rounded-2xl bg-gradient-to-r from-brand-800 to-brand-600 px-6 py-5 text-white">
-        <div className="flex items-center gap-2.5 mb-1">
-          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
-            <FiMail className="w-5 h-5 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold">Cover Letter Generator</h1>
-        </div>
-        <p className="text-brand-100 text-sm">
-          Paste your resume and the job description — AI writes a tailored cover letter in seconds.
-        </p>
-      </div>
+      <PageBanner
+        icon={FiMail}
+        title="Cover Letter Generator"
+        subtitle="Paste your resume and the job description — AI writes a tailored cover letter in seconds."
+      />
 
       {/* Pull a saved resume straight into the form */}
       <ResumeLibrary

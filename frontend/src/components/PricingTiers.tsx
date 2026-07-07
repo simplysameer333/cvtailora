@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FiCheck } from "react-icons/fi";
 import { getPricing, detectCurrencyFromConfig, getTierLimitDynamic } from "@/lib/tierConfig";
+import { useTierConfigVersion } from "@/lib/useTierConfig";
 
 export type Tier = "free" | "plus" | "pro";
 
@@ -49,7 +50,9 @@ export function buildFeatures(tierId: Tier): string[] {
         "PDF export",
         `${lim("evaluators", "plus")} AI quality evaluators`,
         `${lim("key_skills", "plus")} key skills extracted`,
-        `${estTailors("plus")} AI resume tailors / month`,
+        // Advertised Plus allowance is a fixed 10/month (decoupled from the
+        // internal cost-cap estimate, which is only used for the free/pro floor).
+        `10 AI resume tailors / month`,
         `Save up to ${lim("saved_jobs", "plus")} jobs`,
         `Resume Library (${lim("resume_library", "plus")} resumes)`,
         "One-click Tailor from job listings",
@@ -60,13 +63,14 @@ export function buildFeatures(tierId: Tier): string[] {
         "Everything in Plus",
         `${lim("evaluators", "pro")} AI quality evaluators`,
         `${lim("key_skills", "pro")} key skills extracted`,
+        // Advertised Pro allowance is a fixed 25/month (see Plus note above).
+        `25 AI resume tailors / month`,
         "Section-level regeneration",
         "Locked Facts panel",
         "Sample CV reference",
         "Unlimited Resume Library",
         "Unlimited saved jobs",
         "Unlimited daily job alerts",
-        `${estTailors("pro")} AI resume tailors / month`,
       ];
   }
 }
@@ -81,6 +85,9 @@ interface PricingTiersProps {
 export default function PricingTiers({ selectedTier, onSelect }: PricingTiersProps) {
   const selectable = !!onSelect;
   const [currency, setCurrency] = useState<string>("USD");
+  // Re-render when the live MongoDB tier config arrives so prices aren't stuck on
+  // the pre-load fallback (config loads async, after first render).
+  useTierConfigVersion();
 
   useEffect(() => {
     setCurrency(detectCurrencyFromConfig());
@@ -92,7 +99,7 @@ export default function PricingTiers({ selectedTier, onSelect }: PricingTiersPro
         const isSelected = selectedTier === t.id;
         const features = buildFeatures(t.id);
         const pricingMap = getPricing();
-        const curr = pricingMap[currency] || pricingMap["USD"] || { symbol: "$", plus: 9, pro: 19 };
+        const curr = pricingMap[currency] || pricingMap[Object.keys(pricingMap)[0]];
         const price = t.id === "free"
           ? `${curr.symbol}0 / mo`
           : t.id === "plus"

@@ -196,7 +196,7 @@ export default function SidebarShell({
 
         {/* ── Content + slim app footer ── */}
         <div className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${pad}`}>
-          <main className="flex-1 px-4 sm:px-8 py-6 lg:py-8 pb-safe sm:pb-8">
+          <main className="flex-1 px-4 sm:px-8 pt-4 pb-6 lg:pt-5 lg:pb-8 pb-safe">
             {/* Content anchors to the sidebar and fills the viewport — no centering cap */}
             {title && <h1 className="text-2xl font-bold text-slate-900 mb-1">{title}</h1>}
             {children}

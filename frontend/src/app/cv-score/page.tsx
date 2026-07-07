@@ -6,7 +6,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import {
   FiUploadCloud, FiFile, FiZap, FiShield, FiTarget, FiStar,
-  FiAlertCircle, FiArrowRight,
+  FiAlertCircle, FiArrowRight, FiCheckSquare,
   FiUser, FiFileText, FiBriefcase, FiTag, FiAward, FiCpu, FiLayout, FiEdit3,
 } from "react-icons/fi";
 import { useEffect, useRef } from "react";
@@ -14,6 +14,7 @@ import { checkResume, type ResumeCheckResult } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature } from "@/lib/config";
 import { TemplateSuggestions } from "@/components/TemplatePreviews";
+import PageBanner from "@/components/PageBanner";
 import { scoreColor, ScoreCircle, CategoryCard, CategoryMiniScores } from "./_components";
 
 // ── static content ────────────────────────────────────────────────────────────
@@ -138,8 +139,8 @@ function UploadZone({
           </>
         )}
       </div>
-      {/* Standard-size CTA, centered — matches button sizing across the app */}
-      <div className="mt-4 flex flex-col items-center gap-2">
+      {/* Standard-size CTA, right-aligned — matches button placement across the app */}
+      <div className="mt-4 flex flex-col items-end gap-2">
         <button
           onClick={onCheck}
           disabled={!file || loading}
@@ -225,19 +226,14 @@ export default function CvScorePage() {
   const c = result ? scoreColor(result.overall_score) : null;
 
   return (
-    <div className="w-full py-2 space-y-10">
+    <div className="w-full pb-2 space-y-6">
 
-      {/* ── Hero ── */}
-      <div className="text-center">
-        <div className="inline-flex items-center gap-2 bg-brand-50 text-brand-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">
-          Free · No sign-in required
-        </div>
-        <h1 className="text-4xl font-bold text-slate-900 mb-3">Free CV Score</h1>
-        <p className="text-slate-500 text-base max-w-xl mx-auto">
-          Upload your CV and get a full AI-powered breakdown across 8 categories and 54 checks —
-          no account needed.
-        </p>
-      </div>
+      <PageBanner
+        icon={FiCheckSquare}
+        title="Free CV Score"
+        tag="Free · No sign-in required"
+        subtitle="Upload your CV and get a full AI-powered breakdown across 8 categories and 54 checks — no account needed."
+      />
 
       {/* ── Upload ── */}
       <UploadZone

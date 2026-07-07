@@ -16,18 +16,23 @@ const TIER_SENSITIVE_KEYS = [
   "tailormycv_custom_sections",
 ];
 
-function TokenSync() {
-  const { data: session } = useSession();
-  const prevTierRef = useRef<string | null>(null);
-  const signedOutRef = useRef(false);
-
-  // Fetch tier config from MongoDB at app startup — populates the runtime store
-  // so hasFeature() and getTierLimit() reflect the live database config.
+// Fetch tier config from MongoDB at app startup — populates the runtime store so
+// hasFeature()/getTierLimit()/getPricing() reflect the live database config. Runs
+// in BOTH real-auth and dev-bypass modes (the endpoint is public), otherwise dev
+// mode would be stuck on the hardcoded pre-load fallback prices/limits.
+function TierConfigLoader() {
   useEffect(() => {
     fetchTierConfig()
       .then((cfg) => setTierConfig(cfg.features, cfg.limits, cfg.pricing, cfg.currency_zones))
       .catch(() => { /* keep hardcoded defaults on network failure */ });
   }, []);
+  return null;
+}
+
+function TokenSync() {
+  const { data: session } = useSession();
+  const prevTierRef = useRef<string | null>(null);
+  const signedOutRef = useRef(false);
 
   // Sync Bearer token on session change
   useEffect(() => {
@@ -79,10 +84,16 @@ function TokenSync() {
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   if (DEV) {
     // Dev bypass: no NextAuth cookie dance, no Google OAuth required.
-    return <DevProvider>{children}</DevProvider>;
+    return (
+      <DevProvider>
+        <TierConfigLoader />
+        {children}
+      </DevProvider>
+    );
   }
   return (
     <SessionProvider>
+      <TierConfigLoader />
       <TokenSync />
       {children}
     </SessionProvider>

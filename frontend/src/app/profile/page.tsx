@@ -8,6 +8,7 @@ import {
   FiPlus, FiX,
   FiBookOpen, FiAward, FiFolder, FiAlertCircle, FiArrowRight,
 } from "react-icons/fi";
+import PageBanner from "@/components/PageBanner";
 import {
   getAccountProfile,
   saveAccountProfile,
@@ -233,12 +234,11 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">My Profile</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Your career profile powers job search pre-fill and one-click resume tailoring.
-        </p>
-      </div>
+      <PageBanner
+        icon={FiUser}
+        title="My Profile"
+        subtitle="Your career profile powers job search pre-fill and one-click resume tailoring."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px,1fr] gap-6 items-start">
 

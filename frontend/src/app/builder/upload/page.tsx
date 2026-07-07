@@ -134,10 +134,10 @@ function UploadPageInner() {
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr),380px] gap-6 items-start">
-      <div className="card space-y-8 min-w-0 sm:!p-8">
+      <div className="card space-y-8 min-w-0 sm:!px-8 sm:!pb-8 sm:!pt-5">
 
       {/* ── Step badge + hero ── */}
-      <div className="text-center space-y-2 pt-2">
+      <div className="text-center space-y-2">
         <div className="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-semibold px-3 py-1.5 rounded-full border border-teal-200">
           <FiZap className="w-3.5 h-3.5" /> Step 1 of 5
         </div>
@@ -148,7 +148,7 @@ function UploadPageInner() {
             ? "Choose your resume"
             : "Upload your resume"}
         </h1>
-        <p className="text-slate-500 text-sm max-w-md mx-auto">
+        <p className="text-slate-500 text-sm">
           {isTailoring
             ? "We'll tailor your CV specifically for this role using AI."
             : "Upload your existing CV — our AI will tailor it to any job description in minutes."}
@@ -224,11 +224,14 @@ function UploadPageInner() {
       </div>
 
       {/* ── Upload button — always visible, disabled until file selected ── */}
-      <div className="flex justify-center">
+      <div className="flex flex-col sm:flex-row items-center justify-end gap-3">
+        <p className="text-sm text-slate-500 text-center sm:text-right">
+          Upload, tailor, preview and download — five quick steps to a job-ready resume.
+        </p>
         <button
           onClick={handleUpload}
           disabled={!file || uploading}
-          className="btn-primary text-base px-10 py-3 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn-primary text-base px-10 py-3 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
         >
           {uploading
             ? <span className="flex items-center gap-2">
