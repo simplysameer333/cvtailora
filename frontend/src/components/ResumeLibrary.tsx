@@ -3,14 +3,16 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import {
   FiFileText, FiLoader, FiPlus, FiLock, FiEye, FiEdit2, FiDownload, FiTrash2,
+  FiShare2,
 } from "react-icons/fi";
 import {
   listSavedResumes, uploadSavedResume, deleteSavedResume, renameSavedResume,
-  savedResumeDownloadUrl, type SavedResume,
+  savedResumeDownloadUrl, createResumeShare, listResumeShares, type SavedResume,
 } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature, getTierLimit } from "@/lib/config";
 import ResumePreviewModal from "./ResumePreviewModal";
+import ShareResumeModal from "./ShareResumeModal";
 
 /**
  * Shared Resume Library — one component for every place saved resumes appear
@@ -52,6 +54,10 @@ export default function ResumeLibrary({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [previewResume, setPreviewResume] = useState<SavedResume | null>(null);
+  // resume_id → share token for active public links; null while a share is being created
+  const [shares, setShares] = useState<Record<string, string>>({});
+  const [shareModal, setShareModal] = useState<{ resume: SavedResume; token: string } | null>(null);
+  const [sharingId, setSharingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!canUse) { onLoaded?.(0); return; }
@@ -60,6 +66,9 @@ export default function ResumeLibrary({
       .then((list) => { setLibrary(list); onLoaded?.(list.length); })
       .catch(() => onLoaded?.(0))
       .finally(() => setLoading(false));
+    if (variant === "full") {
+      listResumeShares().then(setShares).catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUse]);
 
@@ -95,6 +104,22 @@ export default function ResumeLibrary({
       setLibrary((prev) => prev.map((r) => r.id === id ? updated : r));
       setEditingId(null);
     } catch { toast.error("Could not rename."); }
+  }
+
+  async function handleShare(r: SavedResume) {
+    // Reuse the existing token if the resume is already shared, else create one
+    const existing = shares[r.id];
+    if (existing) { setShareModal({ resume: r, token: existing }); return; }
+    setSharingId(r.id);
+    try {
+      const { token } = await createResumeShare(r.id);
+      setShares((prev) => ({ ...prev, [r.id]: token }));
+      setShareModal({ resume: r, token });
+    } catch {
+      toast.error("Could not create a share link.");
+    } finally {
+      setSharingId(null);
+    }
   }
 
   if (!canUse) {
@@ -214,6 +239,20 @@ export default function ResumeLibrary({
                         <FiDownload className="w-3.5 h-3.5" />
                       </a>
                       <button
+                        onClick={() => handleShare(r)}
+                        disabled={sharingId === r.id}
+                        className={`p-1.5 rounded-lg transition ${
+                          shares[r.id]
+                            ? "text-teal-600 bg-teal-50 hover:bg-teal-100"
+                            : "text-slate-400 hover:text-brand-600 hover:bg-brand-50"
+                        }`}
+                        title={shares[r.id] ? "Shared — view link" : "Share publicly"}
+                      >
+                        {sharingId === r.id
+                          ? <FiLoader className="w-3.5 h-3.5 animate-spin" />
+                          : <FiShare2 className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
                         onClick={() => handleDelete(r.id)}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
                         title="Delete"
@@ -241,6 +280,20 @@ export default function ResumeLibrary({
       )}
 
       <ResumePreviewModal resume={previewResume} onClose={() => setPreviewResume(null)} />
+      {shareModal && (
+        <ShareResumeModal
+          resume={shareModal.resume}
+          token={shareModal.token}
+          onClose={() => setShareModal(null)}
+          onRevoked={(id) =>
+            setShares((prev) => {
+              const next = { ...prev };
+              delete next[id];
+              return next;
+            })
+          }
+        />
+      )}
     </div>
   );
 }

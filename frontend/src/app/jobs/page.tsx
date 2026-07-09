@@ -20,6 +20,8 @@ import { setSessionId } from "@/lib/session";
 import { useAuth } from "@/lib/useAuth";
 import ResumePickerModal from "@/components/ResumePickerModal";
 import CreateAlertModal from "@/components/CreateAlertModal";
+import JobMatchBadge from "@/components/JobMatchBadge";
+import SourceFilterChips, { jobSource } from "@/components/SourceFilterChips";
 import ProfileCompletenessCard from "@/components/ProfileCompletenessCard";
 import PageBanner from "@/components/PageBanner";
 import ApplyChoiceModal from "@/components/ApplyChoiceModal";
@@ -232,6 +234,11 @@ function JobCard({
             <span className="ml-2 text-xs text-slate-400">via {job.job_publisher}</span>
           )}
         </p>
+        {job.match && (
+          <div className="mt-1.5">
+            <JobMatchBadge match={job.match} />
+          </div>
+        )}
       </div>
 
       {/* Right column — meta on top, actions below, bookmark on the extreme right */}
@@ -433,6 +440,7 @@ export default function JobsPage() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
   const [hideViewed, setHideViewed] = useState(false);
+  const [hiddenSources, setHiddenSources] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(0);
   const [searched, setSearched] = useState(false);
@@ -470,6 +478,7 @@ export default function JobsPage() {
     try {
       const result = await searchJobs(q, loc, p, ps);
       setJobs(result.jobs);
+      setHiddenSources(new Set()); // new results may have different sources — reset the chips
       setHasMore(result.jobs.length >= ps);
       setSearched(true);
       if (result.quota_pct !== undefined) {
@@ -838,7 +847,8 @@ export default function JobsPage() {
                 <>
                   {(() => {
                     const viewedCount = jobs.filter((j) => seenIds.has(j.job_id)).length;
-                    const visibleJobs = hideViewed ? jobs.filter((j) => !seenIds.has(j.job_id)) : jobs;
+                    const afterViewed = hideViewed ? jobs.filter((j) => !seenIds.has(j.job_id)) : jobs;
+                    const visibleJobs = afterViewed.filter((j) => !hiddenSources.has(jobSource(j)));
                     return (
                       <>
                         <div className="flex items-center justify-between text-xs text-slate-500">
@@ -881,6 +891,18 @@ export default function JobsPage() {
                             </div>
                           </div>
                         </div>
+
+                        <SourceFilterChips
+                          jobs={jobs}
+                          hidden={hiddenSources}
+                          onToggle={(src) =>
+                            setHiddenSources((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(src)) next.delete(src); else next.add(src);
+                              return next;
+                            })
+                          }
+                        />
 
                         <div className="flex flex-col gap-3">
                           {visibleJobs.map((job) => (

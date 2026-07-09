@@ -23,7 +23,18 @@ def _extract_pdf_text(file_bytes: bytes) -> str:
             page_text = page.extract_text()
             if page_text:
                 text_parts.append(page_text)
-    return "\n".join(text_parts)
+    text = "\n".join(text_parts)
+
+    # Under 100 chars a real resume text layer is implausible — the PDF is a
+    # scan / image export (Canva, photographed page). Fall back to OCR.
+    if len(text.strip()) < 100:
+        from services.ocr_service import ocr_available, ocr_pdf_text
+        if ocr_available():
+            ocr_text = ocr_pdf_text(file_bytes)
+            if len(ocr_text.strip()) > len(text.strip()):
+                return ocr_text
+
+    return text
 
 
 def _extract_docx_text(file_bytes: bytes) -> str:

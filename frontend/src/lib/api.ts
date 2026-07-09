@@ -510,6 +510,16 @@ export interface Job {
     Responsibilities?: string[];
     Benefits?: string[];
   };
+
+  // Server-side per-user annotation (job_match_service) — absent for
+  // anonymous/incomplete profiles or jobs with no matchable text.
+  match?: JobMatch;
+}
+
+export interface JobMatch {
+  pct: number;
+  label: string;                     // "Excellent match" | "Strong match" | "Fair match" | "Low match"
+  matched_skills: string[];
 }
 
 export interface SearchResult {
@@ -719,6 +729,43 @@ export async function createSessionFromLibraryResume(
 export function savedResumeDownloadUrl(resumeId: string): string {
   const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000";
   return `${base}/api/account/resumes/${resumeId}/download`;
+}
+
+// ── Public CV sharing (revocable read-only links) ─────────────────────────────
+
+export interface SharedResumeView {
+  name: string;
+  type: "uploaded" | "tailored";
+  content_type: string | null;
+  has_file: boolean;
+  resume_text: string;
+  shared_at?: string;
+}
+
+export async function createResumeShare(resumeId: string): Promise<{ token: string }> {
+  const { data } = await api.post(`/api/account/resumes/${resumeId}/share`);
+  return data;
+}
+
+export async function revokeResumeShare(resumeId: string): Promise<void> {
+  await api.delete(`/api/account/resumes/${resumeId}/share`);
+}
+
+/** Map of resume_id → share token for the current user's active shares. */
+export async function listResumeShares(): Promise<Record<string, string>> {
+  const { data } = await api.get("/api/account/resumes/shares");
+  return data;
+}
+
+/** Public — no auth required (the axios token header is simply ignored). */
+export async function getSharedResume(token: string): Promise<SharedResumeView> {
+  const { data } = await api.get(`/api/share/${token}`);
+  return data;
+}
+
+export function sharedResumeFileUrl(token: string): string {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000";
+  return `${base}/api/share/${token}/file`;
 }
 
 // ── Job alerts ────────────────────────────────────────────────────────────────

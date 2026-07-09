@@ -31,6 +31,7 @@ from pydantic import BaseModel
 from config import settings
 from database import get_db
 from dependencies.auth import get_current_user, require_tier, require_feature
+from services.job_match_service import annotate_jobs
 from services.quota_service import get_quota, increment, quota_warning
 
 router = APIRouter()
@@ -94,13 +95,19 @@ async def _set_cache(key: str, payload: dict) -> None:
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
+async def _load_profile(user: dict) -> dict | None:
+    """Fetch the user's account profile for per-card match scoring (J3)."""
+    db = get_db()
+    return await db.user_profiles.find_one({"user_id": user["_id"]})
+
+
 @router.get("/jobs/search")
 async def search_jobs(
     query: str,
     location: str = "",
     page: int = 1,
     page_size: int = Query(default=10, ge=1, le=50),
-    _user: dict = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
 ):
     if not settings.rapidapi_key:
         raise HTTPException(
@@ -130,6 +137,8 @@ async def search_jobs(
     if cached:
         cached["jobs"] = [j for j in cached.get("jobs", []) if _is_recent(j)]
         cached["from_cache"] = True
+        # Match is user-specific — always computed AFTER the shared cache read
+        annotate_jobs(await _load_profile(user), cached["jobs"])
         return cached
 
     # Call JSearch
@@ -166,6 +175,8 @@ async def search_jobs(
     }
 
     await _set_cache(cache_key, payload)
+    # Annotate AFTER caching so the per-user match never lands in the shared cache
+    annotate_jobs(await _load_profile(user), payload["jobs"])
     return payload
 
 

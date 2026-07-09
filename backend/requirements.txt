@@ -14,6 +14,7 @@ langchain-openai==1.2.2
 langchain-google-genai==4.2.3
 reportlab==4.5.1
 Pillow==11.2.1
+rapidocr-onnxruntime==1.2.3   # OCR fallback for scanned PDFs — pure pip, bundled models, no system deps
 python-dotenv==1.0.1
 pydantic==2.11.5
 pydantic-settings==2.7.1
