@@ -42,6 +42,7 @@ async def export_resume(
         )
 
     template_id = session.get("selected_template_id")
+    selected_accent = session.get("selected_accent")  # colour variant, may be None
 
     # Resolve key_skills for bold-keyword rendering
     bold_keywords: list[str] = []
@@ -68,9 +69,13 @@ async def export_resume(
             docx_bytes = generate_docx_from_key(
                 resume_data, template_id, bold_keywords=bold_keywords,
                 docx_config=cv_tmpl.get("docx_config"),
+                accent_override=selected_accent,
             )
         elif template_id in KNOWN_TEMPLATE_KEYS:
-            docx_bytes = generate_docx_from_key(resume_data, template_id, bold_keywords=bold_keywords)
+            docx_bytes = generate_docx_from_key(
+                resume_data, template_id, bold_keywords=bold_keywords,
+                accent_override=selected_accent,
+            )
 
     if docx_bytes is None:
         docx_bytes = generate_docx(resume_data, "", bold_keywords=bold_keywords)

@@ -420,7 +420,8 @@ async def get_account_stats(user: dict = Depends(get_current_user)):
         db.saved_resumes.count_documents({"user_id": uid}),
         db.job_alerts.count_documents({"user_id": uid}),
         db.job_alerts.count_documents({"user_id": uid, "is_active": True}),
-        db.saved_jobs.count_documents({"user_id": str(uid)}),
+        # saved_jobs keys user_id as ObjectId (jobs.py) — str(uid) always counted 0
+        db.saved_jobs.count_documents({"user_id": uid}),
     )
 
     recent_sessions = []

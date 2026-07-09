@@ -235,7 +235,7 @@ async def generate_template(prompt: str, base_html: str | None = None) -> dict:
 _PUBLIC_FIELDS = (
     "key", "name", "category", "traits", "bestFor", "description", "pages", "tier",
     "accentColor", "html", "docx_config", "source", "is_active", "show_in_cv_score",
-    "sort_order", "quality_score", "quality_scored_at",
+    "sort_order", "quality_score", "quality_scored_at", "accent_variants",
 )
 
 
@@ -362,8 +362,20 @@ async def create_cv_template(db, body: dict) -> dict:
 
 _EDITABLE = {
     "name", "category", "traits", "bestFor", "description", "pages", "tier",
-    "accentColor", "html", "docx_config", "is_active", "show_in_cv_score", "sort_order",
+    "accentColor", "accent_variants", "html", "docx_config", "is_active",
+    "show_in_cv_score", "sort_order",
 }
+
+
+def _normalize_accent_variants(variants: list) -> list[str]:
+    """Validate + normalise a colour-variant list to '#rrggbb' entries."""
+    out: list[str] = []
+    for v in variants:
+        s = str(v).strip().lstrip("#").lower()
+        if not re.fullmatch(r"[0-9a-f]{6}", s):
+            raise TemplateGenerationError(f"accent_variants entry {v!r} is not a 6-digit hex colour.")
+        out.append(f"#{s}")
+    return out
 
 
 async def update_cv_template(db, key: str, patch: dict) -> dict | None:
@@ -374,6 +386,8 @@ async def update_cv_template(db, key: str, patch: dict) -> dict | None:
             raise TemplateGenerationError("; ".join(errors))
     if "docx_config" in update:
         update["docx_config"] = normalize_docx_config(update["docx_config"])
+    if "accent_variants" in update:
+        update["accent_variants"] = _normalize_accent_variants(update["accent_variants"] or [])
     if not update:
         return await get_cv_template(db, key)
     update["updated_at"] = datetime.utcnow()

@@ -36,6 +36,7 @@ class CvTemplateBody(BaseModel):
     pages: int | None = None
     tier: str | None = None
     accentColor: str | None = None
+    accent_variants: list[str] | None = None   # per-template colour variants (hex)
     html: str | None = None
     docx_config: dict | None = None
     source: str | None = None

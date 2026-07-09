@@ -725,6 +725,8 @@ export interface TemplateInfo {
   pages: PageCount;
   tier: "free" | "plus" | "pro";
   accentColor: string;
+  /** Colour variants (MongoDB data — per-template or global palette). */
+  accent_variants?: string[];
   quality_score?: number;
 }
 
@@ -769,6 +771,7 @@ function toTemplateInfo(t: CvTemplate): TemplateInfo {
     key: t.key, name: t.name, component: COMPONENT_REGISTRY[t.key] ?? Cambridge,
     category: t.category, traits: t.traits, bestFor: t.bestFor,
     description: t.description, pages: t.pages, tier: t.tier, accentColor: t.accentColor,
+    accent_variants: t.accent_variants,
     quality_score: t.quality_score,
   };
 }

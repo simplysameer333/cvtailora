@@ -802,22 +802,46 @@ def _config_from_dict(d: dict) -> TemplateConfig:
     )
 
 
+def apply_accent_override(cfg: TemplateConfig, accent: str) -> TemplateConfig:
+    """Return a copy of `cfg` recoloured to the user's chosen accent variant.
+
+    Pure + unit-tested. `sidebar_color` / `banner_bg` follow the accent ONLY
+    when they equalled the original accent (e.g. Vivid's purple sidebar) —
+    independent colours (TechModern's dark banner) are left untouched.
+    """
+    from dataclasses import replace
+    new = accent.lstrip("#").lower()
+    old = cfg.accent.lower()
+    return replace(
+        cfg,
+        accent=new,
+        sidebar_color=new if cfg.sidebar_color.lower() == old else cfg.sidebar_color,
+        banner_bg=new if cfg.banner_bg.lower() == old else cfg.banner_bg,
+    )
+
+
 def generate_docx_from_key(
     resume_data: dict,
     template_key: str,
     bold_keywords: list[str] | None = None,   # reserved — future keyword bolding
     docx_config: dict | None = None,
+    accent_override: str | None = None,
 ) -> bytes:
     """Generate a styled DOCX for the given template key.
 
     When `docx_config` is supplied (from the `cv_templates` MongoDB doc) it drives
     the layout — so admin-managed / AI-generated templates render with no code
     change. Otherwise falls back to the in-code `_CONFIGS`, then to Cambridge.
+    `accent_override` (a hex colour) recolours the template to the user's chosen
+    variant (session `selected_accent`).
     """
     if docx_config:
         cfg = _config_from_dict(docx_config)
     else:
         cfg = _CONFIGS.get(template_key, _CONFIGS["Cambridge"])
+
+    if accent_override:
+        cfg = apply_accent_override(cfg, accent_override)
 
     if cfg.layout == "sidebar":
         return _render_sidebar(resume_data, cfg)

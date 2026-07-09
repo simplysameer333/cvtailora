@@ -673,19 +673,27 @@ async def save_resume(session_id: str, body: dict):
 
 @router.patch("/sessions/{session_id}/template")
 async def set_session_template(session_id: str, body: dict):
-    """Attach a template to the session so export can apply it.
+    """Attach a template (and optional accent-colour variant) to the session.
 
-    Body: {"template_id": "<mongo ObjectId string>"}
+    Body: {"template_id": "<template key>", "accent": "#1d4ed8" (optional)}
+    An empty/absent accent clears any previous variant (back to the template's
+    own accent). Preview and DOCX export both honour the stored accent.
     """
+    import re as _re
     template_id = body.get("template_id", "")
+    accent = (body.get("accent") or "").strip()
+    if accent and not _re.fullmatch(r"#?[0-9a-fA-F]{6}", accent):
+        raise HTTPException(400, "accent must be a 6-digit hex colour.")
+    accent = f"#{accent.lstrip('#').lower()}" if accent else None
+
     db = get_db()
     result = await db.sessions.update_one(
         {"_id": ObjectId(session_id)},
-        {"$set": {"selected_template_id": template_id}},
+        {"$set": {"selected_template_id": template_id, "selected_accent": accent}},
     )
     if result.matched_count == 0:
         raise HTTPException(404, "Session not found.")
-    return {"selected_template_id": template_id}
+    return {"selected_template_id": template_id, "selected_accent": accent}
 
 
 @router.put("/sessions/{session_id}/locked-facts")

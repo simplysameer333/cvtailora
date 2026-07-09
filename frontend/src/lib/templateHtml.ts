@@ -5,7 +5,7 @@
  */
 
 import type { PreviewData } from "@/lib/cvTemplates";
-import { getCvTemplate, render, renderCtx } from "@/lib/cvTemplates";
+import { getCvTemplate, render, renderCtx, applyAccent } from "@/lib/cvTemplates";
 
 const BASE_CSS = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -638,14 +638,16 @@ export const TEMPLATE_HTML_FNS: Record<string, (d: PreviewData) => string> = {
   TechModern, Pulse, HexagonPro, SalesImpact, Healthcare,
 };
 
-export function getTemplateHtml(key: string, data: PreviewData): string {
+export function getTemplateHtml(key: string, data: PreviewData, accent?: string | null): string {
   // Primary path: render the standalone HTML stored in MongoDB (admin-managed
   // / AI-generated templates included). Falls back to the built-in JS renderer
   // below before the store has loaded or if a template has no stored HTML yet —
   // a zero-regression safety net during migration.
+  // `accent` (a colour-variant hex) recolours generically via applyAccent.
   const tmpl = getCvTemplate(key);
   if (tmpl?.html) {
-    return render(tmpl.html, renderCtx(data, tmpl.accentColor));
+    const html = render(tmpl.html, renderCtx(data, accent || tmpl.accentColor));
+    return applyAccent(html, tmpl.accentColor, accent);
   }
   const fn = TEMPLATE_HTML_FNS[key] ?? TEMPLATE_HTML_FNS["Cambridge"];
   return fn(data);

@@ -24,6 +24,7 @@ import {
 } from "@/components/TemplatePreviews";
 import { getTemplateHtml } from "@/lib/templateHtml";
 import { EvalQualityPanel } from "@/components/EvalQualityPanel";
+import AccentSwatches from "@/components/AccentSwatches";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -137,15 +138,19 @@ function GalleryCard({
 // ── Template modal — full-screen overlay matching competitor design ───────────
 
 function TemplateModal({
-  info, previewData, isSelected, onSelect, onClose,
+  info, previewData, isSelected, initialAccent, onSelect, onClose,
 }: {
   info: TemplateWithId; previewData: PreviewData | null;
-  isSelected: boolean; onSelect: () => void; onClose: () => void;
+  isSelected: boolean; initialAccent: string | null;
+  onSelect: (accent: string | null) => void; onClose: () => void;
 }) {
   const SCALE    = 0.62;
   const IFRAME_W = 794;
   const PREVIEW_W = Math.round(IFRAME_W * SCALE);
   const PREVIEW_H = Math.round(IFRAME_W * 1.414 * SCALE);
+
+  // Colour variant being previewed — live-recolours the iframe below.
+  const [accent, setAccent] = useState<string | null>(initialAccent);
 
   // Lock the base page while the modal is open — wheel events must scroll the
   // modal panes (overscroll-contain), never the gallery behind it.
@@ -154,7 +159,7 @@ function TemplateModal({
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
   }, []);
-  const html = previewData ? getTemplateHtml(info.key, previewData) : "";
+  const html = previewData ? getTemplateHtml(info.key, previewData, accent) : "";
   const isPersonalised = !!(previewData?.name);
   const hdr = CATEGORY_HEADER[info.category] ?? CATEGORY_HEADER["Classic"];
 
@@ -230,16 +235,15 @@ function TemplateModal({
           {/* Content */}
           <div className="px-6 py-4 space-y-5 flex-1">
 
-            {/* Colour */}
+            {/* Colour — pick a variant, the preview recolours live */}
             <div>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Template Colour</p>
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-7 h-7 rounded-full border-2 border-white shadow-sm"
-                  style={{ background: info.accentColor, outline: `2px solid ${info.accentColor}`, outlineOffset: 1 }}
-                />
-                <span className="text-xs text-slate-500 font-medium">Primary accent</span>
-              </div>
+              <AccentSwatches
+                base={info.accentColor}
+                variants={info.accent_variants ?? []}
+                value={accent}
+                onChange={setAccent}
+              />
             </div>
 
             {/* Features */}
@@ -281,9 +285,9 @@ function TemplateModal({
           {/* CTAs */}
           <div className="px-6 pb-6 pt-2 space-y-2 shrink-0 border-t border-slate-100">
             <button
-              onClick={onSelect}
+              onClick={() => onSelect(accent)}
               className="w-full py-3.5 rounded-xl text-sm font-bold text-white transition flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98]"
-              style={{ background: info.accentColor }}
+              style={{ background: accent || info.accentColor }}
             >
               {isSelected
                 ? <><FiCheckCircle className="w-4 h-4" /> Selected — click Generate &amp; Download below</>
@@ -319,6 +323,8 @@ export default function TemplatePage() {
   const canUseAll      = tier === "plus" || tier === "pro";
 
   const [selected, setSelected]               = useState<string | null>(null);
+  // Colour variant for the SELECTED template (null = template's own accent)
+  const [accent, setAccentState]              = useState<string | null>(null);
   const [detailId, setDetailId]               = useState<string | null>(null); // which template is previewed
   const [generatedResume, setGeneratedResume] = useState<GeneratedResume | null>(null);
   const [evalSummary, setEvalSummary]         = useState<EvalSummary | null>(null);
@@ -354,7 +360,15 @@ export default function TemplatePage() {
     } catch { /* ignore */ }
     const savedTemplate = localStorage.getItem("tailormycv_template_id");
     if (savedTemplate) setSelected(savedTemplate);
+    setAccentState(localStorage.getItem("tailormycv_accent") || null);
   }, []);
+
+  /** Set + persist the colour variant for the selected template. */
+  function setAccent(a: string | null) {
+    setAccentState(a);
+    if (a) localStorage.setItem("tailormycv_accent", a);
+    else localStorage.removeItem("tailormycv_accent");
+  }
 
   const onDropSample = useCallback((files: File[]) => { if (files[0]) setSampleFile(files[0]); }, []);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -387,7 +401,7 @@ export default function TemplatePage() {
     setExporting(true);
     try {
       if (selected) {
-        await setSessionTemplate(sessionId, selected);
+        await setSessionTemplate(sessionId, selected, accent);
         localStorage.setItem("tailormycv_template_id", selected);
       }
       const boldKeywords = localStorage.getItem("tailormycv_bold_keywords") !== "false";
@@ -488,7 +502,8 @@ export default function TemplatePage() {
           info={detailInfo}
           previewData={previewData}
           isSelected={selected === detailInfo._id}
-          onSelect={() => { setSelected(detailInfo._id); setDetailId(null); }}
+          initialAccent={selected === detailInfo._id ? accent : null}
+          onSelect={(a) => { setSelected(detailInfo._id); setAccent(a); setDetailId(null); }}
           onClose={() => setDetailId(null)}
         />
       )}
@@ -504,7 +519,7 @@ export default function TemplatePage() {
 
       {/* Selected template banner */}
       {selectedInfo && (
-        <div className="flex items-center gap-3 bg-brand-50 border border-brand-200 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-3 bg-brand-50 border border-brand-200 rounded-xl px-4 py-3 flex-wrap">
           <FiCheckCircle className="w-4 h-4 text-brand-600 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-brand-800">
@@ -512,6 +527,12 @@ export default function TemplatePage() {
             </p>
             <p className="text-xs text-brand-600">{selectedInfo.description}</p>
           </div>
+          <AccentSwatches
+            base={selectedInfo.accentColor}
+            variants={selectedInfo.accent_variants ?? []}
+            value={accent}
+            onChange={setAccent}
+          />
           <button onClick={() => setDetailId(selectedInfo._id)}
             className="text-xs font-semibold text-brand-600 hover:underline shrink-0">
             Change

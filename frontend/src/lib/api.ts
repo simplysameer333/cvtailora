@@ -284,8 +284,15 @@ export async function uploadSampleCv(sessionId: string, file: File) {
   return data as { filename: string; characters: number };
 }
 
-export async function setSessionTemplate(sessionId: string, templateId: string): Promise<void> {
-  await api.patch(`/api/sessions/${sessionId}/template`, { template_id: templateId });
+export async function setSessionTemplate(
+  sessionId: string,
+  templateId: string,
+  accent?: string | null,
+): Promise<void> {
+  await api.patch(`/api/sessions/${sessionId}/template`, {
+    template_id: templateId,
+    accent: accent ?? "",
+  });
 }
 
 export async function syncResumeToSession(sessionId: string, resume: GeneratedResume): Promise<void> {
@@ -1257,6 +1264,10 @@ export async function estimateSalaryStandalone(jobDescription: string): Promise<
 
 export interface SystemConfig {
   alerts_enabled: boolean;
+  /** Global accent palette offered as template colour variants (hex, "#rrggbb"). */
+  template_accent_palette: string[];
+  /** Title-token synonyms for the job-match scorer (abbrev → expansion tokens). */
+  match_token_synonyms: Record<string, string[]>;
 }
 
 export async function fetchSystemConfig(): Promise<SystemConfig> {

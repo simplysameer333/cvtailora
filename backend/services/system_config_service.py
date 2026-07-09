@@ -36,6 +36,17 @@ DEFAULTS: dict = {
         "cio": ["chief", "information", "officer"],
         "md": ["managing", "director"],
     },
+    # Global accent-colour palette offered as template colour variants when a
+    # cv_templates doc has no per-template `accent_variants` list. DATA — the
+    # UI and backend never hardcode colour choices.
+    "template_accent_palette": [
+        "#1d4ed8",  # blue
+        "#0d9488",  # teal
+        "#7c3aed",  # violet
+        "#ea580c",  # orange
+        "#e11d48",  # rose
+        "#374151",  # slate
+    ],
 }
 
 
@@ -49,11 +60,25 @@ async def get_system_config(db=None) -> dict:
     return {**DEFAULTS, **{k: v for k, v in doc.items() if k != "_id"}}
 
 
+def _validate_palette(value) -> list[str]:
+    """Normalise the accent palette to '#rrggbb' entries; rejects bad hexes."""
+    import re
+    out: list[str] = []
+    for v in list(value or []):
+        s = str(v).strip().lstrip("#").lower()
+        if not re.fullmatch(r"[0-9a-f]{6}", s):
+            raise ValueError(f"palette entry {v!r} is not a 6-digit hex colour")
+        out.append(f"#{s}")
+    return out
+
+
 async def update_system_config(patch: dict, db=None) -> dict:
     """Update recognised flags only; returns the full merged config."""
     db = db if db is not None else get_db()
     allowed = {k: bool(v) if isinstance(DEFAULTS[k], bool) else v
                for k, v in patch.items() if k in DEFAULTS}
+    if "template_accent_palette" in allowed:
+        allowed["template_accent_palette"] = _validate_palette(allowed["template_accent_palette"])
     if allowed:
         await db.system_config.update_one({"_id": _DOC_ID}, {"$set": allowed}, upsert=True)
     return await get_system_config(db)

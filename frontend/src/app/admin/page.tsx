@@ -19,6 +19,7 @@ import {
   FiGrid, FiCopy, FiZap, FiEye, FiBell, FiShield,
 } from "react-icons/fi";
 import PageBanner from "@/components/PageBanner";
+import AccentPaletteCard from "@/components/admin/AccentPaletteCard";
 import { adminUpdateTierConfig, fetchTierConfig, type TierConfigPayload } from "@/lib/api";
 import {
   adminListCvTemplates, adminCreateCvTemplate, adminUpdateCvTemplate,
@@ -1553,6 +1554,9 @@ function SystemTab() {
           </div>
         </div>
       </div>
+
+      {/* Global template colour palette — data-driven variants (no hardcoding) */}
+      <AccentPaletteCard cfg={cfg} onSaved={setCfg} />
     </div>
   );
 }

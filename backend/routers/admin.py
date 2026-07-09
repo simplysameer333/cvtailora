@@ -370,12 +370,17 @@ async def get_system_config_route(_: dict = Depends(require_superadmin)):
 
 class SystemConfigBody(BaseModel):
     alerts_enabled: bool | None = None
+    template_accent_palette: list[str] | None = None
+    match_token_synonyms: dict[str, list[str]] | None = None
 
 
 @router.put("/admin/system-config")
 async def update_system_config_route(body: SystemConfigBody, admin: dict = Depends(require_superadmin)):
     from services.system_config_service import update_system_config
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
-    cfg = await update_system_config(patch)
+    try:
+        cfg = await update_system_config(patch)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     log_audit(admin, "system_config.update", patch)
     return cfg

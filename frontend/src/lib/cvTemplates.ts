@@ -56,6 +56,9 @@ export interface CvTemplate {
   pages: PageCount;
   tier: "free" | "plus" | "pro";
   accentColor: string;
+  /** Colour variants offered to the user — per-template list or the global
+   *  palette (both MongoDB data, admin-editable; never hardcoded here). */
+  accent_variants?: string[];
   html: string;
   docx_config: DocxConfig;
   source: "builtin" | "ai" | "custom";
@@ -170,6 +173,19 @@ export function render(template: string, ctx: Record<string, unknown>): string {
   let ast = _astCache.get(template);
   if (!ast) { ast = parse(template); _astCache.set(template, ast); }
   return renderNodes(ast, [ctx]);
+}
+
+/**
+ * Recolour a rendered template to a chosen accent variant — GENERIC, works for
+ * every template (incl. AI-generated): swaps all occurrences of the template's
+ * own base accent hex for the variant. Case-insensitive; no per-template logic.
+ */
+export function applyAccent(html: string, baseAccent: string, accent?: string | null): string {
+  if (!accent || !baseAccent) return html;
+  const base = baseAccent.replace("#", "");
+  const next = accent.startsWith("#") ? accent : `#${accent}`;
+  if (base.toLowerCase() === next.slice(1).toLowerCase()) return html;
+  return html.replace(new RegExp(`#${base}\\b`, "gi"), next);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
