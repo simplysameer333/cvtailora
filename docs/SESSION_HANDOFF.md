@@ -1,9 +1,79 @@
 # Session Handoff — TailorMyCv
 
-> Rolling context for continuing work. **Last updated: 2026-07-06.**
+> Rolling context for continuing work. **Last updated: 2026-07-09.**
 > Branch: `main`. Railway auto-deploys both services on push.
 
 This is the broad handoff. CV-score-preview specifics live in `docs/CV_SCORE_PREVIEW_CONTEXT.md`.
+
+---
+
+## What shipped in the 2026-07-09 session — pending-features programme (Phases 0–3)
+
+Plan agreed with user up front (agent J5/J6, credit packs, country formats, multi-language
+all explicitly deferred). Commits: `1d6c711`, `97b6fc8`, `00be0f0`, `f80fc4d`, `7c70db7` + docs.
+NOT pushed. New standing user directives: **modular separation/SOLID (new module per
+functionality, no very large files)** and **no hardcoding — config/colour/role data lives in
+MongoDB with admin edit surfaces**.
+
+### Phase 0 — job-alerts vs Find Jobs gap (bug fix)
+- Digest was re-fetching the same relevance top-10 daily; `seen_job_ids` dedup starved emails.
+  Now queries `date_posted=month` (measured on the user's real alert: 3days/week→0 jobs).
+- `num_results` was NOT a JSearch param (silent no-op both call sites) — removed; Find Jobs
+  `page_size` now maps to real `page`/`num_pages`; quota counts one call per page fetched.
+- Tests: `tests/test_jsearch_params.py`.
+
+### Phase 1 — quick wins
+- **J3 match %**: deterministic scorer `services/job_match_service.py` (pure, tested) annotates
+  `/jobs/search` per user AFTER the shared cache; `JobMatchBadge` (colour dot scale). Recalibrated
+  on user feedback: evidence ladder (25/pt, saturates at 4), max-favouring 70/30 blend, sqrt curve;
+  title synonyms (vp→vice president…) are DATA in `system_config.match_token_synonyms`.
+  Match % is display-only — never feeds the generator.
+- **Match filter panel** (replaced J9 source chips — user decision; SourceFilterChips deleted):
+  `MatchFilterChips` in the desktop side rail under Profile Completeness, chips on mobile.
+- **Public CV sharing**: `routers/resume_share.py` — revocable unguessable tokens
+  (`shared_resumes`), public `/api/share/{token}` (+`/file`), `/share/[token]` page,
+  `ShareResumeModal`, share state in ResumeLibrary. Revoke = hard delete; re-share mints a NEW token.
+- **OCR fallback**: `services/ocr_service.py` — RapidOCR (pure pip, no tesseract/poppler,
+  Railway-safe; `rapidocr-onnxruntime==1.2.3`). Parser falls back when PDF text layer <100 chars.
+  End-to-end test with a generated image-only PDF.
+
+### Phase 2 — J4 auto-assisted application tracker
+- Reuses `saved_jobs` (a saved job = stage-"saved" application). Pipeline saved→applied→
+  interview→offer (+terminal rejected). Pure rules in `services/application_service.py`
+  (auto-advance never downgrades; monotonic funnel), router `routers/applications.py`
+  (PATCH status / POST mark-applied / GET stats).
+- Auto-capture: Apply click→applied; Tailor click→applied+tailored (jobs page handlers).
+- UI: **Applications tab** on Find Jobs (`ApplicationTracker` — stat tiles double as filters,
+  `ApplicationStatusSelect` per row); `ApplicationFunnelCard` on Analytics.
+- Fixed pre-existing str(uid)-vs-ObjectId bugs: analytics `jobs_saved` AND `/account/stats`
+  `saved_job_count` (both always counted 0).
+
+### Phase 3 — templates & preview
+- **Colour-scheme variants (fully data-driven, zero hardcoding)**: global
+  `system_config.template_accent_palette` (hex-validated; Admin → System → "Template Colour
+  Palette" editor card) with per-template `accent_variants` override (admin templates PATCH).
+  Generic recolour — `applyAccent()` swaps the template's base accent hex in rendered HTML;
+  DOCX `apply_accent_override()` (sidebar/banner follow only when equal to accent). Accent rides
+  `PATCH /sessions/{id}/template` → `selected_accent` → DOCX export. Step 4: `AccentSwatches`
+  in template modal (live recolour) + selected banner; localStorage `tailormycv_accent`.
+  Known v1 limit: only exact base-hex occurrences swap (derived tints keep their hue).
+- **Missing-sections prompt**: `MissingSectionsNotice` above CV-score template previews when the
+  extractor found no contact/summary/skills/experience/education.
+- **DOCX extra-sections VERIFIED** (old doubt settled): `tests/test_docx_extra_sections.py`
+  renders + reads back all 4 layout families — sections present (headings upper-cased).
+
+### Docs retired this session (user decision)
+`COMPARISON.md` + `IMPROVEMENTS.md` deleted (fully implemented historical records);
+`competitor_features.md` deleted after migrating its outstanding backlog here (below).
+
+### Outstanding product backlog (migrated from competitor_features.md)
+- **J5+J6 auto-apply AI agent** (largest build; ApplyChoiceModal groundwork + J4 tracker schema ready)
+- **One-time credit packs** — blocked on billing/payment processor
+- **WYSIWYG live editor** (high effort)
+- **Country-specific formats** (region-aware template defaults) — deferred by user 2026-07-09
+- **Multi-language output** (FR/ES/DE/AR) — deferred by user 2026-07-09
+- **Student / enterprise pricing** (needs billing)
+- **Action-verb suggestions in preview editor**
 
 ---
 

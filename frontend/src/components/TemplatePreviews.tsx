@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FiCheckCircle, FiArrowRight, FiLock } from "react-icons/fi";
 import clsx from "clsx";
 import { getTemplateHtml } from "@/lib/templateHtml";
+import MissingSectionsNotice from "@/components/MissingSectionsNotice";
 import {
   getCvTemplates, getCvScoreTemplates, cvTemplatesLoaded, loadCvTemplates,
   subscribeCvTemplates, type CvTemplate, type PreviewData as _PreviewData,
@@ -1120,6 +1121,10 @@ export function TemplateSuggestions({ extractedProfile }: {
             : `Choose from ${totalLabel} templates. Our AI builder applies your chosen template when tailoring for a job.`}
         </p>
       </div>
+
+      {/* Core sections the extractor couldn't find — prompt instead of silently
+          rendering half-empty templates */}
+      {previewData && <MissingSectionsNotice data={previewData} />}
 
       {/* Large preview — only shown when we have a real name from the uploaded CV */}
       <div className="card p-0 overflow-hidden border-slate-200">
