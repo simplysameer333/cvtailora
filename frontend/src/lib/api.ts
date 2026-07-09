@@ -514,12 +514,29 @@ export interface Job {
   // Server-side per-user annotation (job_match_service) — absent for
   // anonymous/incomplete profiles or jobs with no matchable text.
   match?: JobMatch;
+
+  // Tracker fields — present only on the /api/jobs/saved response (J4).
+  _saved_at?: string;
+  _status?: ApplicationStatus;
+  _tailored?: boolean;
+  _applied_at?: string | null;
 }
 
 export interface JobMatch {
   pct: number;
   label: string;                     // "Excellent match" | "Strong match" | "Fair match" | "Low match"
   matched_skills: string[];
+}
+
+export type ApplicationStatus = "saved" | "applied" | "interview" | "offer" | "rejected";
+
+export interface ApplicationFunnel {
+  total: number;
+  saved: number;
+  applied: number;
+  interview: number;
+  offer: number;
+  rejected: number;
 }
 
 export interface SearchResult {
@@ -568,6 +585,22 @@ export async function getSavedJobs(): Promise<Job[]> {
 
 export async function unsaveJob(jobId: string): Promise<void> {
   await api.delete(`/api/jobs/saved/${jobId}`);
+}
+
+// ── Application tracker (J4) ──────────────────────────────────────────────────
+
+export async function setApplicationStatus(jobId: string, status: ApplicationStatus): Promise<void> {
+  await api.patch(`/api/applications/${encodeURIComponent(jobId)}/status`, { status });
+}
+
+/** Auto-capture: called on Apply / Tailor clicks so the tracker records intent. */
+export async function markApplied(jobId: string, jobData: Job, tailored = false): Promise<void> {
+  await api.post("/api/applications/mark-applied", { job_id: jobId, job_data: jobData, tailored });
+}
+
+export async function getApplicationStats(): Promise<ApplicationFunnel> {
+  const { data } = await api.get("/api/applications/stats");
+  return data;
 }
 
 export async function markJobSeen(jobId: string): Promise<void> {
@@ -919,6 +952,7 @@ export interface AccountAnalytics {
   interview_preps: number;
   jobs_saved: number;
   jobs_viewed: number;
+  application_funnel: ApplicationFunnel;
   daily: { date: string; count: number }[];
   recent: { action: string; metadata: Record<string, unknown>; created_at: string }[];
 }

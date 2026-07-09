@@ -14,6 +14,7 @@ import {
   getAccountProfile, createSessionFromProfileWithJob,
   getJobsQuota, searchCatalogRoles,
   listJobAlerts, deleteJobAlert, toggleJobAlert,
+  markApplied,
   type Job, type QuotaStatus, type JobAlert, type ProfileCompleteness,
 } from "@/lib/api";
 import { setSessionId } from "@/lib/session";
@@ -22,6 +23,7 @@ import ResumePickerModal from "@/components/ResumePickerModal";
 import CreateAlertModal from "@/components/CreateAlertModal";
 import JobMatchBadge from "@/components/JobMatchBadge";
 import MatchFilterChips from "@/components/MatchFilterChips";
+import ApplicationTracker from "@/components/ApplicationTracker";
 import ProfileCompletenessCard from "@/components/ProfileCompletenessCard";
 import PageBanner from "@/components/PageBanner";
 import ApplyChoiceModal from "@/components/ApplyChoiceModal";
@@ -452,8 +454,10 @@ export default function JobsPage() {
   const [applyJob, setApplyJob] = useState<Job | null>(null);
 
   // ── Alerts state ────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<"results" | "alerts">(
-    searchParams.get("tab") === "alerts" ? "alerts" : "results"
+  const [activeTab, setActiveTab] = useState<"results" | "applications" | "alerts">(
+    (["applications", "alerts"].includes(searchParams.get("tab") ?? "")
+      ? searchParams.get("tab")
+      : "results") as "results" | "applications" | "alerts"
   );
   const [alerts, setAlerts] = useState<JobAlert[]>([]);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
@@ -574,6 +578,8 @@ export default function JobsPage() {
   function handleTailor(job: Job) {
     markJobSeen(job.job_id).catch(() => {});
     setSeenIds((prev) => new Set(prev).add(job.job_id));
+    // Auto-capture: tailoring for a job records it as applied+tailored in the tracker
+    if (!isFree) markApplied(job.job_id, job, true).catch(() => {});
     const jd = [
       `${job.job_title} at ${job.employer_name}`,
       job.job_description ?? "",
@@ -594,6 +600,8 @@ export default function JobsPage() {
   function handleApply(job: Job) {
     markJobSeen(job.job_id).catch(() => {});
     setSeenIds((prev) => new Set(prev).add(job.job_id));
+    // Auto-capture: clicking Apply advances the job to "applied" in the tracker
+    if (!isFree) markApplied(job.job_id, job).catch(() => {});
   }
 
   function handleManualApply(job: Job) {
@@ -743,6 +751,17 @@ export default function JobsPage() {
               }`}
             >
               Results
+            </button>
+            <button
+              onClick={() => setActiveTab("applications")}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "applications"
+                  ? "border-brand-600 text-brand-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <FiBriefcase className="w-3.5 h-3.5" />
+              Applications
             </button>
             <button
               onClick={() => setActiveTab("alerts")}
@@ -949,6 +968,11 @@ export default function JobsPage() {
                 </>
               )}
             </>
+          )}
+
+          {/* ── Applications tab (J4 tracker) ─────────────────────────────────── */}
+          {activeTab === "applications" && (
+            <ApplicationTracker onTailor={handleTailor} />
           )}
 
           {/* ── My Alerts tab ─────────────────────────────────────────────────── */}

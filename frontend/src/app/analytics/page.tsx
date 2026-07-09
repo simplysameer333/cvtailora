@@ -5,6 +5,7 @@ import {
   FiCheckSquare, FiEye, FiBookmark, FiBell, FiZap, FiBookOpen, FiTrendingUp, FiBarChart2, FiClock,
 } from "react-icons/fi";
 import PageBanner from "@/components/PageBanner";
+import ApplicationFunnelCard from "@/components/ApplicationFunnelCard";
 import {
   getAccountAnalytics, listSavedResumes, getUserStats,
   type AccountAnalytics, type SavedResume, type ResumeSession, type AccountStats,
@@ -460,6 +461,7 @@ export default function AnalyticsPage() {
         </div>
         <ResumeUsageCard />
         <QualityTrend />
+        <ApplicationFunnelCard funnel={data.application_funnel} />
       </div>
 
       {/* Plan usage + resume history — moved here from Settings */}

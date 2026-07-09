@@ -271,7 +271,17 @@ async def get_saved_jobs(user: dict = Depends(get_current_user)):
     db = get_db()
     cursor = db.saved_jobs.find({"user_id": user["_id"]}).sort("saved_at", -1)
     docs = await cursor.to_list(length=200)
-    return [d["job_data"] | {"_saved_at": d["saved_at"].isoformat()} for d in docs]
+    # Merge tracker fields (status defaults to "saved" for pre-tracker rows)
+    result = []
+    for d in docs:
+        applied_at = d.get("applied_at")
+        result.append(d["job_data"] | {
+            "_saved_at": d["saved_at"].isoformat(),
+            "_status": d.get("status", "saved"),
+            "_tailored": bool(d.get("tailored")),
+            "_applied_at": applied_at.isoformat() if applied_at else None,
+        })
+    return result
 
 
 @router.delete("/jobs/saved/{job_id}", status_code=204)

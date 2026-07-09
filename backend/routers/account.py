@@ -320,8 +320,9 @@ async def get_account_analytics(user: dict = Depends(get_current_user)):
         db.audit_log.count_documents({"user_id": uid_str, "action": "resume.cv_score"}),
         db.audit_log.count_documents({"user_id": uid_str, "action": "cover_letter.generate"}),
         db.audit_log.count_documents({"user_id": uid_str, "action": "interview_prep.generate"}),
-        db.saved_jobs.count_documents({"user_id": uid_str}),
-        # seen_jobs keys user_id as ObjectId (jobs.py), saved_jobs as str
+        # saved_jobs keys user_id as ObjectId (jobs.py stores user["_id"]) — the
+        # previous str(uid) query always counted 0. Match the write key.
+        db.saved_jobs.count_documents({"user_id": uid}),
         db.seen_jobs.count_documents({"user_id": uid}),
         db.job_alerts.count_documents({"user_id": uid, "is_active": True}),
     )
@@ -358,8 +359,16 @@ async def get_account_analytics(user: dict = Depends(get_current_user)):
     ]).to_list(31)
     daily = [{"date": r["_id"], "count": r["count"]} for r in daily_rows]
 
+    # Application-tracker funnel (J4) — saved → applied → interview → offer
+    from services.application_service import funnel_counts
+    statuses: list[str] = []
+    async for doc in db.saved_jobs.find({"user_id": uid}, {"status": 1}):
+        statuses.append(doc.get("status", "saved"))
+    application_funnel = funnel_counts(statuses)
+
     return {
         "daily": daily,
+        "application_funnel": application_funnel,
         "alert_emails_sent": alert_emails,
         "alert_jobs_delivered": jobs_delivered,
         "alerts_active": alerts_active,
