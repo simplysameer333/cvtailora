@@ -10,8 +10,8 @@ fs: AsyncIOMotorGridFSBucket = None
 async def connect_db():
     global client, db, fs
     client = AsyncIOMotorClient(settings.mongodb_uri)
-    # Migrated from the legacy `tailormycv` database on 2026-07-09 (trademark-
-    # driven rebrand) via scripts/migrate_db_rename.py. The old database is
+    # Migrated from the legacy database on 2026-07-09 (trademark-driven
+    # rebrand) via scripts/migrate_db_rename.py. The old database is
     # retained on the cluster as a rollback snapshot — safe to drop later.
     db = client.cvtailora
     fs = AsyncIOMotorGridFSBucket(db)

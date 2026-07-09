@@ -23,7 +23,6 @@ const TIER_SENSITIVE_KEYS = [
 // mode would be stuck on the hardcoded pre-load fallback prices/limits.
 function TierConfigLoader() {
   useEffect(() => {
-    // Rebrand shim: move any legacy tailormycv_* localStorage to cvtailora_*
     // BEFORE anything reads session state (runs in both auth modes).
     migrateLegacyLocalStorage();
     fetchTierConfig()
