@@ -51,6 +51,19 @@ def _cache_key(*parts: str) -> str:
     return hashlib.md5("|".join(parts).encode()).hexdigest()
 
 
+def _search_params(q: str, page: int, page_size: int) -> dict:
+    """Map our page/page_size onto JSearch's page/num_pages contract — pure, unit-tested.
+
+    JSearch has no page-size param (the old `num_results` was a silent no-op) —
+    it returns ~10 results per page, and `num_pages` batches consecutive pages
+    into one response. page_size is a multiple of 10 in the UI (10/20/50), so
+    one UI page spans page_size/10 JSearch pages.
+    """
+    pages = max(1, page_size // 10)
+    start = (page - 1) * pages + 1
+    return {"query": q, "page": str(start), "num_pages": str(pages)}
+
+
 def _is_recent(job: dict) -> bool:
     """Return False if the job was posted more than jsearch_max_job_age_days ago."""
     posted = job.get("job_posted_at_datetime_utc")
@@ -120,11 +133,12 @@ async def search_jobs(
         return cached
 
     # Call JSearch
+    params = _search_params(q, page, page_size)
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             res = await client.get(
                 f"{_JSEARCH_BASE}/search",
-                params={"query": q, "page": str(page), "num_results": str(page_size)},
+                params=params,
                 headers=_headers(),
             )
             res.raise_for_status()
@@ -138,8 +152,8 @@ async def search_jobs(
     data = res.json()
     jobs = [j for j in data.get("data", []) if _is_recent(j)]
 
-    # Increment quota after successful call
-    quota = await increment()
+    # Increment quota after successful call — one count per JSearch page fetched
+    quota = await increment(count=int(params["num_pages"]))
     warning = quota_warning(quota["pct"])
 
     payload = {

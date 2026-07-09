@@ -36,6 +36,18 @@ def _jsearch_headers() -> dict:
     }
 
 
+def _digest_search_params(q: str) -> dict:
+    """JSearch params for the daily digest — pure, unit-tested.
+
+    Without a date filter JSearch returns the same relevance-ranked top-10 every
+    day, so after seen_job_ids dedup almost nothing new remains in the email.
+    A rolling one-month window keeps the candidate pool fresh while still wide
+    enough for niche queries (measured on a real exec-level alert: 3days and
+    week returned 0 jobs; month returned results). Dedup suppresses repeats.
+    """
+    return {"query": q, "page": "1", "date_posted": "month"}
+
+
 async def _search_jobs(query: str, location: str) -> list[dict] | None:
     """Return job list (empty = no results), or None if the call failed / quota exhausted.
 
@@ -58,7 +70,7 @@ async def _search_jobs(query: str, location: str) -> list[dict] | None:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 res = await client.get(
                     f"{_JSEARCH_BASE}/search",
-                    params={"query": q, "page": "1", "num_results": "10"},
+                    params=_digest_search_params(q),
                     headers=_jsearch_headers(),
                 )
                 res.raise_for_status()

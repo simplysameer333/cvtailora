@@ -31,14 +31,18 @@ async def get_quota(provider: str = "jsearch") -> dict:
     }
 
 
-async def increment(provider: str = "jsearch") -> dict:
-    """Increment the call counter and return updated stats."""
+async def increment(provider: str = "jsearch", count: int = 1) -> dict:
+    """Increment the call counter by `count` and return updated stats.
+
+    JSearch bills each 10-result page as one request, so a multi-page search
+    (`num_pages` > 1) must charge more than one call against the monthly budget.
+    """
     db = get_db()
     now = datetime.utcnow()
     doc = await db.api_quota.find_one_and_update(
         {"provider": provider, "month": _month()},
         {
-            "$inc": {"calls": 1},
+            "$inc": {"calls": count},
             "$set": {"last_call_at": now},
             "$setOnInsert": {
                 "provider": provider,
