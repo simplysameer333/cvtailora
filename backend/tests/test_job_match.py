@@ -55,8 +55,52 @@ def test_primary_skill_weighted_double():
     profile = {"key_skills": ["Python", "Kubernetes"], "primary_skill": "Python", "target_roles": []}
     job = {"job_title": "Engineer", "job_description": "python role"}
     m = compute_match(profile, job)
-    # primary hit (2) of total weight 3 → 67%
-    assert m["pct"] == 67
+    # primary hit = 2 weight points × 25 = 50 raw → sqrt curve → 71%
+    assert m["pct"] == 71
+
+
+def test_title_only_match_reads_strong():
+    """A job titled exactly the target role must read encouraging even when
+    the JD text names none of the user's skills (max-favoring blend).
+    Synonyms are DATA passed in — nothing role-related is hardcoded."""
+    profile = {"key_skills": ["Java", "Chronicle"], "primary_skill": "Java",
+               "target_roles": ["Vice-president, Global Lead"]}
+    job = {
+        "job_title": "VP, Global Lead",  # "VP" must expand via synonyms data
+        "job_description": "Own global governance and stakeholder reporting.",
+    }
+    m = compute_match(profile, job, synonyms={"vp": ["vice", "president"]})
+    # skills 0, role 100 → raw 70 → curve ≈ 84
+    assert m["pct"] >= 80
+    assert m["label"] == "Excellent match"
+
+
+def test_default_synonyms_seed_covers_vp():
+    """The seeded system_config data must expand vp — the scorer itself
+    carries no role knowledge."""
+    from services.system_config_service import DEFAULTS
+    syn = DEFAULTS["match_token_synonyms"]
+    assert syn["vp"] == ["vice", "president"]
+
+
+def test_long_skill_list_does_not_dilute_score():
+    """A profile with MANY skills must not score lower than a short one when
+    the same skills match — the original fraction-based scoring did (10% on
+    a genuinely good job)."""
+    job = {
+        "job_title": "Java Developer",
+        "job_description": "Java and Spring experience required, AWS a plus.",
+    }
+    short = {"key_skills": ["Java", "Spring", "AWS"], "primary_skill": "Java", "target_roles": []}
+    long_ = {
+        "key_skills": [
+            "Java", "Spring", "AWS", "Chronicle", "LMAX", "Kafka", "Solace",
+            "Grafana", "Kubernetes", "Docker", "MongoDB", "Python",
+        ],
+        "primary_skill": "Java",
+        "target_roles": [],
+    }
+    assert compute_match(long_, job)["pct"] == compute_match(short, job)["pct"] == 100
 
 
 def test_special_char_skills_match_on_edges():

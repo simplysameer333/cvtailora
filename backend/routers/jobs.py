@@ -31,7 +31,7 @@ from pydantic import BaseModel
 from config import settings
 from database import get_db
 from dependencies.auth import get_current_user, require_tier, require_feature
-from services.job_match_service import annotate_jobs
+from services.job_match_service import annotate_jobs, get_match_synonyms
 from services.quota_service import get_quota, increment, quota_warning
 
 router = APIRouter()
@@ -138,7 +138,7 @@ async def search_jobs(
         cached["jobs"] = [j for j in cached.get("jobs", []) if _is_recent(j)]
         cached["from_cache"] = True
         # Match is user-specific — always computed AFTER the shared cache read
-        annotate_jobs(await _load_profile(user), cached["jobs"])
+        annotate_jobs(await _load_profile(user), cached["jobs"], await get_match_synonyms())
         return cached
 
     # Call JSearch
@@ -176,7 +176,7 @@ async def search_jobs(
 
     await _set_cache(cache_key, payload)
     # Annotate AFTER caching so the per-user match never lands in the shared cache
-    annotate_jobs(await _load_profile(user), payload["jobs"])
+    annotate_jobs(await _load_profile(user), payload["jobs"], await get_match_synonyms())
     return payload
 
 

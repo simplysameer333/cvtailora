@@ -21,7 +21,7 @@ import { useAuth } from "@/lib/useAuth";
 import ResumePickerModal from "@/components/ResumePickerModal";
 import CreateAlertModal from "@/components/CreateAlertModal";
 import JobMatchBadge from "@/components/JobMatchBadge";
-import SourceFilterChips, { jobSource } from "@/components/SourceFilterChips";
+import MatchFilterChips from "@/components/MatchFilterChips";
 import ProfileCompletenessCard from "@/components/ProfileCompletenessCard";
 import PageBanner from "@/components/PageBanner";
 import ApplyChoiceModal from "@/components/ApplyChoiceModal";
@@ -440,7 +440,7 @@ export default function JobsPage() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
   const [hideViewed, setHideViewed] = useState(false);
-  const [hiddenSources, setHiddenSources] = useState<Set<string>>(new Set());
+  const [minMatch, setMinMatch] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(0);
   const [searched, setSearched] = useState(false);
@@ -478,7 +478,7 @@ export default function JobsPage() {
     try {
       const result = await searchJobs(q, loc, p, ps);
       setJobs(result.jobs);
-      setHiddenSources(new Set()); // new results may have different sources — reset the chips
+      setMinMatch(0); // reset the match filter for fresh results
       setHasMore(result.jobs.length >= ps);
       setSearched(true);
       if (result.quota_pct !== undefined) {
@@ -670,14 +670,6 @@ export default function JobsPage() {
             </div>
           )}
 
-          {/* Profile-sourced indicator */}
-          {profileLoaded && hasProfileResume && queryTags.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <FiUser className="w-3.5 h-3.5 text-teal-500" />
-              Pre-filled from your profile · <a href="/profile" className="text-brand-600 hover:underline">Edit profile</a>
-            </div>
-          )}
-
           {/* Quota warning banner */}
           {quota?.warning && quota.warning !== quotaWarningDismissed && (
             <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
@@ -848,7 +840,9 @@ export default function JobsPage() {
                   {(() => {
                     const viewedCount = jobs.filter((j) => seenIds.has(j.job_id)).length;
                     const afterViewed = hideViewed ? jobs.filter((j) => !seenIds.has(j.job_id)) : jobs;
-                    const visibleJobs = afterViewed.filter((j) => !hiddenSources.has(jobSource(j)));
+                    const visibleJobs = minMatch > 0
+                      ? afterViewed.filter((j) => (j.match?.pct ?? -1) >= minMatch)
+                      : afterViewed;
                     return (
                       <>
                         <div className="flex items-center justify-between text-xs text-slate-500">
@@ -892,17 +886,10 @@ export default function JobsPage() {
                           </div>
                         </div>
 
-                        <SourceFilterChips
-                          jobs={jobs}
-                          hidden={hiddenSources}
-                          onToggle={(src) =>
-                            setHiddenSources((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(src)) next.delete(src); else next.add(src);
-                              return next;
-                            })
-                          }
-                        />
+                        {/* Compact chips only below xl — the side-rail panel covers desktop */}
+                        <div className="xl:hidden">
+                          <MatchFilterChips jobs={jobs} minMatch={minMatch} onChange={setMinMatch} />
+                        </div>
 
                         <div className="flex flex-col gap-3">
                           {visibleJobs.map((job) => (
@@ -1071,6 +1058,7 @@ export default function JobsPage() {
 
       <aside className="hidden xl:flex flex-col gap-4 sticky top-8">
         <ProfileCompletenessCard completeness={completeness} />
+        <MatchFilterChips jobs={jobs} minMatch={minMatch} onChange={setMinMatch} variant="panel" />
       </aside>
       </div>
 

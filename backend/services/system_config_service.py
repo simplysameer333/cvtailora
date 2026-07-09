@@ -17,6 +17,25 @@ _DOC_ID = "global"
 # All recognised flags + their defaults. Updates are restricted to these keys.
 DEFAULTS: dict = {
     "alerts_enabled": True,
+    # Title-token synonyms for the job-match scorer (job_match_service).
+    # DATA, not code — editable in Mongo without a deploy (no role/title
+    # knowledge is hardcoded in the scorer itself).
+    "match_token_synonyms": {
+        "vp": ["vice", "president"],
+        "svp": ["senior", "vice", "president"],
+        "evp": ["executive", "vice", "president"],
+        "avp": ["assistant", "vice", "president"],
+        "sr": ["senior"],
+        "jr": ["junior"],
+        "mgr": ["manager"],
+        "dev": ["developer"],
+        "eng": ["engineer"],
+        "swe": ["software", "engineer"],
+        "pm": ["product", "manager"],
+        "cto": ["chief", "technology", "officer"],
+        "cio": ["chief", "information", "officer"],
+        "md": ["managing", "director"],
+    },
 }
 
 
