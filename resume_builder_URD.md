@@ -45,7 +45,7 @@ Users authenticate with email/password or Google OAuth. A persistent **Account P
 | Observability | LangSmith tracing (optional; auto-detected from env vars) |
 | Email | Brevo HTTP API — job alert digest, no-results, and scheduler failure emails |
 | Job Alert Scheduler | APScheduler (in-process) — daily cron at `ALERT_SEND_HOUR` UTC; 3-retry JSearch; quota integration |
-| Deployment | Railway.com — two services: `tailormycv-frontend` (Next.js) + `tailormycv-backend` (FastAPI) |
+| Deployment | Railway.com — two services: `cvtailora-frontend` (Next.js) + `cvtailora-backend` (FastAPI); live services still on legacy `tailormycv-*` names until custom-domain cutover |
 
 ---
 
@@ -744,9 +744,9 @@ All tier-based limits enforced via `tier_config_service` — no hardcoded dicts 
 |---|---|
 | Brand / UI | `CVTailora` |
 | Domain | `cvtailora.com` |
-| GitHub repo | `tailormycv` (legacy name — rename optional) |
-| Railway services | `tailormycv-frontend`, `tailormycv-backend` (legacy names — rename optional) |
-| MongoDB database | `tailormycv` (legacy internal name — kept deliberately; migration deferred) |
+| GitHub repo | `cvtailora` (renamed 2026-07-09; old URL redirects) |
+| Railway services | `tailormycv-frontend`, `tailormycv-backend` (legacy names — rename pending, after custom domains) |
+| MongoDB database | `cvtailora` (migrated 2026-07-09 via `scripts/migrate_db_rename.py`; old `tailormycv` DB retained as rollback) |
 | localStorage keys | `cvtailora_` prefix (all lowercase; legacy `tailormycv_` keys auto-migrated by `lib/brandMigration.ts`) |
 | Agent class names | Provider-based: `AnthropicEvaluatorAgent`, `OpenAIEvaluatorAgent`, `GoogleEvaluatorAgent` |
 | Profession slugs | `lowercase_underscored` |
