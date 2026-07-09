@@ -21,7 +21,7 @@ from services.linkedin_service import fetch_profile, is_valid_linkedin_url
 from services.email_service import send_error_alert
 
 router = APIRouter()
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _SERVICE_UNAVAILABLE = "LinkedIn import is temporarily unavailable. Please upload your resume instead."
 _LIMIT_REACHED = "LinkedIn import has reached its usage limit. Please upload your resume instead."

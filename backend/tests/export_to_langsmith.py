@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 
-DATASET_NAME_DEFAULT = "tailormycv-golden"
+DATASET_NAME_DEFAULT = "cvtailora-golden"
 
 
 def _load_reports(reports_dir: str) -> list[dict]:
@@ -70,7 +70,7 @@ def export(reports_dir: str, dataset_name: str) -> None:
         dataset = client.create_dataset(
             dataset_name=dataset_name,
             description=(
-                "Golden examples from TailorMyCV pipeline harness runs. "
+                "Golden examples from CVTailora pipeline harness runs. "
                 "Each example is a real CV processed through the generate pipeline. "
                 "Used as regression baseline and LLM-as-a-Judge evaluation set."
             ),

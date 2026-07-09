@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 
 export const metadata = {
-  title: "CV Score Results — TailorMyCv",
+  title: "CV Score Results — CVTailora",
   description: "Your AI-powered CV analysis results — scores across 8 categories and 54 checks.",
 };
 

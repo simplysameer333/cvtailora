@@ -31,7 +31,7 @@ import re
 
 from config import settings
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _SYSTEM = """You are a meticulous CV editor reviewing a finished draft against a specific job description.
 

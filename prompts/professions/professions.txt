@@ -1,6 +1,6 @@
 Profession Config Generator Prompt
 
-You are configuring a profession profile for TailorMyCv, an AI-powered resume builder.
+You are configuring a profession profile for CVTailora, an AI-powered resume builder.
 The pipeline uses these configs to tailor how it writes, evaluates, and scores resumes
 for specific professions. Each config has 6 fields that feed into different parts of the AI.
 

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 
 class BaseAgent(ABC):
-    """Root contract for every agent in the TailorMyCv pipeline.
+    """Root contract for every agent in the CVTailora pipeline.
 
     Design principles
     -----------------

@@ -9,7 +9,7 @@ from anthropic import AsyncAnthropic
 
 from services.prompt_store import get_override
 
-logger = logging.getLogger("tailormycv.cv_score")
+logger = logging.getLogger("cvtailora.cv_score")
 
 
 def _cache_system(text: str) -> list[dict]:
@@ -298,7 +298,7 @@ extract_contact_regex = extract_full_profile
 # LLM-based CV quality analyser
 # ═══════════════════════════════════════════════════════════════════════════════
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _SYSTEM = (
     "You are an expert CV reviewer and ATS specialist with 10+ years of experience "

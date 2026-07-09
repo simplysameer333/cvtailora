@@ -584,8 +584,8 @@ export default function JobsPage() {
       `${job.job_title} at ${job.employer_name}`,
       job.job_description ?? "",
     ].filter(Boolean).join("\n\n");
-    localStorage.setItem("tailormycv_prefill_jd", jd);
-    localStorage.setItem("tailormycv_tailor_context", JSON.stringify({
+    localStorage.setItem("cvtailora_prefill_jd", jd);
+    localStorage.setItem("cvtailora_tailor_context", JSON.stringify({
       title:      job.job_title,
       employer:   job.employer_name,
       apply_link: job.job_apply_link || "",

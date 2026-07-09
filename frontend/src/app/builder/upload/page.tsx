@@ -54,9 +54,9 @@ const PROCESS_STEPS = [
 // ── localStorage keys to clear on new session ─────────────────────────────────
 
 const STALE_KEYS = [
-  "tailormycv_generated", "tailormycv_eval_summary", "tailormycv_template_id",
-  "tailormycv_output_format", "tailormycv_instructions",
-  "tailormycv_locked_facts", "tailormycv_custom_sections",
+  "cvtailora_generated", "cvtailora_eval_summary", "cvtailora_template_id",
+  "cvtailora_output_format", "cvtailora_instructions",
+  "cvtailora_locked_facts", "cvtailora_custom_sections",
 ];
 
 // ── Page inner (needs Suspense for useSearchParams) ───────────────────────────
@@ -74,10 +74,10 @@ function UploadPageInner() {
   const [libraryLoadingId, setLibraryLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.removeItem("tailormycv_tailor_job_title");
-    localStorage.removeItem("tailormycv_tailor_employer");
+    localStorage.removeItem("cvtailora_tailor_job_title");
+    localStorage.removeItem("cvtailora_tailor_employer");
     if (!searchParams.get("tailor_title")) {
-      localStorage.removeItem("tailormycv_tailor_context");
+      localStorage.removeItem("cvtailora_tailor_context");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -115,7 +115,7 @@ function UploadPageInner() {
 
   async function handleUseLibraryResume(resume: SavedResume) {
     setLibraryLoadingId(resume.id);
-    const prefillJd = localStorage.getItem("tailormycv_prefill_jd") ?? "";
+    const prefillJd = localStorage.getItem("cvtailora_prefill_jd") ?? "";
     try {
       const { session_id } = await createSessionFromLibraryResume(resume.id, prefillJd);
       setSessionId(session_id);

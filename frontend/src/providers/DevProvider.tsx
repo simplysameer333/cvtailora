@@ -14,12 +14,12 @@ interface DevSession {
 }
 
 const DEV_USERS: Record<Tier, DevSession["data"]["user"]> = {
-  free: { id: "dev-free", name: "Dev User (Free)", email: "dev-free@tailormycv.dev", tier: "free", is_superadmin: true },
-  plus: { id: "dev-plus", name: "Dev User (Plus)", email: "dev-plus@tailormycv.dev", tier: "plus", is_superadmin: true },
-  pro:  { id: "dev-pro",  name: "Dev User (Pro)",  email: "dev-pro@tailormycv.dev",  tier: "pro",  is_superadmin: true },
+  free: { id: "dev-free", name: "Dev User (Free)", email: "dev-free@cvtailora.dev", tier: "free", is_superadmin: true },
+  plus: { id: "dev-plus", name: "Dev User (Plus)", email: "dev-plus@cvtailora.dev", tier: "plus", is_superadmin: true },
+  pro:  { id: "dev-pro",  name: "Dev User (Pro)",  email: "dev-pro@cvtailora.dev",  tier: "pro",  is_superadmin: true },
 };
 
-const STORAGE_KEY = "tailormycv_dev_tier";
+const STORAGE_KEY = "cvtailora_dev_tier";
 
 interface DevContextValue {
   session: DevSession;

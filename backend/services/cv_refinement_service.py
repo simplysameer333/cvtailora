@@ -12,7 +12,7 @@ from anthropic import AsyncAnthropic
 
 from services.resume_checker_service import _cache_system
 
-logger = logging.getLogger("tailormycv.cv_refinement")
+logger = logging.getLogger("cvtailora.cv_refinement")
 
 _REFINE_SYSTEM = (
     "You are a professional CV editor. Your sole task is to apply the specific "

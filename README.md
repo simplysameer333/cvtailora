@@ -1,4 +1,4 @@
-# TailorMyCv
+# CVTailora
 
 AI-powered resume builder that tailors your resume to any job description using a multi-agent pipeline. A Job Analyzer extracts the skills that matter most for the role, a Generator writes the resume, and one or more Evaluator agents score it using profession-specific criteria — the generator refines until quality thresholds are met.
 
@@ -9,7 +9,7 @@ AI-powered resume builder that tailors your resume to any job description using 
 ## Project Structure
 
 ```
-tailormycv/
+cvtailora/
 │
 ├── backend/
 │   ├── main.py                      FastAPI app entry point; mounts all routers; APScheduler lifespan
@@ -450,7 +450,7 @@ Superadmin-only (`/admin`), grouped by feature: **User Management** (Users · Au
 | `STORAGE_BACKEND` | `local` | `local` or `s3` |
 | `ALLOWED_ORIGINS` | `http://localhost:4000` | CORS origins (comma-separated) |
 | `LANGSMITH_API_KEY` | — | LangSmith API key — enables full LangGraph traces (optional; no-op if absent) |
-| `LANGSMITH_PROJECT` | `tailormycv` | LangSmith project name for trace grouping |
+| `LANGSMITH_PROJECT` | `cvtailora` | LangSmith project name for trace grouping |
 
 **Frontend env vars:**
 
@@ -567,7 +567,7 @@ comparison across model/prompt changes:
 
 ```bash
 LANGSMITH_API_KEY=sk-lsv2-... \
-  python backend/tests/export_to_langsmith.py /tmp/harness_results/ [--dataset tailormycv-golden]
+  python backend/tests/export_to_langsmith.py /tmp/harness_results/ [--dataset cvtailora-golden]
 ```
 
 ---

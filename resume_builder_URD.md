@@ -1,9 +1,9 @@
 # User Requirements Document
-## TailorMyCv — AI-Powered Resume Builder
+## CVTailora — AI-Powered Resume Builder
 
 **Version:** 1.10
 **Date:** 2026-06-08
-**App Name:** TailorMyCv
+**App Name:** CVTailora
 **Support Email:** samorsameer@gmail.com
 **Deployment Target:** Railway.com
 
@@ -11,7 +11,7 @@
 
 ## 1. Project Overview
 
-**TailorMyCv** is a full-stack web application that takes three inputs — an existing resume or LinkedIn profile, a user profile, and a job description — and uses a multi-agent AI pipeline to generate a tailored, professionally formatted resume in a user-selected template. The primary output is a `.docx` file; PDF export is an optional server-side feature.
+**CVTailora** is a full-stack web application that takes three inputs — an existing resume or LinkedIn profile, a user profile, and a job description — and uses a multi-agent AI pipeline to generate a tailored, professionally formatted resume in a user-selected template. The primary output is a `.docx` file; PDF export is an optional server-side feature.
 
 The AI pipeline is profession-aware and tier-driven:
 - A **Job Analyzer** agent extracts the top-N skills from the job description before generation begins
@@ -668,7 +668,7 @@ ALERT_MAX_JOBS_PER_EMAIL=10
 LANGSMITH_TRACING=true
 LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=
-LANGSMITH_PROJECT=tailormycv
+LANGSMITH_PROJECT=cvtailora
 ```
 
 ### Frontend (Next.js)
@@ -742,15 +742,16 @@ All tier-based limits enforced via `tier_config_service` — no hardcoded dicts 
 
 | Context | Format |
 |---|---|
-| Brand / UI | `TailorMyCv` |
-| GitHub repo | `tailormycv` |
-| Railway services | `tailormycv-frontend`, `tailormycv-backend` |
-| MongoDB database | `tailormycv` |
-| localStorage keys | `tailormycv_` prefix (all lowercase) |
+| Brand / UI | `CVTailora` |
+| Domain | `cvtailora.com` |
+| GitHub repo | `tailormycv` (legacy name — rename optional) |
+| Railway services | `tailormycv-frontend`, `tailormycv-backend` (legacy names — rename optional) |
+| MongoDB database | `tailormycv` (legacy internal name — kept deliberately; migration deferred) |
+| localStorage keys | `cvtailora_` prefix (all lowercase; legacy `tailormycv_` keys auto-migrated by `lib/brandMigration.ts`) |
 | Agent class names | Provider-based: `AnthropicEvaluatorAgent`, `OpenAIEvaluatorAgent`, `GoogleEvaluatorAgent` |
 | Profession slugs | `lowercase_underscored` |
 | API routes | `lowercase-hyphenated` |
 
 ---
 
-*End of User Requirements Document — TailorMyCv v1.10*
+*End of User Requirements Document — CVTailora v1.10*

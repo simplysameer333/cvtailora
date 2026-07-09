@@ -1,4 +1,4 @@
-const KEY = "tailormycv_session_id";
+const KEY = "cvtailora_session_id";
 
 export function getSessionId(): string | null {
   if (typeof window === "undefined") return null;

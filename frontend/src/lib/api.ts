@@ -3,14 +3,14 @@ import { getSession } from "next-auth/react";
 import type { CvTemplate, DocxConfig } from "@/lib/cvTemplates";
 
 export const SESSION_KEYS = [
-  "tailormycv_session_id",
-  "tailormycv_generated",
-  "tailormycv_eval_summary",
-  "tailormycv_template_id",
-  "tailormycv_output_format",
-  "tailormycv_instructions",
-  "tailormycv_locked_facts",
-  "tailormycv_custom_sections",
+  "cvtailora_session_id",
+  "cvtailora_generated",
+  "cvtailora_eval_summary",
+  "cvtailora_template_id",
+  "cvtailora_output_format",
+  "cvtailora_instructions",
+  "cvtailora_locked_facts",
+  "cvtailora_custom_sections",
 ];
 
 const api = axios.create({
@@ -264,7 +264,7 @@ export async function generateResume(
 export async function exportResume(sessionId: string, includePdf = false, boldKeywords = true) {
   let resumeData: unknown = null;
   try {
-    const stored = localStorage.getItem("tailormycv_generated");
+    const stored = localStorage.getItem("cvtailora_generated");
     if (stored) resumeData = JSON.parse(stored);
   } catch { /* ignore */ }
   const { data } = await api.post(

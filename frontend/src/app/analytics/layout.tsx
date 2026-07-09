@@ -2,7 +2,7 @@ import SidebarShell from "@/components/SidebarShell";
 import AuthGuard from "@/components/AuthGuard";
 
 export const metadata = {
-  title: "Analytics — TailorMyCv",
+  title: "Analytics — CVTailora",
   description: "Summary of your automated actions — alert emails, tailored resumes, exports and more.",
 };
 

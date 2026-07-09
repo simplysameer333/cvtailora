@@ -102,7 +102,7 @@ export default function SharedResumePage() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-center gap-2 text-xs text-slate-400">
           Shared via
           <Link href="/" className="font-semibold text-brand-600 hover:underline">
-            TailorMyCv
+            CVTailora
           </Link>
           — AI-tailored resumes for every application
         </div>

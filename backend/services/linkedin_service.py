@@ -6,7 +6,7 @@ import re
 
 import httpx
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _RAPIDAPI_HOST = "linkdapi-best-unofficial-linkedin-api.p.rapidapi.com"
 _BASE_URL = f"https://{_RAPIDAPI_HOST}"

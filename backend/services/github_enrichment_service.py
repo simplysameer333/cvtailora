@@ -19,7 +19,7 @@ import re
 from typing import Any
 from config import settings
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _GITHUB_API = "https://api.github.com"
 _MAX_REPOS_TO_FETCH = 30  # fetch top-30 by star count; Haiku then picks top 3

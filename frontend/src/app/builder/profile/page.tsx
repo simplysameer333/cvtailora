@@ -165,7 +165,7 @@ export default function ProfilePage() {
           <div className="space-y-1.5 max-w-sm">
             <p className="font-semibold text-slate-800 text-lg">Reading your resume…</p>
             <p className="text-sm text-slate-500 leading-relaxed">
-              TailorMyCv's AI is extracting your details — name, skills, location and more —
+              CVTailora's AI is extracting your details — name, skills, location and more —
               so you don't have to type them all in.
             </p>
           </div>

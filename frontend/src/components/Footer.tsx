@@ -26,7 +26,7 @@ export default function Footer() {
           ))}
         </nav>
         <div className="text-xs text-slate-400 text-center lg:text-right">
-          <p>© {new Date().getFullYear()} TailorMyCv. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} CVTailora. All rights reserved.</p>
         </div>
       </div>
     </footer>

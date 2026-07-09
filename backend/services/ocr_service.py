@@ -14,7 +14,7 @@ from __future__ import annotations
 import io
 import logging
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _engine = None
 

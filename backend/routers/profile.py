@@ -9,7 +9,7 @@ from models.session import UserProfile
 from config import settings
 
 router = APIRouter()
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _PREFILL_PROMPT = """Extract the following fields from the resume text and return as a single JSON object.
 Use empty string "" for any field you cannot find.

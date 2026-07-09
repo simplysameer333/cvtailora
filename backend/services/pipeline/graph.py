@@ -1,4 +1,4 @@
-"""LangGraph graph definition for the TailorMyCv evaluator-optimizer pipeline.
+"""LangGraph graph definition for the CVTailora evaluator-optimizer pipeline.
 
 Graph topology (compiled once at import time, reused for every request):
   generate → evaluate → aggregate → [conditional] → generate (loop) or END

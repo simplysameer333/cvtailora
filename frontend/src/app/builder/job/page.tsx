@@ -137,10 +137,10 @@ export default function JobPage() {
   const [salaryResult, setSalaryResult]   = useState<SalaryBenchmarkResult | null>(null);
 
   useEffect(() => {
-    const prefill = localStorage.getItem("tailormycv_prefill_jd");
+    const prefill = localStorage.getItem("cvtailora_prefill_jd");
     if (prefill) {
       setJd(prefill);
-      localStorage.removeItem("tailormycv_prefill_jd");
+      localStorage.removeItem("cvtailora_prefill_jd");
       toast.success("Job description pre-filled from your search.");
     }
   }, []);

@@ -24,7 +24,7 @@ from anthropic import AsyncAnthropic
 from config import settings
 from services.cv_template_seed_data import BUILTIN_TEMPLATES
 
-logger = logging.getLogger("tailormycv.cv_templates")
+logger = logging.getLogger("cvtailora.cv_templates")
 
 # Generation uses a capable model — authoring HTML/CSS is a creative task.
 _GEN_MODEL = settings.anthropic_evaluator_model  # Sonnet

@@ -108,7 +108,7 @@ class Settings(BaseSettings):
     # LangChain/LangGraph reads LANGCHAIN_TRACING_V2 + LANGSMITH_API_KEY from
     # the OS environment — startup code sets them if this key is present.
     langsmith_api_key: str = ""
-    langsmith_project: str = "tailormycv"
+    langsmith_project: str = "cvtailora"
 
     # ── Infrastructure ─────────────────────────────────────────────────────────
     mongodb_uri: str

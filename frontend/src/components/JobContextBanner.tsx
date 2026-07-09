@@ -8,7 +8,7 @@ interface TailorContext {
   apply_link: string;
 }
 
-const LS_KEY = "tailormycv_tailor_context";
+const LS_KEY = "cvtailora_tailor_context";
 
 export default function JobContextBanner() {
   const [ctx, setCtx] = useState<TailorContext | null>(null);

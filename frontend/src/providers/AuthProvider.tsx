@@ -3,6 +3,7 @@ import { SessionProvider, useSession, signOut } from "next-auth/react";
 import { useEffect, useRef } from "react";
 import { setApiToken, fetchTierConfig } from "@/lib/api";
 import { setTierConfig } from "@/lib/tierConfig";
+import { migrateLegacyLocalStorage } from "@/lib/brandMigration";
 import DevProvider from "./DevProvider";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
@@ -10,10 +11,10 @@ const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
 // Keys that are tier-sensitive: generated resume, eval results, locked facts.
 // Cleared when session tier changes so stale Pro content doesn't linger.
 const TIER_SENSITIVE_KEYS = [
-  "tailormycv_generated",
-  "tailormycv_eval_summary",
-  "tailormycv_locked_facts",
-  "tailormycv_custom_sections",
+  "cvtailora_generated",
+  "cvtailora_eval_summary",
+  "cvtailora_locked_facts",
+  "cvtailora_custom_sections",
 ];
 
 // Fetch tier config from MongoDB at app startup — populates the runtime store so
@@ -22,6 +23,9 @@ const TIER_SENSITIVE_KEYS = [
 // mode would be stuck on the hardcoded pre-load fallback prices/limits.
 function TierConfigLoader() {
   useEffect(() => {
+    // Rebrand shim: move any legacy tailormycv_* localStorage to cvtailora_*
+    // BEFORE anything reads session state (runs in both auth modes).
+    migrateLegacyLocalStorage();
     fetchTierConfig()
       .then((cfg) => setTierConfig(cfg.features, cfg.limits, cfg.pricing, cfg.currency_zones))
       .catch(() => { /* keep hardcoded defaults on network failure */ });

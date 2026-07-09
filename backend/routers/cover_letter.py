@@ -9,7 +9,7 @@ from dependencies.auth import get_optional_user
 from services.usage_service import check_budget, increment_usage
 
 router = APIRouter()
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 
 class StandaloneCoverLetterRequest(BaseModel):

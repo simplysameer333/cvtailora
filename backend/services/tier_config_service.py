@@ -17,7 +17,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _COLLECTION = "tier_config"
 _DOC_ID = "v1"

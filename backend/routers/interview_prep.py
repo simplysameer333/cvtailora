@@ -7,7 +7,7 @@ from database import get_db
 from dependencies.auth import get_current_user, get_optional_user
 
 router = APIRouter()
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 
 class StandaloneInterviewPrepRequest(BaseModel):

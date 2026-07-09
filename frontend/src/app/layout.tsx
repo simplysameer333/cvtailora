@@ -4,7 +4,7 @@ import { Toaster } from "react-hot-toast";
 import AuthProvider from "@/providers/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "TailorMyCv — AI Resume Builder",
+  title: "CVTailora — AI Resume Builder",
   description: "Generate tailored, job-winning resumes with AI-powered quality evaluation.",
 };
 

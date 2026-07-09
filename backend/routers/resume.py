@@ -41,7 +41,7 @@ from services.audit import log_audit
 from config import settings
 
 router = APIRouter()
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 ACCEPTED_TYPES = {

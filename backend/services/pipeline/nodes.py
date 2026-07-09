@@ -14,7 +14,7 @@ import logging
 import re
 from datetime import datetime
 
-logger = logging.getLogger("tailormycv.pipeline")
+logger = logging.getLogger("cvtailora.pipeline")
 
 from config import settings
 from .state import PipelineState

@@ -14,7 +14,7 @@ import re
 from config import settings
 from services.prompt_store import get_override
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _SYSTEM = """You are an expert technical recruiter. Read a job description and distil the PROFILE of the ideal candidate it targets, so another AI can write a tailored cover letter and predict the interview questions.
 

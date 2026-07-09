@@ -526,7 +526,7 @@ SKILLS = [
 
 async def seed():
     client = AsyncIOMotorClient(settings.mongodb_uri)
-    db = client.tailormycv
+    db = client.cvtailora
 
     # Drop and recreate for clean seed
     await db.catalog.drop()

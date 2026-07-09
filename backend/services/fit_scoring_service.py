@@ -21,7 +21,7 @@ import json
 import logging
 from config import settings
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _SYSTEM = """You are a senior technical recruiter evaluating a candidate's fit for a job. Your job is to assess the match honestly and helpfully.
 

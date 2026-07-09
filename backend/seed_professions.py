@@ -15,7 +15,7 @@ from services.pipeline.prompts.professions import INITIAL_PROFESSIONS
 
 async def seed():
     client = AsyncIOMotorClient(settings.mongodb_uri)
-    db = client.tailormycv
+    db = client.cvtailora
 
     now = datetime.utcnow().isoformat()
     seeded, skipped = 0, 0

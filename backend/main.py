@@ -24,7 +24,7 @@ from routers.salary import router as salary_router
 from services.alert_scheduler import start_scheduler, stop_scheduler
 from services import tier_config_service
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
@@ -87,7 +87,7 @@ async def lifespan(app: FastAPI):
     await disconnect_db()
 
 
-app = FastAPI(title="TailorMyCv API", version="1.1.0", lifespan=lifespan)
+app = FastAPI(title="CVTailora API", version="1.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -175,6 +175,6 @@ async def health():
     # "which build is live" externally verifiable (empty when run locally).
     return {
         "status": "ok",
-        "app": "TailorMyCv",
+        "app": "CVTailora",
         "commit": os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12],
     }

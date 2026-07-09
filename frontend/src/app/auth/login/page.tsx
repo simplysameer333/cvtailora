@@ -47,7 +47,7 @@ function LoginContent() {
       <div className="card gap-6 flex flex-col">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Sign in</h1>
-          <p className="text-sm text-slate-500 mt-1">Welcome back to TailorMyCv</p>
+          <p className="text-sm text-slate-500 mt-1">Welcome back to CVTailora</p>
         </div>
 
         {GOOGLE_ENABLED && (

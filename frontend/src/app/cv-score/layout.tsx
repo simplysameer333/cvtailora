@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import SidebarShell from "@/components/SidebarShell";
 
 export const metadata = {
-  title: "Free CV Score — TailorMyCv",
+  title: "Free CV Score — CVTailora",
   description: "Instant AI-powered CV analysis. Get scored on ATS compatibility, content quality, design, skills, experience and more. Free, no sign-in required.",
 };
 

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import SidebarShell from "@/components/SidebarShell";
 
 export const metadata = {
-  title: "Interview Prep — TailorMyCv",
+  title: "Interview Prep — CVTailora",
   description: "Get AI-generated interview questions tailored to your resume and the job description. Know what to expect before you walk in.",
 };
 

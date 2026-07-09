@@ -13,7 +13,7 @@ import logging
 import re
 from config import settings
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _SYSTEM = """You are a compensation specialist. Extract salary information from a job description.
 

@@ -20,7 +20,7 @@ from services.engagement_context import (
     detected_role as _detected_role,
 )
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _SYSTEM = """You are a senior hiring manager preparing interview questions for a specific candidate.
 

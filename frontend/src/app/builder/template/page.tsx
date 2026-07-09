@@ -349,8 +349,8 @@ export default function TemplatePage() {
 
   useEffect(() => {
     try {
-      const storedResume = localStorage.getItem("tailormycv_generated");
-      const storedEval   = localStorage.getItem("tailormycv_eval_summary");
+      const storedResume = localStorage.getItem("cvtailora_generated");
+      const storedEval   = localStorage.getItem("cvtailora_eval_summary");
       if (storedResume) {
         const parsed = JSON.parse(storedResume) as GeneratedResume;
         setGeneratedResume(parsed);
@@ -358,16 +358,16 @@ export default function TemplatePage() {
       }
       if (storedEval) setEvalSummary(JSON.parse(storedEval));
     } catch { /* ignore */ }
-    const savedTemplate = localStorage.getItem("tailormycv_template_id");
+    const savedTemplate = localStorage.getItem("cvtailora_template_id");
     if (savedTemplate) setSelected(savedTemplate);
-    setAccentState(localStorage.getItem("tailormycv_accent") || null);
+    setAccentState(localStorage.getItem("cvtailora_accent") || null);
   }, []);
 
   /** Set + persist the colour variant for the selected template. */
   function setAccent(a: string | null) {
     setAccentState(a);
-    if (a) localStorage.setItem("tailormycv_accent", a);
-    else localStorage.removeItem("tailormycv_accent");
+    if (a) localStorage.setItem("cvtailora_accent", a);
+    else localStorage.removeItem("cvtailora_accent");
   }
 
   const onDropSample = useCallback((files: File[]) => { if (files[0]) setSampleFile(files[0]); }, []);
@@ -402,9 +402,9 @@ export default function TemplatePage() {
     try {
       if (selected) {
         await setSessionTemplate(sessionId, selected, accent);
-        localStorage.setItem("tailormycv_template_id", selected);
+        localStorage.setItem("cvtailora_template_id", selected);
       }
-      const boldKeywords = localStorage.getItem("tailormycv_bold_keywords") !== "false";
+      const boldKeywords = localStorage.getItem("cvtailora_bold_keywords") !== "false";
       const result = await exportResume(sessionId, canExportPdf, boldKeywords);
       setFiles(result);
       if (result.pdf_error) toast(`PDF note: ${result.pdf_error}`, { icon: "⚠️", duration: 6000 });

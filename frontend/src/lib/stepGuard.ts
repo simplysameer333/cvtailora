@@ -15,8 +15,8 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
 const LS = {
-  session:   "tailormycv_session_id",
-  generated: "tailormycv_generated",
+  session:   "cvtailora_session_id",
+  generated: "cvtailora_generated",
 };
 
 type Step = "profile" | "job" | "template" | "preview";

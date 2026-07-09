@@ -1,4 +1,4 @@
-# TailorMyCv — User Guide
+# CVTailora — User Guide
 
 > **AI-powered resume builder** that tailors your CV to every job posting using multiple AI models and LinkedIn integration.
 

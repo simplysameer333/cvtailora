@@ -16,7 +16,7 @@ import logging
 import re
 from config import settings
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _SYSTEM = """You are a technical recruiter performing a skill gap analysis.
 

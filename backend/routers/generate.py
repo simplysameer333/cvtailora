@@ -65,7 +65,7 @@ from services.profession_service import resolve_profession_for_role
 from services.email_service import send_quality_alert, send_error_alert
 
 router = APIRouter()
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 _job_analyzer = JobAnalyzerAgent()
 
 # Every tier scores with the SAME engine the user sees: CV-Score (cv_score

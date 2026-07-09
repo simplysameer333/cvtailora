@@ -1,4 +1,4 @@
-# Session Handoff — TailorMyCv
+# Session Handoff — CVTailora
 
 > Rolling context for continuing work. **Last updated: 2026-07-09.**
 > Branch: `main`. Railway auto-deploys both services on push.
@@ -55,7 +55,7 @@ MongoDB with admin edit surfaces**.
   Generic recolour — `applyAccent()` swaps the template's base accent hex in rendered HTML;
   DOCX `apply_accent_override()` (sidebar/banner follow only when equal to accent). Accent rides
   `PATCH /sessions/{id}/template` → `selected_accent` → DOCX export. Step 4: `AccentSwatches`
-  in template modal (live recolour) + selected banner; localStorage `tailormycv_accent`.
+  in template modal (live recolour) + selected banner; localStorage `cvtailora_accent`.
   Known v1 limit: only exact base-hex occurrences swap (derived tints keep their hue).
 - **Missing-sections prompt**: `MissingSectionsNotice` above CV-score template previews when the
   extractor found no contact/summary/skills/experience/education.
@@ -192,7 +192,7 @@ fixes below. **Plan was agreed with the user before implementing.** Backend test
   (below the tier bar, weakest first), `faithfulness_warning`, `tier`, `template_pages`,
   `layout_validation`. `EvalQualityPanel.tsx` renders a per-category bar breakdown + "Below your
   {Tier} target of {N}: …" + faithfulness warning + page-fit line, on both the template result page
-  and the preview page. Flows via the existing localStorage `tailormycv_eval_summary`.
+  and the preview page. Flows via the existing localStorage `cvtailora_eval_summary`.
 
 ### 4. Page limit is DATA + enforced
 - Deleted the hardcoded `_TEMPLATE_PAGES` dict in `generate.py` (it disagreed with the data —
@@ -347,7 +347,7 @@ Focus: fix two silent reliability bugs in the evaluator-optimizer loop, wire Lan
 
 ### 8. LangSmith dataset export script (`backend/tests/export_to_langsmith.py`)
 - Reads all `harness_*.json` reports from a directory and uploads each tier result as a
-  LangSmith example to dataset `tailormycv-golden` (creates dataset if absent).
+  LangSmith example to dataset `cvtailora-golden` (creates dataset if absent).
 - Run after any harness session to grow the golden dataset from real executions.
 - Usage: `python tests/export_to_langsmith.py /tmp/harness_results/ [--dataset NAME]`
 - Requires only `LANGSMITH_API_KEY`.

@@ -21,7 +21,7 @@ async def _resolve_dev_user(tier: str) -> dict:
     """Find or create the dev seed user for the given tier."""
     from database import get_db
     db = get_db()
-    email = f"dev-{tier}@tailormycv.dev"
+    email = f"dev-{tier}@cvtailora.dev"
     user = await db.users.find_one({"email": email})
     if not user:
         now = datetime.utcnow()

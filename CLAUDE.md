@@ -1,4 +1,4 @@
-# TailorMyCV — Engineering Directions
+# CVTailora — Engineering Directions
 
 ## LLM / Agent design
 

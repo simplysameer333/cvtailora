@@ -14,7 +14,7 @@ import { getAccountUsage, type AccountUsage } from "@/lib/api";
 import { useDevContext, type Tier } from "@/providers/DevProvider";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
-const COLLAPSE_KEY = "tailormycv_sidebar_collapsed";
+const COLLAPSE_KEY = "cvtailora_sidebar_collapsed";
 // Matches PricingTiers: rough cost of one full tailoring run, for "~N left" copy
 const EST_TAILOR_COST_CENTS = 15;
 

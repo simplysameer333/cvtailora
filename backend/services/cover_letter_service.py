@@ -29,7 +29,7 @@ from services.engagement_context import (
     detected_role as _detected_role,
 )
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _SYSTEM = """You are an expert cover letter writer. Your sole purpose is to produce the most compelling, targeted cover letter for this specific candidate applying to this specific role.
 

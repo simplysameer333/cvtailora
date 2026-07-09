@@ -1,5 +1,5 @@
 """
-Template-aware DOCX generators for all 15 TailorMyCV front-end templates.
+Template-aware DOCX generators for all 15 CVTailora front-end templates.
 
 Public API
 ----------

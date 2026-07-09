@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 # ── Error alert cooldown ──────────────────────────────────────────────────────
 # Prevents inbox flooding when the same error repeats rapidly.
@@ -77,7 +77,7 @@ async def send_no_results_email(
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:#f8fafc;margin:0;padding:0;">
   <div style="max-width:600px;margin:32px auto;padding:0 16px;">
     <div style="background:#2B579A;border-radius:16px 16px 0 0;padding:28px 32px;">
-      <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.3px;">TailorMyCv</div>
+      <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.3px;">CVTailora</div>
       <div style="font-size:13px;color:#bfdbfe;margin-top:4px;">Your daily job alert</div>
     </div>
     <div style="background:#f8fafc;padding:28px 32px 24px;">
@@ -100,7 +100,7 @@ async def send_no_results_email(
     </div>
     <div style="background:#f1f5f9;border-radius:0 0 16px 16px;padding:16px 32px;text-align:center;">
       <p style="font-size:11px;color:#94a3b8;margin:0;">
-        You&rsquo;re receiving this because you set up a job alert on TailorMyCv.<br>
+        You&rsquo;re receiving this because you set up a job alert on CVTailora.<br>
         <a href="{frontend_url}/jobs" style="color:#64748b;">Manage your alerts</a>
       </p>
     </div>
@@ -109,7 +109,7 @@ async def send_no_results_email(
 </html>"""
 
     payload = {
-        "sender": {"name": "TailorMyCv Alerts", "email": settings.brevo_sender_email},
+        "sender": {"name": "CVTailora Alerts", "email": settings.brevo_sender_email},
         "to": [{"email": user_email, "name": user_name}],
         "subject": f"Your job alert: {alert_name} — No matching jobs today",
         "htmlContent": html,
@@ -149,7 +149,7 @@ async def send_job_alert_email(
     subject = f"Your job alert: {alert_name} — Top {n} job{'s' if n != 1 else ''}"
 
     payload = {
-        "sender": {"name": "TailorMyCv Alerts", "email": settings.brevo_sender_email},
+        "sender": {"name": "CVTailora Alerts", "email": settings.brevo_sender_email},
         "to": [{"email": user_email, "name": user_name}],
         "subject": subject,
         "htmlContent": html,
@@ -308,7 +308,7 @@ def _render_alert_email(
   <div style="max-width:600px;margin:32px auto;padding:0 16px;">
 
     <div style="background:#2B579A;border-radius:16px 16px 0 0;padding:28px 32px;">
-      <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.3px;">TailorMyCv</div>
+      <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.3px;">CVTailora</div>
       <div style="font-size:13px;color:#bfdbfe;margin-top:4px;">Your daily job alert</div>
     </div>
 
@@ -326,7 +326,7 @@ def _render_alert_email(
            style="display:inline-block;background:#f1f5f9;color:#2B579A;font-size:14px;
                   font-weight:600;padding:12px 28px;border-radius:10px;
                   text-decoration:none;border:1px solid #e2e8f0;">
-          Search more jobs on TailorMyCv &rarr;
+          Search more jobs on CVTailora &rarr;
         </a>
       </div>
     </div>
@@ -334,7 +334,7 @@ def _render_alert_email(
     <div style="background:#f1f5f9;border-radius:0 0 16px 16px;
                 padding:16px 32px;text-align:center;">
       <p style="font-size:11px;color:#94a3b8;margin:0;">
-        You&rsquo;re receiving this because you set up a job alert on TailorMyCv.<br>
+        You&rsquo;re receiving this because you set up a job alert on CVTailora.<br>
         <a href="{frontend_url}/jobs" style="color:#64748b;">Manage your alerts</a>
       </p>
     </div>
@@ -371,7 +371,7 @@ async def send_scheduler_failure_alert(failed: int, total: int, sample_errors: l
               border:1px solid #e2e8f0;overflow:hidden;">
     <div style="background:#b45309;padding:20px 24px;">
       <h1 style="color:#fff;font-size:18px;margin:0;">&#9888; Job Alert Scheduler — JSearch Failures</h1>
-      <p style="color:#fde68a;font-size:13px;margin:6px 0 0;">TailorMyCv Daily Run · {timestamp}</p>
+      <p style="color:#fde68a;font-size:13px;margin:6px 0 0;">CVTailora Daily Run · {timestamp}</p>
     </div>
     <div style="padding:24px;">
       <p style="font-size:14px;color:#1e293b;margin:0 0 16px;">
@@ -390,9 +390,9 @@ async def send_scheduler_failure_alert(failed: int, total: int, sample_errors: l
 </html>"""
 
     payload = {
-        "sender": {"name": "TailorMyCv Alerts", "email": settings.brevo_sender_email},
-        "to": [{"email": settings.support_email, "name": "TailorMyCv Ops"}],
-        "subject": f"[TailorMyCv] Job alert scheduler: {failed}/{total} alerts failed ({timestamp})",
+        "sender": {"name": "CVTailora Alerts", "email": settings.brevo_sender_email},
+        "to": [{"email": settings.support_email, "name": "CVTailora Ops"}],
+        "subject": f"[CVTailora] Job alert scheduler: {failed}/{total} alerts failed ({timestamp})",
         "htmlContent": html,
     }
     try:
@@ -429,7 +429,7 @@ async def send_error_alert(method: str, path: str, exc: Exception, tb: str) -> N
     _alert_cooldown[cooldown_key] = now
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    subject = f"[TailorMyCv ERROR] {method} {path} — {exc_type}"
+    subject = f"[CVTailora ERROR] {method} {path} — {exc_type}"
 
     # Truncate traceback to keep email manageable
     tb_truncated = tb[-4000:] if len(tb) > 4000 else tb
@@ -443,7 +443,7 @@ async def send_error_alert(method: str, path: str, exc: Exception, tb: str) -> N
     <!-- Header -->
     <div style="background:#dc2626;padding:20px 24px;">
       <h1 style="color:#fff;font-size:18px;margin:0;">🚨 Unhandled Server Exception</h1>
-      <p style="color:#fecaca;font-size:13px;margin:6px 0 0;">TailorMyCv Production Alert</p>
+      <p style="color:#fecaca;font-size:13px;margin:6px 0 0;">CVTailora Production Alert</p>
     </div>
 
     <div style="padding:24px;">
@@ -476,7 +476,7 @@ async def send_error_alert(method: str, path: str, exc: Exception, tb: str) -> N
 
     <div style="padding:16px 24px;border-top:1px solid #e2e8f0;text-align:center;">
       <p style="color:#94a3b8;font-size:11px;margin:0;">
-        TailorMyCv error monitoring · reply to this email if urgent
+        CVTailora error monitoring · reply to this email if urgent
       </p>
     </div>
   </div>
@@ -484,8 +484,8 @@ async def send_error_alert(method: str, path: str, exc: Exception, tb: str) -> N
 </html>"""
 
     payload = {
-        "sender": {"name": "TailorMyCv Alerts", "email": settings.brevo_sender_email},
-        "to": [{"email": settings.support_email, "name": "TailorMyCv Ops"}],
+        "sender": {"name": "CVTailora Alerts", "email": settings.brevo_sender_email},
+        "to": [{"email": settings.support_email, "name": "CVTailora Ops"}],
         "subject": subject,
         "htmlContent": html,
     }
@@ -547,7 +547,7 @@ async def send_interview_prep_email(
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:#f8fafc;margin:0;padding:0;">
   <div style="max-width:640px;margin:32px auto;padding:0 16px;">
     <div style="background:#0f3d3e;border-radius:16px 16px 0 0;padding:28px 32px;">
-      <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.3px;">TailorMyCv</div>
+      <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.3px;">CVTailora</div>
       <div style="font-size:13px;color:#6ee7b7;margin-top:4px;">Your interview prep pack</div>
     </div>
     <div style="background:#f8fafc;padding:28px 32px 24px;">
@@ -569,7 +569,7 @@ async def send_interview_prep_email(
     </div>
     <div style="background:#f1f5f9;border-radius:0 0 16px 16px;padding:16px 32px;text-align:center;">
       <p style="font-size:11px;color:#94a3b8;margin:0;">
-        You requested this interview prep pack on TailorMyCv.
+        You requested this interview prep pack on CVTailora.
       </p>
     </div>
   </div>
@@ -577,7 +577,7 @@ async def send_interview_prep_email(
 </html>"""
 
     payload = {
-        "sender": {"name": "TailorMyCv", "email": settings.brevo_sender_email},
+        "sender": {"name": "CVTailora", "email": settings.brevo_sender_email},
         "to": [{"email": user_email, "name": user_name}],
         "subject": f"Your {len(questions)} interview questions — {role or 'your target role'}",
         "htmlContent": html,

@@ -25,11 +25,11 @@ import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSqu
 import { SUPPORT_EMAIL, hasFeature } from "@/lib/config";
 import { EvalSummaryPanel } from "@/components/EvalQualityPanel";
 
-const LS_RESUME = "tailormycv_generated";
-const LS_EVAL = "tailormycv_eval_summary";
-const LS_TEMPLATE = "tailormycv_template_id";
-const LS_LOCKED_FACTS = "tailormycv_locked_facts";
-const LS_CUSTOM_SECTIONS = "tailormycv_custom_sections";
+const LS_RESUME = "cvtailora_generated";
+const LS_EVAL = "cvtailora_eval_summary";
+const LS_TEMPLATE = "cvtailora_template_id";
+const LS_LOCKED_FACTS = "cvtailora_locked_facts";
+const LS_CUSTOM_SECTIONS = "cvtailora_custom_sections";
 
 interface CustomSection {
   id: string;
@@ -58,7 +58,7 @@ export default function PreviewPage() {
   const [newSectionName, setNewSectionName] = useState("");
   const [boldKeywords, setBoldKeywords] = useState(() => {
     if (typeof window === "undefined") return true;
-    const saved = localStorage.getItem("tailormycv_bold_keywords");
+    const saved = localStorage.getItem("cvtailora_bold_keywords");
     return saved === null ? true : saved === "true";
   });
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -158,7 +158,7 @@ export default function PreviewPage() {
 
     const additionalInstructions = section
       ? (comment?.trim() || undefined)
-      : (comment?.trim() || localStorage.getItem("tailormycv_instructions") || undefined);
+      : (comment?.trim() || localStorage.getItem("cvtailora_instructions") || undefined);
 
     section ? setLoadingSection(section) : setLoading(true);
     try {
@@ -716,7 +716,7 @@ export default function PreviewPage() {
           checked={boldKeywords}
           onChange={e => {
             setBoldKeywords(e.target.checked);
-            localStorage.setItem("tailormycv_bold_keywords", String(e.target.checked));
+            localStorage.setItem("cvtailora_bold_keywords", String(e.target.checked));
           }}
           className="mt-0.5 w-4 h-4 accent-brand-600 cursor-pointer shrink-0"
         />
@@ -739,8 +739,8 @@ export default function PreviewPage() {
         <textarea
           className="input resize-none text-sm h-20"
           placeholder={`e.g. "Emphasise open-source work", "I'm switching to product management"`}
-          defaultValue={typeof window !== "undefined" ? (localStorage.getItem("tailormycv_instructions") ?? "") : ""}
-          onChange={(e) => localStorage.setItem("tailormycv_instructions", e.target.value)}
+          defaultValue={typeof window !== "undefined" ? (localStorage.getItem("cvtailora_instructions") ?? "") : ""}
+          onChange={(e) => localStorage.setItem("cvtailora_instructions", e.target.value)}
         />
       </div>
 

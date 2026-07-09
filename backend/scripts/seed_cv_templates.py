@@ -19,7 +19,7 @@ from services.cv_template_service import seed_cv_templates
 
 async def main():
     client = AsyncIOMotorClient(settings.mongodb_uri)
-    db = client.tailormycv
+    db = client.cvtailora
     await db.cv_templates.create_index("key", unique=True)
     inserted = await seed_cv_templates(db)
     total = await db.cv_templates.count_documents({})

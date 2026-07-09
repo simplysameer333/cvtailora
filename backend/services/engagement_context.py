@@ -15,7 +15,7 @@ from bson import ObjectId
 from services.candidate_profile_service import build_candidate_profile
 from services.job_profile_service import build_job_profile
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 
 async def build_engagement_context(

@@ -21,8 +21,8 @@ export default function Logo({ size = "sm", className = "", variant = "light" }:
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logo.png" alt="" aria-hidden="true" className={imgClass} />
       <span className={`${textSize} font-bold leading-none tracking-tight`}>
-        <span style={{ color: tailorColor }}>Tailor</span>
-        <span style={{ color: "#10B981" }}>MyCv</span>
+        <span style={{ color: tailorColor }}>CV</span>
+        <span style={{ color: "#10B981" }}>Tailora</span>
       </span>
     </Link>
   );

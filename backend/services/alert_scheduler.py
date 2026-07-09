@@ -22,7 +22,7 @@ from services.audit import log_audit
 from services.email_service import send_job_alert_email, send_no_results_email, send_scheduler_failure_alert
 from services.quota_service import get_quota, increment as _increment_quota
 
-logger = logging.getLogger("tailormycv")
+logger = logging.getLogger("cvtailora")
 
 _scheduler: AsyncIOScheduler | None = None
 _JSEARCH_BASE = "https://jsearch.p.rapidapi.com"
