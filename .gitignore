@@ -33,3 +33,6 @@ backend/uploads/
 !backend/uploads/.gitkeep
 backend/templates/uploads/*
 !backend/templates/uploads/.gitkeep
+
+# TypeScript incremental build state (churns on every typecheck)
+*.tsbuildinfo
