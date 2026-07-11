@@ -75,6 +75,16 @@ MongoDB with admin edit surfaces**.
 - **Student / enterprise pricing** (needs billing)
 - **Action-verb suggestions in preview editor**
 
+### Deferred infra (decided 2026-07-11)
+- **UAT / pre-prod environment** — DEFERRED. NOTE: `tailormycv-frontend-production.up.railway.app`
+  and `www.cvtailora.com` are the SAME deployment (railway URL is an alias), NOT two environments —
+  cannot be used as UAT vs Prod. A real UAT needs: a separate Railway environment, a **separate DB**
+  (`cvtailora_uat` — the app hardcodes `client.cvtailora` in `database.py`, so first make the DB name an
+  env var, ~10 lines), separate secrets/URL (e.g. `uat.cvtailora.com`), and a branch (`develop`→UAT,
+  `main`→Prod). `.env.uat` stub already exists. Cost: a permanent UAT ≈ doubles Railway resources.
+  Recommended lighter alternative when picked up: **Railway PR/preview environments** (ephemeral per-PR,
+  torn down on merge) over an always-on UAT, given solo/Hobby stage.
+
 ---
 
 ## What shipped in the 2026-07-05/06 session — full UI redesign + JobBuddy-inspired features
