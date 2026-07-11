@@ -746,8 +746,8 @@ All tier-based limits enforced via `tier_config_service` — no hardcoded dicts 
 | Domain | `cvtailora.com` |
 | GitHub repo | `cvtailora` (renamed 2026-07-09; old URL redirects) |
 | Railway services | `cvtailora-frontend`, `cvtailora-backend` (generated domains also renamed to `cvtailora-*` 2026-07-11) |
-| MongoDB database | `cvtailora` (migrated 2026-07-09 via `scripts/migrate_db_rename.py`; old `tailormycv` DB retained as rollback) |
-| localStorage keys | `cvtailora_` prefix (all lowercase; legacy `tailormycv_` keys auto-migrated by `lib/brandMigration.ts`) |
+| MongoDB database | `cvtailora` (migrated from the legacy database 2026-07-09 via `scripts/migrate_db_rename.py`; old DB retained as rollback) |
+| localStorage keys | `cvtailora_` prefix (all lowercase; legacy-prefix keys auto-migrated by `lib/brandMigration.ts`) |
 | Agent class names | Provider-based: `AnthropicEvaluatorAgent`, `OpenAIEvaluatorAgent`, `GoogleEvaluatorAgent` |
 | Profession slugs | `lowercase_underscored` |
 | API routes | `lowercase-hyphenated` |
