@@ -76,7 +76,7 @@ MongoDB with admin edit surfaces**.
 - **Action-verb suggestions in preview editor**
 
 ### Deferred infra (decided 2026-07-11)
-- **UAT / pre-prod environment** — DEFERRED. NOTE: `tailormycv-frontend-production.up.railway.app`
+- **UAT / pre-prod environment** — DEFERRED. NOTE: `cvtailora-frontend-production.up.railway.app`
   and `www.cvtailora.com` are the SAME deployment (railway URL is an alias), NOT two environments —
   cannot be used as UAT vs Prod. A real UAT needs: a separate Railway environment, a **separate DB**
   (`cvtailora_uat` — the app hardcodes `client.cvtailora` in `database.py`, so first make the DB name an

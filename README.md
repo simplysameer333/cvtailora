@@ -575,7 +575,8 @@ LANGSMITH_API_KEY=sk-lsv2-... \
 ## Deployment (Railway)
 
 1. Create two Railway services: `cvtailora-backend` (root: `/backend`) and `cvtailora-frontend` (root: `/frontend`)
-   *(the live services are renamed already; only their auto-generated `tailormycv-*-production.up.railway.app` domains keep the legacy name until the `cvtailora.com` DNS cutover)*
+   — generated domains: `cvtailora-backend-production.up.railway.app` / `cvtailora-frontend-production.up.railway.app`;
+   public traffic runs on the custom domains `www.cvtailora.com` (frontend) and `api.cvtailora.com` (backend)
 2. Set environment variables per service (see tables above)
 3. Seeding is automatic: profession configs and the 20 HTML resume templates (`cv_templates`)
    auto-seed on backend startup. To (re)seed manually outside a boot:
