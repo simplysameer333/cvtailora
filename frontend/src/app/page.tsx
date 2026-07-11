@@ -94,7 +94,7 @@ export default function LandingPage() {
 
           {/* Right — product preview cards, pushed right; Job Match card fills
               the space to the LEFT of CV Score on wide screens (xl+) */}
-          <div className="hidden lg:flex justify-end items-stretch gap-5 shrink-0">
+          <div className="hidden lg:flex justify-end items-stretch gap-10 xl:gap-14 shrink-0">
 
             {/* Job Match card (shows xl and up) */}
             <div className="hidden xl:flex flex-col w-[360px] rounded-2xl bg-white text-slate-900 shadow-2xl p-6">
