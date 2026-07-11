@@ -173,6 +173,41 @@ async def _process_alert(db, alert: dict) -> str | None:
         )
 
 
+def should_catch_up(now_utc: datetime, send_hour: int, ran_today: bool) -> bool:
+    """Pure rule for the startup catch-up: today's run was missed if we're at
+    or past the send hour and no run has been recorded today. Happens when a
+    backend redeploy straddles the cron trigger (in-process scheduler — a
+    restart at 07:59→08:05 silently skips the whole day). Unit-tested."""
+    return now_utc.hour >= send_hour and not ran_today
+
+
+async def _claim_todays_run(db) -> bool:
+    """Record today's run in `scheduler_runs`; returns False when a run for
+    today is already claimed — makes cron + catch-up mutually idempotent."""
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    res = await db.scheduler_runs.update_one(
+        {"job": "daily_alerts", "date": today},
+        {"$setOnInsert": {"job": "daily_alerts", "date": today, "started_at": datetime.utcnow()}},
+        upsert=True,
+    )
+    return res.upserted_id is not None
+
+
+async def _catch_up_missed_run() -> None:
+    """Run once at startup: fire today's digest if the cron was missed."""
+    db = get_db()
+    now = datetime.utcnow()
+    ran = await db.scheduler_runs.find_one(
+        {"job": "daily_alerts", "date": now.strftime("%Y-%m-%d")}
+    ) is not None
+    if should_catch_up(now, settings.alert_send_hour, ran):
+        logger.info(
+            "[alert-scheduler] Today's %02d:00 UTC run was missed (deploy window?) — catching up now",
+            settings.alert_send_hour,
+        )
+        await run_daily_alerts()
+
+
 async def run_daily_alerts() -> None:
     logger.info("[alert-scheduler] Daily alert run starting")
     db = get_db()
@@ -181,6 +216,12 @@ async def run_daily_alerts() -> None:
     from services.system_config_service import alerts_enabled
     if not await alerts_enabled(db):
         logger.info("[alert-scheduler] Daily run skipped — alerts disabled by admin master switch")
+        return
+
+    # Claim today's slot — prevents a double send when the cron fires and a
+    # restart's catch-up overlaps (or two rapid restarts both try to catch up).
+    if not await _claim_todays_run(db):
+        logger.info("[alert-scheduler] Daily run already recorded for today — skipping duplicate")
         return
 
     alerts = await db.job_alerts.find({"is_active": True}).to_list(length=2000)
@@ -227,6 +268,13 @@ def start_scheduler() -> None:
         "[alert-scheduler] Started — daily alerts fire at %02d:00 UTC",
         settings.alert_send_hour,
     )
+    # Startup catch-up: if a redeploy straddled today's send hour, the cron
+    # trigger was lost with the old process — fire the missed run now.
+    try:
+        asyncio.get_running_loop().create_task(_catch_up_missed_run())
+    except RuntimeError:
+        # No running loop (e.g. imported in a sync test context) — skip.
+        logger.debug("[alert-scheduler] No event loop at startup — catch-up skipped")
 
 
 def stop_scheduler() -> None:
