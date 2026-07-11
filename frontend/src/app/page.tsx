@@ -92,9 +92,9 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Right — product preview cards, pushed right; Job Match card fills
-              the space to the LEFT of CV Score on wide screens (xl+) */}
-          <div className="hidden lg:flex justify-end items-stretch gap-10 xl:gap-14 shrink-0">
+          {/* Right — product preview cards. On mobile only the CV Score card
+              shows (stacked, centered); Job Match is desktop-only (xl+). */}
+          <div className="flex justify-center lg:justify-end items-stretch gap-10 xl:gap-14 lg:shrink-0 mt-4 lg:mt-0">
 
             {/* Job Match card (shows xl and up) */}
             <div className="hidden xl:flex flex-col w-[360px] rounded-2xl bg-white text-slate-900 shadow-2xl p-6">
@@ -132,8 +132,8 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* CV Score card */}
-            <div className="flex flex-col w-[360px] rounded-2xl bg-white text-slate-900 shadow-2xl p-6">
+            {/* CV Score card (also shown on mobile) */}
+            <div className="flex flex-col w-full max-w-sm lg:w-[360px] rounded-2xl bg-white text-slate-900 shadow-2xl p-6">
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">CV Score</p>
