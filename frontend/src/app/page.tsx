@@ -66,7 +66,7 @@ export default function LandingPage() {
               Land More Interviews with an{" "}
               <span className="text-teal-400">AI-Tailored</span> Resume
             </h1>
-            <p className="mt-4 sm:mt-6 text-base sm:text-xl text-white/70 max-w-2xl">
+            <p className="mt-4 sm:mt-6 text-base sm:text-xl text-white/70 max-w-3xl">
               Paste a job description, upload your resume, and let a multi-agent AI pipeline
               rewrite, review, and polish it — crafted specifically for the role you want.
             </p>
@@ -82,7 +82,7 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            <div className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-10 w-full max-w-2xl">
+            <div className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-6 w-full max-w-3xl">
               {heroStats.map(({ value, label }) => (
                 <div key={label}>
                   <p className="text-2xl sm:text-3xl font-bold text-amber-400">{value}</p>
@@ -134,7 +134,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── How it works — compact numbered process strip ── */}
-      <section className="py-12 sm:py-16 px-5 sm:px-10 xl:px-16 bg-white">
+      <section className="py-8 sm:py-11 px-5 sm:px-10 xl:px-16 bg-white">
         <div className="flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-12">
           <div className="lg:w-64 shrink-0 text-center lg:text-left">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">How It Works</h2>
@@ -167,7 +167,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Feature showcase — same left-aligned header pattern as How It Works ── */}
-      <section className="py-12 sm:py-16 px-5 sm:px-10 xl:px-16 bg-surface border-y border-slate-100">
+      <section className="py-8 sm:py-11 px-5 sm:px-10 xl:px-16 bg-surface border-y border-slate-100">
         <div className="flex flex-col lg:flex-row lg:items-start gap-8 lg:gap-12">
           <div className="lg:w-64 shrink-0 text-center lg:text-left">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Everything you need to land the role</h2>
@@ -187,7 +187,7 @@ export default function LandingPage() {
           ))}
           </div>
         </div>
-        <div className="mt-10 flex items-center justify-center gap-8 sm:gap-14 text-center flex-wrap">
+        <div className="mt-7 flex items-center justify-center gap-8 sm:gap-14 text-center flex-wrap">
           <div><p className="text-2xl font-bold text-brand-700"><FiFileText className="inline w-5 h-5 mr-1.5 -mt-1" />DOCX + PDF</p><p className="text-xs text-slate-400 mt-1">clean, ATS-safe exports</p></div>
           <div><p className="text-2xl font-bold text-brand-700">8 categories</p><p className="text-xs text-slate-400 mt-1">scored on every upload</p></div>
           <div><p className="text-2xl font-bold text-brand-700">1-click tailor</p><p className="text-xs text-slate-400 mt-1">straight from job listings</p></div>
@@ -195,9 +195,9 @@ export default function LandingPage() {
       </section>
 
       {/* ── Pricing ── */}
-      <section className="py-14 sm:py-20 px-5 sm:px-10 bg-white">
+      <section className="py-9 sm:py-12 px-5 sm:px-10 bg-white">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-10 sm:mb-12">
+          <div className="text-center mb-6 sm:mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Simple, transparent pricing</h2>
             <p className="mt-3 text-slate-500 text-sm sm:text-base max-w-xl mx-auto">
               Start for free — no credit card required. Upgrade any time to unlock job search, resume library, and advanced AI features.
