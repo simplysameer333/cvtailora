@@ -101,7 +101,7 @@ export default function LandingPage() {
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Job Match</p>
-                  <p className="text-sm text-slate-500 mt-0.5">top roles for your profile</p>
+                  <p className="text-sm text-slate-500 mt-0.5">roles matched by AI</p>
                 </div>
                 <div className="text-right">
                   <p className="text-4xl font-bold text-teal-600">94<span className="text-lg text-slate-400">%</span></p>
