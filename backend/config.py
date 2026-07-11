@@ -116,11 +116,11 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:4000"
 
     # ── Email (Brevo HTTP API for job alert digests) ───────────────────────
-    # Sign up free at brevo.com — verify tailormycv.alerts@gmail.com as sender,
-    # then grab the API key from Settings → SMTP & API → API Keys.
-    support_email: str = "tailormycv.alerts@gmail.com"
+    # Brevo account cvtailora@gmail.com — domain cvtailora.com authenticated
+    # (DKIM+DMARC), sender verified. API key from Settings → SMTP & API → API Keys.
+    support_email: str = "support@cvtailora.com"
     brevo_api_key: str = ""
-    brevo_sender_email: str = "tailormycv.alerts@gmail.com"
+    brevo_sender_email: str = "support@cvtailora.com"
 
     # ── Alerts ────────────────────────────────────────────────────────────────
     # UTC hour (0–23) at which the daily alert job runs

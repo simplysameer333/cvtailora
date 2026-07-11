@@ -431,4 +431,4 @@ Accessible at `/admin`. Tabs are organised into three feature groups, each with 
 
 ---
 
-*For support, contact **tailormycv.alerts@gmail.com***
+*For support, contact **support@cvtailora.com***

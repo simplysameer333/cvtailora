@@ -1,5 +1,5 @@
 // ── Support contact ────────────────────────────────────────────────────────────
-export const SUPPORT_EMAIL = "tailormycv.alerts@gmail.com";
+export const SUPPORT_EMAIL = "support@cvtailora.com";
 
 // ── Tier types ─────────────────────────────────────────────────────────────────
 export type Tier = "free" | "plus" | "pro";
