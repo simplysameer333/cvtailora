@@ -55,10 +55,10 @@ export default function LandingPage() {
 
       {/* ── Hero — full-bleed deep teal, copy left / product preview right ── */}
       <section className="bg-brand-900 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700 text-white">
-        <div className="w-full px-5 sm:px-10 xl:px-16 py-16 sm:py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="w-full px-5 sm:px-10 xl:px-16 py-16 sm:py-20 flex flex-col lg:flex-row lg:items-center gap-10 lg:gap-12">
 
           {/* Left — copy */}
-          <div className="flex flex-col items-center lg:items-start text-center lg:text-left">
+          <div className="flex flex-col items-center lg:items-start text-center lg:text-left lg:flex-1 lg:min-w-0">
             <div className="inline-flex items-center gap-2 bg-white/10 text-teal-300 text-xs font-semibold px-3 py-1.5 rounded-full border border-white/15 mb-6">
               <FiZap className="w-3.5 h-3.5" /> Multi-Agent AI · Built for Job Seekers
             </div>
@@ -92,9 +92,48 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Right — static product preview (CV Score card) */}
-          <div className="hidden lg:flex justify-center">
-            <div className="w-full max-w-md rounded-2xl bg-white text-slate-900 shadow-2xl p-6">
+          {/* Right — product preview cards, pushed right; Job Match card fills
+              the space to the LEFT of CV Score on wide screens (xl+) */}
+          <div className="hidden lg:flex justify-end items-stretch gap-5 shrink-0">
+
+            {/* Job Match card (shows xl and up) */}
+            <div className="hidden xl:flex flex-col w-[360px] rounded-2xl bg-white text-slate-900 shadow-2xl p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Job Match</p>
+                  <p className="text-sm text-slate-500 mt-0.5">top roles for your profile</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-4xl font-bold text-teal-600">94<span className="text-lg text-slate-400">%</span></p>
+                  <p className="text-xs font-semibold text-teal-600">Excellent match</p>
+                </div>
+              </div>
+              {[
+                { role: "Senior Product Manager", company: "Stripe", pct: 94 },
+                { role: "Growth PM",              company: "Notion", pct: 89 },
+                { role: "Lead PM, Payments",      company: "Wise",   pct: 85 },
+                { role: "Product Lead",           company: "Linear", pct: 82 },
+              ].map(({ role, company, pct }) => (
+                <div key={role} className="flex items-center justify-between mb-3">
+                  <div className="min-w-0 pr-3">
+                    <p className="font-medium text-slate-700 text-sm truncate">{role}</p>
+                    <p className="text-xs text-slate-400 truncate">{company}</p>
+                  </div>
+                  <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 bg-teal-50 rounded-full px-2.5 py-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500" /> {pct}%
+                  </span>
+                </div>
+              ))}
+              <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 rounded-full px-2.5 py-1">
+                  <FiBriefcase className="w-3 h-3" /> 12 new matches today
+                </span>
+                <span className="text-xs text-slate-400">live search</span>
+              </div>
+            </div>
+
+            {/* CV Score card */}
+            <div className="flex flex-col w-[360px] rounded-2xl bg-white text-slate-900 shadow-2xl p-6">
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">CV Score</p>
@@ -122,7 +161,7 @@ export default function LandingPage() {
                   </div>
                 </div>
               ))}
-              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+              <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2.5 py-1">
                   <FiZap className="w-3 h-3" /> 3 AI models agreed
                 </span>
