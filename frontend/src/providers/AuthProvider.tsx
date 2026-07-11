@@ -3,7 +3,6 @@ import { SessionProvider, useSession, signOut } from "next-auth/react";
 import { useEffect, useRef } from "react";
 import { setApiToken, fetchTierConfig } from "@/lib/api";
 import { setTierConfig } from "@/lib/tierConfig";
-import { migrateLegacyLocalStorage } from "@/lib/brandMigration";
 import DevProvider from "./DevProvider";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
@@ -23,8 +22,6 @@ const TIER_SENSITIVE_KEYS = [
 // mode would be stuck on the hardcoded pre-load fallback prices/limits.
 function TierConfigLoader() {
   useEffect(() => {
-    // BEFORE anything reads session state (runs in both auth modes).
-    migrateLegacyLocalStorage();
     fetchTierConfig()
       .then((cfg) => setTierConfig(cfg.features, cfg.limits, cfg.pricing, cfg.currency_zones))
       .catch(() => { /* keep hardcoded defaults on network failure */ });
