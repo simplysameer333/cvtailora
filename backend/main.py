@@ -20,6 +20,7 @@ from routers.cover_letter import router as cover_letter_router
 from routers.interview_prep import router as interview_prep_router
 from routers.resume_share import router as resume_share_router
 from routers.applications import router as applications_router
+from routers.admin_scheduler import router as admin_scheduler_router
 from routers.salary import router as salary_router
 from services.alert_scheduler import start_scheduler, stop_scheduler
 from services import tier_config_service
@@ -167,6 +168,7 @@ app.include_router(interview_prep_router, prefix="/api")
 app.include_router(salary_router, prefix="/api")
 app.include_router(resume_share_router, prefix="/api")
 app.include_router(applications_router, prefix="/api")
+app.include_router(admin_scheduler_router, prefix="/api")
 
 
 @app.get("/health")

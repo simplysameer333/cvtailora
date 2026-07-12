@@ -1273,6 +1273,28 @@ export interface SystemConfig {
   match_token_synonyms: Record<string, string[]>;
 }
 
+// ── Admin: scheduler run audit ────────────────────────────────────────────────
+
+export interface SchedulerDelivery {
+  at: string;
+  type: "sent" | "no_results";
+  recipient: string;
+  alert_name: string;
+  job_count: number;
+  jobs: { title: string; employer: string }[];
+}
+
+export interface SchedulerRun {
+  date: string;
+  started_at: string;
+  deliveries: SchedulerDelivery[];
+}
+
+export async function fetchSchedulerRuns(limit = 30): Promise<SchedulerRun[]> {
+  const { data } = await api.get(`/api/admin/scheduler/runs?limit=${limit}`);
+  return data as SchedulerRun[];
+}
+
 export async function fetchSystemConfig(): Promise<SystemConfig> {
   const { data } = await api.get("/api/admin/system-config");
   return data as SystemConfig;

@@ -20,6 +20,7 @@ import {
 } from "react-icons/fi";
 import PageBanner from "@/components/PageBanner";
 import AccentPaletteCard from "@/components/admin/AccentPaletteCard";
+import SchedulerRunsTab from "@/components/admin/SchedulerRunsTab";
 import { adminUpdateTierConfig, fetchTierConfig, type TierConfigPayload } from "@/lib/api";
 import {
   adminListCvTemplates, adminCreateCvTemplate, adminUpdateCvTemplate,
@@ -30,7 +31,7 @@ import { render as renderTpl, renderCtx, type CvTemplate, type DocxConfig, type 
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Tab = "users" | "audit" | "agent_memory" | "prompts" | "cv_score_prompts" | "tools_prompts" | "professions" | "manage_templates" | "tier_config" | "system";
+type Tab = "users" | "audit" | "scheduler" | "agent_memory" | "prompts" | "cv_score_prompts" | "tools_prompts" | "professions" | "manage_templates" | "tier_config" | "system";
 
 interface CacheEntry<T> {
   data: T;
@@ -1565,6 +1566,7 @@ function SystemTab() {
 const TAB_META: Record<Tab, { label: string; icon: React.ReactNode }> = {
   users:            { label: "Users",         icon: <FiUsers className="w-4 h-4" /> },
   audit:            { label: "Audit Log",     icon: <FiActivity className="w-4 h-4" /> },
+  scheduler:        { label: "Alert Scheduler", icon: <FiClock className="w-4 h-4" /> },
   agent_memory:     { label: "Agent Memory",  icon: <FiCpu className="w-4 h-4" /> },
   prompts:          { label: "CV Builder Prompts", icon: <FiCpu className="w-4 h-4" /> },
   cv_score_prompts: { label: "CV Score Prompts",   icon: <FiActivity className="w-4 h-4" /> },
@@ -1577,7 +1579,7 @@ const TAB_META: Record<Tab, { label: string; icon: React.ReactNode }> = {
 
 // Top-level groups arranged by feature; each renders its tabs as sub-sections.
 const GROUPS: { id: string; label: string; icon: React.ReactNode; tabs: Tab[] }[] = [
-  { id: "people",  label: "User Management",     icon: <FiUsers className="w-4 h-4" />,   tabs: ["users", "audit", "agent_memory"] },
+  { id: "people",  label: "User Management",     icon: <FiUsers className="w-4 h-4" />,   tabs: ["users", "audit", "scheduler", "agent_memory"] },
   { id: "content", label: "Prompts & Templates", icon: <FiCpu className="w-4 h-4" />,     tabs: ["prompts", "cv_score_prompts", "tools_prompts", "professions", "manage_templates"] },
   { id: "config",  label: "Feature Controls",    icon: <FiSliders className="w-4 h-4" />, tabs: ["tier_config", "system"] },
 ];
@@ -2139,8 +2141,8 @@ export default function AdminPage() {
   const [agentMemory, setAgentMemory] = useState<AgentMemory[]>([]);
   const [prompts, setPrompts] = useState<PromptOverride[]>([]);
   const [professions, setProfessions] = useState<AdminProfession[]>([]);
-  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, agent_memory: false, prompts: false, cv_score_prompts: false, tools_prompts: false, professions: false, manage_templates: false, tier_config: false, system: false });
-  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, agent_memory: null, prompts: null, cv_score_prompts: null, tools_prompts: null, professions: null, manage_templates: null, tier_config: null, system: null });
+  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, scheduler: false, agent_memory: false, prompts: false, cv_score_prompts: false, tools_prompts: false, professions: false, manage_templates: false, tier_config: false, system: false });
+  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, scheduler: null, agent_memory: null, prompts: null, cv_score_prompts: null, tools_prompts: null, professions: null, manage_templates: null, tier_config: null, system: null });
 
   function setLoad(t: Tab, v: boolean) { setLoading(prev => ({ ...prev, [t]: v })); }
   function setFetched(t: Tab, d: Date) { setFetchedAt(prev => ({ ...prev, [t]: d })); }
@@ -2350,6 +2352,7 @@ export default function AdminPage() {
               onRefresh={() => refreshTab("audit")}
             />
           )}
+          {tab === "scheduler" && <SchedulerRunsTab />}
           {tab === "agent_memory" && (
             <AgentMemoryTab
               data={agentMemory}
