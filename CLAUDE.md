@@ -18,6 +18,7 @@ These are not optional polish — build them into any feature that calls an LLM/
 - **Optimizing LLM calls** — cache static system prompts with Anthropic `cache_control`; bound `max_tokens`; pick the right model per task (Haiku for extract/validate, Sonnet for authoring); serialise structured inputs with TOON.
 - **Monitoring** — log structured telemetry per call (model, latency, input/output tokens, cache hits, validation result) and an `audit_log` entry for admin AI actions.
 - **Testing** — keep validators/renderers/parsers pure and deterministic so they unit-test; isolate the LLM call behind a service so it can be mocked.
+- **Async + checkpointed workflows** — any LLM workflow that can exceed ~30 s or makes multiple calls must NOT run inside one HTTP request. Run it as a background job with state in MongoDB (see `services/generation_jobs.py`): the client POSTs then POLLS a status endpoint; every completed stage/cycle checkpoints to the job doc so a crash, deploy restart, or retry RESUMES from the checkpoint instead of restarting (and is never double-charged); recoverable failures (5xx/crashes) auto-retry server-side while the UI shows "taking longer than usual" — the user only sees an error when retries are exhausted or the failure is deterministic (4xx). Proven by the boom.tds incident (2026-07-12): 4 successful ~150 s runs were all lost to client-side connection kills.
 
 ## Resume templates are DATA, not code
 

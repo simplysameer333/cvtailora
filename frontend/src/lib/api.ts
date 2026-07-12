@@ -247,18 +247,69 @@ export async function saveJobDescription(sessionId: string, jobDescription: stri
   return data;
 }
 
-/** Full pipeline generation returns PipelineResult; section regeneration returns GeneratedResume. */
+export interface GenerationJobStatus {
+  status: "running" | "complete" | "failed";
+  stage: string;
+  attempt: number;
+  cycle: number;
+  best_min_score: number;
+  error: string | null;
+  result?: PipelineResult;
+}
+
+export async function getGenerationStatus(sessionId: string): Promise<GenerationJobStatus> {
+  const { data } = await api.get(`/api/generate/status?session_id=${sessionId}`, { timeout: 15_000 });
+  return data as GenerationJobStatus;
+}
+
+const _sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Full pipeline generation returns PipelineResult; section regeneration returns GeneratedResume.
+ *
+ * Full generation runs as an ASYNC backend job: the POST returns immediately
+ * and this function POLLS /generate/status until done. Every poll is a short
+ * request, so flaky networks / idle-connection kills can no longer abort a
+ * generation that the server is happily completing (boom.tds incident).
+ * Transient poll failures are tolerated; recoverable backend failures retry
+ * server-side from checkpoints and simply look like "taking longer".
+ */
 export async function generateResume(
   sessionId: string,
   section?: string,
-  additionalInstructions?: string
+  additionalInstructions?: string,
+  onProgress?: (status: GenerationJobStatus, elapsedMs: number) => void,
 ): Promise<PipelineResult | GeneratedResume> {
   const { data } = await api.post(
     `/api/generate?session_id=${sessionId}`,
     { section: section ?? null, additional_instructions: additionalInstructions ?? null },
-    { timeout: 270_000 },  // 4.5 min — backend enforces 4 min, this covers the gap
+    { timeout: 270_000 },  // section regen is still synchronous; job-start is instant
   );
-  return data as PipelineResult | GeneratedResume;
+  if (!(data as { async?: boolean })?.async) {
+    return data as PipelineResult | GeneratedResume;  // section regen / legacy payload
+  }
+
+  const started = Date.now();
+  const MAX_WAIT_MS = 12 * 60_000;  // generous: covers server-side checkpoint retries
+  let pollFailures = 0;
+  while (Date.now() - started < MAX_WAIT_MS) {
+    await _sleep(4_000);
+    let status: GenerationJobStatus;
+    try {
+      status = await getGenerationStatus(sessionId);
+      pollFailures = 0;
+    } catch {
+      // Transient poll failure (network blip) — the JOB keeps running server-
+      // side; only give up after many consecutive failures.
+      if (++pollFailures >= 8) throw new Error("Lost connection while generating — please retry.");
+      continue;
+    }
+    onProgress?.(status, Date.now() - started);
+    if (status.status === "complete" && status.result) return status.result;
+    if (status.status === "failed") {
+      throw new Error(status.error || "Resume generation failed. Please try again.");
+    }
+  }
+  throw new Error("Resume generation is taking unusually long — please retry in a minute.");
 }
 
 export async function exportResume(sessionId: string, includePdf = false, boldKeywords = true) {

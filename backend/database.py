@@ -68,6 +68,10 @@ async def _ensure_indexes():
     await db.generation_cache.create_index(
         "created_at", expireAfterSeconds=30 * 86400  # 30 days
     )
+    # Generation jobs — one async pipeline job per session (checkpoints +
+    # progress polling); TTL matches the 24h session lifetime
+    await db.generation_jobs.create_index("session_id", unique=True)
+    await db.generation_jobs.create_index("updated_at", expireAfterSeconds=86400)
 
 
 def get_db():

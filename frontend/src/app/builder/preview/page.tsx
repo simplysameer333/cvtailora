@@ -63,6 +63,9 @@ export default function PreviewPage() {
   });
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState(0);
+  // "Taking longer than usual" note — set from real job progress (server-side
+  // checkpoint retries), shown instead of ever surfacing a recoverable error.
+  const [slowNote, setSlowNote] = useState<string | null>(null);
   const [coverLetter, setCoverLetter] = useState<CoverLetterResult | null>(null);
   const [coverLetterLoading, setCoverLetterLoading] = useState(false);
   const [interviewPrep, setInterviewPrep] = useState<InterviewPrepResult | null>(null);
@@ -161,8 +164,17 @@ export default function PreviewPage() {
       : (comment?.trim() || localStorage.getItem("cvtailora_instructions") || undefined);
 
     section ? setLoadingSection(section) : setLoading(true);
+    setSlowNote(null);
     try {
-      const result = await generateResume(sessionId, section, additionalInstructions);
+      const result = await generateResume(sessionId, section, additionalInstructions, (status, elapsed) => {
+        // Server-side recoverable failures retry from checkpoints invisibly —
+        // the user just sees an honest "taking longer" note, never an error.
+        if (status.stage?.startsWith("recovering")) {
+          setSlowNote("Taking a little longer than usual — we hit a temporary snag and resumed from where it left off.");
+        } else if (elapsed > 150_000) {
+          setSlowNote("Taking a bit longer than usual — still working on it. Your progress is saved.");
+        }
+      });
 
       if (isPipelineResult(result)) {
         setResume(result.resume);
@@ -318,6 +330,11 @@ export default function PreviewPage() {
           <p className="text-xs text-slate-400 mt-2 text-center">
             Step {loadingMsg + 1} of {LOADING_MESSAGES.length} · Usually 30–90 seconds
           </p>
+          {slowNote && (
+            <p className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3 text-center">
+              {slowNote}
+            </p>
+          )}
         </div>
       </div>
     );
