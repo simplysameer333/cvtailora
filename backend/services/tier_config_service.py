@@ -76,6 +76,12 @@ DEFAULT_LIMITS: dict[str, dict[str, int | None]] = {
     # the daily cap rations it so one day can't burn the month. None = unlimited.
     "daily_cost_cents":   {"free": 25, "plus": 100,  "pro": 200},
     "monthly_cost_cents": {"free": 50, "plus": 1000, "pro": 2000},
+    # Generation pipeline knobs (previously hardcoded in the generate flow —
+    # moved here 2026-07-12 so admins can tune them without a deploy).
+    # pass_threshold: CV-Score bar the eval loop must clear per tier.
+    # max_eval_cycles: generator-evaluator loop budget per tier.
+    "pass_threshold":  {"free": 70, "plus": 80, "pro": 90},
+    "max_eval_cycles": {"free": 3,  "plus": 4,  "pro": 5},
 }
 
 # Human-readable labels — used by the admin UI
@@ -102,6 +108,8 @@ LIMIT_LABELS: dict[str, str] = {
     "key_skills":      "Key Skills extracted from JD",
     "daily_cost_cents":   "Daily AI Cost Budget (US¢)",
     "monthly_cost_cents": "Monthly AI Cost Budget (US¢)",
+    "pass_threshold":  "Generation Pass Threshold (CV-Score)",
+    "max_eval_cycles": "Generation Max Eval Cycles",
 }
 
 # ── In-memory cache ────────────────────────────────────────────────────────────

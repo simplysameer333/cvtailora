@@ -57,16 +57,17 @@ _job_analyzer = JobAnalyzerAgent()
 # Both are cheap and run in parallel with cv_score (asyncio.gather), so they
 # add pennies, not latency. The Sonnet anthropic evaluator stays off (the
 # generator is already Sonnet — same-model self-grading adds cost, not signal).
-_TIER_EVALUATORS: dict[str, set[str]] = {
-    "free": {"cv_score"},
-    "plus": {"cv_score", "openai"},
-    "pro":  {"cv_score", "openai", "google"},
-}
+# HOW MANY evaluators a tier gets is MongoDB tier config (`evaluators` limit,
+# admin-editable); only the fixed roll-out ORDER lives in code.
+_EVALUATOR_PRIORITY: list[str] = ["cv_score", "openai", "google"]
 
 
 def _enabled_evaluators_for_tier(user_tier: str) -> dict[str, bool]:
     """Return per-tier evaluator flags, respecting global env flags + API key presence."""
-    allowed = _TIER_EVALUATORS.get(user_tier, {"cv_score"})
+    from services.tier_config_service import get_limit
+    # Fall back to 1 (cv_score only) if the limit is missing/unlimited-None.
+    n = get_limit(user_tier, "evaluators") or 1
+    allowed = set(_EVALUATOR_PRIORITY[:n])
     return {
         "cv_score":  "cv_score"  in allowed and bool(settings.anthropic_api_key),
         "anthropic": "anthropic" in allowed and settings.anthropic_evaluator_enabled,
@@ -328,16 +329,17 @@ async def _generation_body(db, session_id: str, extra_instr: str, user: dict | N
 
     has_jd = bool(job_description.strip())
 
-    _TIER_THRESHOLDS = {"free": 70, "plus": 80, "pro": 90}
-    tier_bar = _TIER_THRESHOLDS.get(user_tier, settings.pass_threshold)
+    # Tier knobs come from MongoDB tier config (admin-editable, no deploy);
+    # env settings are the fallback when a tier has no configured value.
+    from services.tier_config_service import get_limit as _tier_limit
+    tier_bar = _tier_limit(user_tier, "pass_threshold") or settings.pass_threshold
     # Paid tiers are scored fairly; free/anon get the conservative calibration.
     conservative_scoring = user_tier not in ("plus", "pro")
     telemetry.start_capture()
     await gen_jobs.checkpoint(db, session_id, "scoring original")
     original_score = await _original_cv_score(db, resume_text, conservative=conservative_scoring)
     pass_threshold = min(100, max(tier_bar, int(original_score * 0.90)))
-    _TIER_MAX_CYCLES = {"free": 3, "plus": 4, "pro": 5}
-    max_cycles = _TIER_MAX_CYCLES.get(user_tier, settings.max_eval_cycles)
+    max_cycles = _tier_limit(user_tier, "max_eval_cycles") or settings.max_eval_cycles
 
     profession_config = await resolve_profession(db, target_role)
 
