@@ -821,6 +821,9 @@ export interface JobAlert {
   created_at: string;
   updated_at: string;
   last_sent_at: string | null;
+  /** Stamped by every scheduler run — powers the "Last checked" status line. */
+  last_checked_at?: string | null;
+  last_result?: string | null;
 }
 
 export async function listJobAlerts(): Promise<JobAlert[]> {

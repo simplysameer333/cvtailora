@@ -337,6 +337,12 @@ function AlertCard({
     ...alert.location_tags,
   ];
   const lastSent = alert.last_sent_at ? timeAgo(alert.last_sent_at) : null;
+  // "Last checked" renders in the VIEWER'S local timezone (toLocaleString) —
+  // the backend stores UTC; the browser localises it.
+  const lastChecked = alert.last_checked_at
+    ? new Date(alert.last_checked_at + (alert.last_checked_at.endsWith("Z") ? "" : "Z"))
+        .toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : null;
 
   return (
     <div className={`card flex items-start gap-4 transition-colors ${
@@ -358,6 +364,12 @@ function AlertCard({
               <p className="text-xs text-slate-400 mt-0.5">Last emailed {lastSent}</p>
             ) : (
               <p className="text-xs text-slate-400 mt-0.5">No email sent yet</p>
+            )}
+            {lastChecked && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                Last checked {lastChecked}
+                {alert.last_result && <span className="text-slate-500"> · {alert.last_result}</span>}
+              </p>
             )}
           </div>
           {/* Toggle */}

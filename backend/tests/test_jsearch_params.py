@@ -23,6 +23,14 @@ def test_digest_uses_fresh_jobs_window():
     assert params["page"] == "1"
 
 
+def test_digest_widened_fallback_omits_date_filter():
+    # "all" = the second pass when the month pool is exhausted — JSearch's
+    # default (no date_posted param) searches all listings.
+    params = _digest_search_params("python developer London", date_posted="all")
+    assert "date_posted" not in params
+    assert params["query"] == "python developer London"
+
+
 def test_digest_has_no_dead_params():
     assert "num_results" not in _digest_search_params("x")
 

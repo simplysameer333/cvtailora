@@ -36,7 +36,7 @@ def _jsearch_headers() -> dict:
     }
 
 
-def _digest_search_params(q: str) -> dict:
+def _digest_search_params(q: str, date_posted: str = "month") -> dict:
     """JSearch params for the daily digest — pure, unit-tested.
 
     Without a date filter JSearch returns the same relevance-ranked top-10 every
@@ -44,11 +44,16 @@ def _digest_search_params(q: str) -> dict:
     A rolling one-month window keeps the candidate pool fresh while still wide
     enough for niche queries (measured on a real exec-level alert: 3days and
     week returned 0 jobs; month returned results). Dedup suppresses repeats.
+    `date_posted="all"` omits the filter entirely — the widened fallback pass
+    used when the month pool is exhausted (all results already sent).
     """
-    return {"query": q, "page": "1", "date_posted": "month"}
+    params = {"query": q, "page": "1"}
+    if date_posted != "all":
+        params["date_posted"] = date_posted
+    return params
 
 
-async def _search_jobs(query: str, location: str) -> list[dict] | None:
+async def _search_jobs(query: str, location: str, date_posted: str = "month") -> list[dict] | None:
     """Return job list (empty = no results), or None if the call failed / quota exhausted.
 
     Returning None tells the caller to skip the alert rather than send a
@@ -70,7 +75,7 @@ async def _search_jobs(query: str, location: str) -> list[dict] | None:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 res = await client.get(
                     f"{_JSEARCH_BASE}/search",
-                    params=_digest_search_params(q),
+                    params=_digest_search_params(q, date_posted),
                     headers=_jsearch_headers(),
                 )
                 res.raise_for_status()
@@ -86,6 +91,16 @@ async def _search_jobs(query: str, location: str) -> list[dict] | None:
                 await asyncio.sleep(1)
     logger.warning("[alert-scheduler] JSearch failed after 3 attempts for %r: %s", q, last_exc)
     return None
+
+
+async def _stamp_alert(db, alert_id, result: str) -> None:
+    """Record each run's outcome on the alert doc — powers the "Last checked"
+    status in the My Alerts UI so a healthy-but-quiet alert is distinguishable
+    from a broken scheduler (recurring user confusion 2026-07-10..12)."""
+    await db.job_alerts.update_one(
+        {"_id": alert_id},
+        {"$set": {"last_checked_at": datetime.utcnow(), "last_result": result}},
+    )
 
 
 async def _process_alert(db, alert: dict) -> str | None:
@@ -118,10 +133,28 @@ async def _process_alert(db, alert: dict) -> str | None:
         # JSearch errored or quota exhausted — report to caller for summary email
         msg = f"Alert '{alert.get('name')}' (query={query!r}): JSearch unavailable after 3 retries"
         logger.warning("[alert-scheduler] %s", msg)
+        await _stamp_alert(db, alert["_id"], "Search failed — will retry tomorrow")
         return msg
 
+    seen_ids: set[str] = set(alert.get("seen_job_ids", []))
+
+    def _unseen(js: list[dict]) -> list[dict]:
+        return [j for j in js if j.get("job_id") and j["job_id"] not in seen_ids]
+
+    new_jobs = _unseen(jobs)
+
+    # Widened fallback: a niche query can exhaust the month window (every
+    # result already sent). Retry once with NO date filter so older-but-
+    # never-sent jobs still surface. Costs 1 extra JSearch call, only when
+    # the strict pass came up empty of new jobs.
+    if not new_jobs:
+        wider = await _search_jobs(query, location, date_posted="all")
+        if wider:
+            jobs = wider
+            new_jobs = _unseen(wider)
+
     if not jobs:
-        # JSearch responded successfully but returned zero listings
+        # Zero listings from BOTH passes — genuinely nothing matches
         await send_no_results_email(
             user_email=user["email"],
             user_name=user.get("name", "there"),
@@ -130,14 +163,17 @@ async def _process_alert(db, alert: dict) -> str | None:
         log_audit(user, "job_alert.email_no_results", {
             "alert_name": alert["name"], "query": query, "location": location,
         })
+        await _stamp_alert(db, alert["_id"], "No matching jobs found")
         return
 
-    seen_ids: set[str] = set(alert.get("seen_job_ids", []))
-    new_jobs = [j for j in jobs if j.get("job_id") and j["job_id"] not in seen_ids]
     new_jobs = new_jobs[: settings.alert_max_jobs_per_email]
 
     if not new_jobs:
         logger.debug("[alert-scheduler] Alert %s: no new jobs, skipping email", alert["_id"])
+        await _stamp_alert(
+            db, alert["_id"],
+            f"No new jobs — all {len(jobs)} matches were already sent to you",
+        )
         return
 
     sent = await send_job_alert_email(
@@ -170,6 +206,10 @@ async def _process_alert(db, alert: dict) -> str | None:
         logger.info(
             "[alert-scheduler] Alert %s → %d new jobs emailed to %s",
             alert["_id"], len(new_jobs), user["email"],
+        )
+        await _stamp_alert(
+            db, alert["_id"],
+            f"Sent {len(new_jobs)} new job{'s' if len(new_jobs) != 1 else ''}",
         )
 
 
