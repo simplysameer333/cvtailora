@@ -3,13 +3,13 @@ import { useEffect, useState } from "react";
 import { FiClock, FiMail, FiInbox, FiLoader, FiChevronDown, FiChevronRight } from "react-icons/fi";
 import { fetchSchedulerRuns, type SchedulerRun } from "@/lib/api";
 
-/** All timestamps render in the ADMIN'S local timezone (user request) —
- *  the backend stores/serves UTC. */
+import { formatDateTimeLocal } from "@/lib/datetime";
+
+/** All timestamps render in the ADMIN'S local timezone with an explicit
+ *  timezone label (user request) — the backend stores/serves UTC. */
 function localTime(utcIso: string): string {
-  const d = new Date(utcIso.endsWith("Z") ? utcIso : utcIso + "Z");
-  return d.toLocaleString(undefined, {
-    weekday: "short", day: "numeric", month: "short",
-    hour: "2-digit", minute: "2-digit",
+  return formatDateTimeLocal(utcIso, {
+    weekday: "short", day: "numeric", year: undefined,
   });
 }
 
