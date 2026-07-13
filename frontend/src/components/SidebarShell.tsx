@@ -118,6 +118,10 @@ export default function SidebarShell({
   const width = collapsed ? "lg:w-[72px]" : "lg:w-64";
   const pad = collapsed ? "lg:pl-[72px]" : "lg:pl-64";
 
+  // Top-band label: greet the signed-in user by first name, else a plain "Menu".
+  const firstName = user?.name?.trim().split(/\s+/)[0];
+  const sidebarGreeting = status === "authenticated" ? `Hi, ${firstName || "there"}` : "Menu";
+
   const renderLink = ({ href, icon: Icon, label, match, authOnly }: {
     href: string;
     icon: React.ComponentType<{ className?: string }>;
@@ -171,11 +175,14 @@ export default function SidebarShell({
         <aside
           className={`hidden lg:flex fixed top-16 bottom-0 left-0 z-40 flex-col bg-brand-900 transition-all duration-200 ${width}`}
         >
-          <div className={`flex items-center h-12 border-b border-white/10 ${collapsed ? "justify-center" : "px-3 justify-end"}`}>
+          <div className={`flex items-center h-12 border-b border-white/10 ${collapsed ? "justify-center" : "px-3 justify-between"}`}>
+            {!collapsed && (
+              <span className="text-sm font-semibold text-white/80 truncate pr-2">{sidebarGreeting}</span>
+            )}
             <button
               onClick={toggle}
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition"
+              className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition shrink-0"
             >
               {collapsed ? <FiChevronsRight className="w-4 h-4" /> : <FiChevronsLeft className="w-4 h-4" />}
             </button>
