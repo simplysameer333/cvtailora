@@ -168,19 +168,22 @@ async def _process_alert(db, alert: dict) -> str | None:
 
     new_jobs = new_jobs[: settings.alert_max_jobs_per_email]
 
+    # Never send an empty day: if the query still matches jobs but they're all
+    # ones we've already emailed, RESEND the current top matches rather than
+    # staying silent. A silent day reads to users as a broken alert (recurring
+    # confusion 2026-07-10..13; user directive: "just send them, don't skip").
+    # `resent` flags the email + audit so it's clear these aren't new postings.
+    resent = False
     if not new_jobs:
-        logger.debug("[alert-scheduler] Alert %s: no new jobs, skipping email", alert["_id"])
-        await _stamp_alert(
-            db, alert["_id"],
-            f"No new jobs — all {len(jobs)} matches were already sent to you",
-        )
-        return
+        resent = True
+        new_jobs = jobs[: settings.alert_max_jobs_per_email]
 
     sent = await send_job_alert_email(
         user_email=user["email"],
         user_name=user.get("name", "there"),
         alert_name=alert["name"],
         jobs=new_jobs,
+        resent=resent,
     )
 
     if sent:
@@ -198,18 +201,22 @@ async def _process_alert(db, alert: dict) -> str | None:
             "query": query,
             "location": location,
             "job_count": len(new_jobs),
+            "resent": resent,
             "jobs": [
                 {"title": j.get("job_title", ""), "employer": j.get("employer_name", "")}
                 for j in new_jobs
             ],
         })
         logger.info(
-            "[alert-scheduler] Alert %s → %d new jobs emailed to %s",
-            alert["_id"], len(new_jobs), user["email"],
+            "[alert-scheduler] Alert %s → %d %s jobs emailed to %s",
+            alert["_id"], len(new_jobs), "resent" if resent else "new", user["email"],
         )
+        n = len(new_jobs)
         await _stamp_alert(
             db, alert["_id"],
-            f"Sent {len(new_jobs)} new job{'s' if len(new_jobs) != 1 else ''}",
+            (f"Resent {n} current match{'es' if n != 1 else ''} — no new postings since last time"
+             if resent else
+             f"Sent {n} new job{'s' if n != 1 else ''}"),
         )
 
 

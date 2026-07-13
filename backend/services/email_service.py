@@ -137,16 +137,26 @@ async def send_job_alert_email(
     user_name: str,
     alert_name: str,
     jobs: list[dict],
+    resent: bool = False,
 ) -> bool:
-    """Send a daily job alert digest via Brevo HTTP API. Returns True on success."""
+    """Send a daily job alert digest via Brevo HTTP API. Returns True on success.
+
+    resent=True means there were no NEW postings since last time, so we're
+    resending the current top matches (never send an empty day) — the subject
+    and intro copy make clear these aren't brand-new results.
+    """
     from config import settings
 
     if not settings.brevo_api_key:
         raise RuntimeError("BREVO_API_KEY is not set — add it to .env and Railway")
 
-    html = _render_alert_email(user_name, alert_name, jobs, settings.frontend_url)
+    html = _render_alert_email(user_name, alert_name, jobs, settings.frontend_url, resent=resent)
     n = len(jobs)
-    subject = f"Your job alert: {alert_name} — Top {n} job{'s' if n != 1 else ''}"
+    subject = (
+        f"Your job alert: {alert_name} — {n} current match{'es' if n != 1 else ''}"
+        if resent else
+        f"Your job alert: {alert_name} — Top {n} job{'s' if n != 1 else ''}"
+    )
 
     payload = {
         "sender": {"name": "CVTailora Alerts", "email": settings.brevo_sender_email},
@@ -179,6 +189,7 @@ def _render_alert_email(
     alert_name: str,
     jobs: list[dict],
     frontend_url: str,
+    resent: bool = False,
 ) -> str:
     emp_type_map = {
         "FULLTIME": "Full-time",
@@ -295,7 +306,20 @@ def _render_alert_email(
         </div>"""
 
     count = len(jobs)
-    count_label = f"Top {count} job{'s' if count != 1 else ''}"
+    count_label = (
+        f"{count} current match{'es' if count != 1 else ''}"
+        if resent else
+        f"Top {count} job{'s' if count != 1 else ''}"
+    )
+    # Intro line: a resend (no new postings since last time) is framed honestly
+    # so the user isn't misled into thinking these are brand-new results.
+    intro_html = (
+        (f"No new postings since your last alert, so here are your "
+         f"<strong>{count_label}</strong> for <strong>&ldquo;{alert_name}&rdquo;</strong>.")
+        if resent else
+        (f"Here are your <strong>{count_label}</strong> matching your alert "
+         f"<strong>&ldquo;{alert_name}&rdquo;</strong>.")
+    )
 
     return f"""<!DOCTYPE html>
 <html>
@@ -315,8 +339,7 @@ def _render_alert_email(
     <div style="background:#f8fafc;padding:28px 32px 16px;">
       <p style="font-size:16px;color:#1e293b;margin:0 0 6px;">Hi {user_name},</p>
       <p style="font-size:14px;color:#475569;margin:0 0 24px;">
-        Here are your <strong>{count_label}</strong> matching your alert
-        <strong>&ldquo;{alert_name}&rdquo;</strong>.
+        {intro_html}
       </p>
 
       {job_cards_html}
