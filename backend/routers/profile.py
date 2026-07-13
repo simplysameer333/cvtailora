@@ -1,29 +1,12 @@
-import json
 import logging
-import re
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
-from anthropic import AsyncAnthropic
 from database import get_db
 from models.session import UserProfile
-from config import settings
+from services.profile_prefill_service import prefill_contact_fields
 
 router = APIRouter()
 logger = logging.getLogger("cvtailora")
-
-_PREFILL_PROMPT = """Extract the following fields from the resume text and return as a single JSON object.
-Use empty string "" for any field you cannot find.
-
-Fields:
-- full_name: candidate's full name
-- email: email address
-- phone: phone number
-- linkedin: LinkedIn URL or username (full URL preferred)
-- location: city and country/state
-- target_role: current or most recent job title, or stated objective/target role
-- key_skills: top 8-10 skills as a comma-separated string
-
-Return only the JSON object, no markdown fences, no explanation."""
 
 
 @router.get("/profile/prefill")
@@ -56,21 +39,7 @@ async def prefill_profile(session_id: str):
     # regex parser so the user still gets their basic contact info.
     data: dict = {}
     try:
-        client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-        message = await client.messages.create(
-            model=settings.anthropic_evaluator_model,
-            max_tokens=1024,
-            messages=[{
-                "role": "user",
-                "content": f"{_PREFILL_PROMPT}\n\nResume:\n{raw_text[:4000]}",
-            }],
-        )
-        raw = message.content[0].text.strip()
-        raw = re.sub(r"^```[a-z]*\n?", "", raw)
-        raw = re.sub(r"\n?```$", "", raw)
-        parsed = json.loads(raw)
-        if isinstance(parsed, dict):
-            data = parsed
+        data = await prefill_contact_fields(raw_text)
     except Exception as exc:
         logger.warning("[prefill] LLM extraction failed (%s) — falling back to regex.", exc)
 

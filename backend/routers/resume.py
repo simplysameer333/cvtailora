@@ -16,9 +16,9 @@ Storage keys follow the convention:
     resumes/<session_id>/<original_filename>
     samples/<session_id>/<original_filename>
 """
+import asyncio
 import hashlib
 import logging
-import traceback
 import uuid
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from bson import ObjectId
@@ -27,18 +27,9 @@ from database import get_db
 from dependencies.auth import get_optional_user
 from services.resume_parser import parse_resume
 from services.storage import get_storage
-import asyncio
-from services.resume_checker_service import (
-    check_resume as _check_resume,
-    extract_resume_for_preview,
-    extract_contact_regex,
-    check_grammar,
-    extract_weak_categories,
-)
-from services.cv_refinement_service import refine_cv_text
-from services.email_service import send_error_alert
-from services.audit import log_audit
-from config import settings
+from services.resume_checker_service import extract_contact_regex
+from services import cv_check_flow
+from services import generation_jobs as gen_jobs
 
 router = APIRouter()
 logger = logging.getLogger("cvtailora")
@@ -236,164 +227,30 @@ async def check_resume_quality(
             new_id = cached["_id"]
         return {**cached["result"], "result_id": new_id, "extracted_profile": full_profile_c, "cached": True}
 
-    # ── Step 1: Quality check — the gate that decides how much more work is needed ──
-    try:
-        result = await _check_resume(parsed["raw_text"], settings.anthropic_api_key)
-    except Exception as exc:
-        logger.exception("[cv_score] Quality check failed")
-        await send_error_alert("POST", "/api/resume/check", exc, traceback.format_exc())
-        raise HTTPException(502, "CV analysis failed. Please try again.")
-
-    initial_score = int(result.get("overall_score", 0) or 0)
-    lazy_threshold = settings.cv_score_lazy_threshold
-    ran_grammar = False
-    refine_cycles = 0
-
-    # ── Step 2: Ralph Loop — refine if score is below the lazy threshold ──────
-    # Each cycle applies targeted fixes from weak categories and re-scores. Exits
-    # when score >= threshold, plateau is detected, or max cycles is reached.
-    # We always return best_result (highest-scoring cycle), never just the last.
-    if lazy_threshold > 0 and initial_score < lazy_threshold:
-        best_result = result
-        best_score = initial_score
-        prev_score = initial_score
-
-        for _cycle in range(settings.cv_score_max_refine_cycles):
-            issues = extract_weak_categories(best_result)
-            if not issues:
-                break
-            try:
-                refined_text = await refine_cv_text(
-                    parsed["raw_text"], issues, lazy_threshold, settings.anthropic_api_key
-                )
-                new_result = await _check_resume(refined_text, settings.anthropic_api_key)
-                refine_cycles += 1
-            except Exception as exc:
-                logger.warning("[cv_score] Refinement cycle %d failed: %s", _cycle + 1, exc)
-                break
-
-            new_score = int(new_result.get("overall_score", 0) or 0)
-            if new_score > best_score:
-                best_result = new_result
-                best_score = new_score
-
-            gain = new_score - prev_score
-            logger.info(
-                "[cv_score] Refinement cycle %d: score %d → %d (gain=%d, best=%d)",
-                _cycle + 1, prev_score, new_score, gain, best_score,
-            )
-            if gain < settings.cv_score_plateau_margin:
-                break
-            if best_score >= lazy_threshold:
-                break
-            prev_score = new_score
-
-        result = best_result
-
-    # ── Step 3: Extraction + grammar — run concurrently; grammar only when needed ──
-    # Extraction always runs (needed for template preview display).
-    # Grammar only runs when score is below threshold — high-scoring CVs skip it.
-    current_score = int(result.get("overall_score", 0) or 0)
-    run_grammar = lazy_threshold == 0 or current_score < lazy_threshold
-
-    if run_grammar:
-        extracted_llm_raw, grammar_raw = await asyncio.gather(
-            extract_resume_for_preview(parsed["raw_text"], settings.anthropic_api_key),
-            check_grammar(parsed["raw_text"], settings.anthropic_api_key),
-            return_exceptions=True,
-        )
-        ran_grammar = True
+    # ── Cache miss: run the multi-call analysis as an async checkpointed job ──
+    # Quality check + refine cycles + extraction + grammar can exceed a minute;
+    # holding one silent HTTP connection that long gets killed by middleboxes
+    # (same failure mode as the /generate boom.tds incident). The endpoint
+    # returns immediately and the browser polls /resume/check-status. Jobs are
+    # keyed by text hash, so two uploads of the same CV share one run.
+    file_ext = (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else "unknown"
+    key = cv_check_flow.job_key(text_hash)
+    job, started = await gen_jobs.acquire(db, key, text_hash)
+    if started:
+        asyncio.create_task(cv_check_flow.run_cv_check_job(text_hash, parsed["raw_text"], file_ext, user))
     else:
-        extracted_llm_raw = await asyncio.gather(
-            extract_resume_for_preview(parsed["raw_text"], settings.anthropic_api_key),
-            return_exceptions=True,
-        )
-        extracted_llm_raw = extracted_llm_raw[0]
-        grammar_raw = None
+        logger.info("[cv_score] attached to in-flight check for hash %s…", text_hash[:8])
+    return {"async": True, "key": text_hash, "job": gen_jobs.serialize(job, include_result=False)}
 
-    extracted_llm = None if isinstance(extracted_llm_raw, Exception) else extracted_llm_raw
-    if isinstance(extracted_llm_raw, Exception):
-        logger.warning("[cv_score] LLM extraction failed, using regex fallback: %s", extracted_llm_raw)
 
-    # Grammar & spelling is best-effort — append as extra category when it succeeds.
-    grammar = grammar_raw
-    if ran_grammar and not isinstance(grammar, Exception) and isinstance(grammar, dict) and grammar.get("key"):
-        result.setdefault("categories", []).append(grammar)
-        try:
-            base = float(result.get("overall_score", 0) or 0)
-            g = float(grammar.get("score", base))
-            _GRAMMAR_WEIGHT = 0.15
-            result["overall_score"] = round((1 - _GRAMMAR_WEIGHT) * base + _GRAMMAR_WEIGHT * g)
-        except (TypeError, ValueError):
-            pass
-    elif ran_grammar and isinstance(grammar, Exception):
-        logger.warning("[cv_score] Grammar check failed: %s", grammar)
-
-    # Build the extracted profile: LLM extraction primary, regex as field-level
-    # fallback for anything the LLM left empty (or if the LLM call failed entirely).
-    regex_profile = extract_contact_regex(parsed["raw_text"])
-    llm = extracted_llm or {}
-    extracted_profile = {
-        "name":           llm.get("name")           or regex_profile.get("name", ""),
-        "title":          llm.get("title")          or regex_profile.get("title", ""),
-        "email":          llm.get("email")          or regex_profile.get("email", ""),
-        "phone":          llm.get("phone")          or regex_profile.get("phone", ""),
-        "location":       llm.get("location")       or regex_profile.get("location", ""),
-        "linkedin":       llm.get("linkedin")       or regex_profile.get("linkedin", ""),
-        "summary":        llm.get("summary")        or regex_profile.get("summary", ""),
-        "skills":         llm.get("skills")         or regex_profile.get("skills", []),
-        "experience":     llm.get("experience")     or regex_profile.get("experience", []),
-        "education":      llm.get("education")       or regex_profile.get("education", []),
-        "extra_sections": llm.get("extra_sections") or regex_profile.get("extra_sections", []),
-    }
-
-    # ── Persist full result with a shareable UUID ──────────────────────────────
-    result_id = str(uuid.uuid4())
-    try:
-        file_ext = (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else "unknown"
-        await db.cv_check_results.insert_one({
-            "_id":           result_id,
-            "user_id":       user["_id"] if user else None,
-            "created_at":    datetime.utcnow(),
-            "text_hash":     text_hash,   # enables cache lookup for same CV
-            "overall_score": result.get("overall_score", 0),
-            "file_ext":      file_ext,
-            "result":        result,      # full JSON result for permalink page
-            "raw_text":      parsed["raw_text"],   # stored so profile can be re-extracted later
-            "extracted_profile": extracted_profile,
-            "categories": [
-                {"key": c.get("key"), "score": c.get("score", 0), "status": c.get("status")}
-                for c in result.get("categories", [])
-            ],
-        })
-        # also write lightweight row to cv_checks for admin stats
-        await db.cv_checks.insert_one({
-            "result_id":     result_id,
-            "user_id":       user["_id"] if user else None,
-            "created_at":    datetime.utcnow(),
-            "overall_score": result.get("overall_score", 0),
-            "file_ext":      file_ext,
-            "categories": [
-                {"key": c.get("key"), "score": c.get("score", 0), "status": c.get("status")}
-                for c in result.get("categories", [])
-            ],
-        })
-    except Exception as exc:
-        logger.warning("[cv_score] Failed to persist result: %s", exc)
-        result_id = None
-
-    # Audit: 1 quality check + refine_cycles×2 (refine+re-score) + 1 extraction + grammar
-    llm_calls = 1 + refine_cycles * 2 + 1 + (1 if ran_grammar else 0)
-    if user:
-        log_audit(user, "resume.cv_score", {
-            "result_id": result_id,
-            "overall_score": result.get("overall_score", 0),
-            "file_ext": (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else "unknown",
-            "llm_calls": llm_calls,
-            "refine_cycles": refine_cycles,
-        })
-
-    return {**result, "result_id": result_id, "extracted_profile": extracted_profile}
+@router.get("/resume/check-status")
+async def check_resume_status(key: str):
+    """Progress/result polling for an async CV-Score job (key = text hash)."""
+    db = get_db()
+    job = await gen_jobs.get(db, cv_check_flow.job_key(key))
+    if not job:
+        raise HTTPException(404, "No CV check job for this key.")
+    return gen_jobs.serialize(job)
 
 
 @router.get("/resume/check/{result_id}")

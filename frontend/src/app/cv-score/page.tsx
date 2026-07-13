@@ -168,6 +168,8 @@ export default function CvScorePage() {
   const [file, setFile]         = useState<File | null>(null);
   const [loading, setLoading]   = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(0);
+  const [liveStage, setLiveStage] = useState("");
+  const [slowNote, setSlowNote] = useState(false);
   const [result, setResult]     = useState<ResumeCheckResult | null>(null);
   const spinnerRef = useRef<HTMLDivElement | null>(null);
 
@@ -206,8 +208,14 @@ export default function CvScorePage() {
   async function handleCheck() {
     if (!file) return;
     setLoading(true);
+    setLiveStage("");
+    setSlowNote(false);
     try {
-      const res = await checkResume(file);
+      const res = await checkResume(file, (stage, elapsedMs) => {
+        setLiveStage(stage);
+        // Server-side recovery or an unusually long run — reassure, don't error.
+        if (stage?.startsWith("recovering") || elapsedMs > 120_000) setSlowNote(true);
+      });
       setResult(res);
       // Redirect to permalink if we got a result_id
       if (res.result_id) {
@@ -290,7 +298,16 @@ export default function CvScorePage() {
               }`} />
             ))}
           </div>
-          <p className="text-xs text-slate-400">Usually takes 30–60 seconds</p>
+          {liveStage && !liveStage.startsWith("recovering") && (
+            <p className="text-xs font-medium text-brand-600 capitalize">{liveStage}</p>
+          )}
+          {slowNote ? (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 max-w-sm text-center">
+              Taking a little longer than usual — the analysis is still running, hang tight.
+            </p>
+          ) : (
+            <p className="text-xs text-slate-400">Usually takes 30–60 seconds</p>
+          )}
         </div>
       )}
 

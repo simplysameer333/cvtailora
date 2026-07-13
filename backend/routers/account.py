@@ -7,8 +7,6 @@ POST /api/sessions/from-profile      — create a builder session pre-loaded fro
 """
 from __future__ import annotations
 
-import json
-import re
 from datetime import datetime
 from typing import List
 
@@ -23,6 +21,7 @@ from dependencies.auth import get_current_user
 from services.resume_parser import parse_resume
 from services.storage import get_storage
 from services.audit import log_audit
+from services.profile_prefill_service import prefill_full_profile
 
 router = APIRouter()
 
@@ -49,46 +48,6 @@ ACCEPTED_TYPES = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
-
-_PREFILL_PROMPT = """Extract the following fields from the resume text and return a single JSON object.
-Use empty string "" for any field you cannot find. Return key_skills as a JSON array of strings.
-
-Fields:
-- full_name
-- email
-- phone
-- linkedin  (full URL preferred)
-- location  (city + country/state)
-- target_role  (most recent job title or stated objective)
-- primary_skill  (the single most defining technical or professional skill, e.g. "Java", "Python", "Financial Modelling", "UX Design" — one short phrase, not a sentence)
-- key_skills  (top 8-10 skills as a JSON array)
-- summary  (2–3 sentence professional summary — write one if absent)
-- experience  (JSON array, newest first; each item {"title", "company", "start", "end", "description"} — description is 1-2 sentences, dates as written in the resume, "" if missing)
-- education  (JSON array; each item {"degree", "institution", "year"})
-- projects  (JSON array; each item {"name", "description", "url"} — [] if none)
-- certifications  (JSON array; each item {"name", "issuer", "year"} — [] if none)
-
-Return only the JSON object, no markdown fences, no explanation."""
-
-
-async def _ai_prefill(resume_text: str) -> dict:
-    from anthropic import AsyncAnthropic
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    msg = await client.messages.create(
-        model=settings.anthropic_evaluator_model,
-        # 12k chars in / 3k tokens out — structured experience/education arrays
-        # need the full resume body, not just the head
-        max_tokens=3000,
-        messages=[{"role": "user", "content": f"{_PREFILL_PROMPT}\n\nResume:\n{resume_text[:12000]}"}],
-    )
-    raw = msg.content[0].text.strip()
-    raw = re.sub(r"^```[a-z]*\n?", "", raw)
-    raw = re.sub(r"\n?```$", "", raw)
-    try:
-        return json.loads(raw)
-    except Exception:
-        return {}
-
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
@@ -197,7 +156,7 @@ async def upload_profile_resume(
 
     resume_text = parsed.get("raw_text", "")
     try:
-        prefilled = await _ai_prefill(resume_text)
+        prefilled = await prefill_full_profile(resume_text)
     except Exception:
         prefilled = {}  # AI extraction is best-effort; proceed without it
 
