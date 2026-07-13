@@ -34,11 +34,33 @@ jobs:
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
 
+      # The regression gate calls the Anthropic API, so it needs a key. By
+      # design the key is NOT required to be stored in GitHub: when the
+      # ANTHROPIC_API_KEY secret is absent, this step SKIPS and the job stays
+      # green — run the harness locally before merging instead (the key lives
+      # only in your gitignored backend/.env). Add the secret later to turn the
+      # automatic gate back on with zero other changes.
+      - name: Check for API key
+        id: key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ANTHROPIC_API_KEY secret not set — skipping the eval regression gate. Run backend/tests/pipeline_harness.py locally before merging."
+          fi
+
       - name: Run eval harness (free tier — regression gate)
+        if: steps.key.outputs.present == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # MongoDB not needed for CI — harness records to memory silently
           MONGODB_URI: mongodb://localhost/ci_harness
+          # Force UTF-8 so the harness's box-drawing output can't crash on a
+          # non-UTF-8 runner locale.
+          PYTHONIOENCODING: utf-8
         run: |
           python backend/tests/pipeline_harness.py \
             backend/tests/fixtures/sample_cv.txt \
@@ -48,7 +70,9 @@ jobs:
         # Exit code 1 = generated score < original score (regression) → job fails
 
       - name: Upload harness report
-        if: always()
+        # Only when the gate actually ran — a skipped run writes no report, and
+        # upload-artifact would otherwise warn/fail on "no files found".
+        if: always() && steps.key.outputs.present == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: harness-report-${{ github.sha }}
