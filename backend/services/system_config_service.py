@@ -17,6 +17,10 @@ _DOC_ID = "global"
 # All recognised flags + their defaults. Updates are restricted to these keys.
 DEFAULTS: dict = {
     "alerts_enabled": True,
+    # App-wide display timezone (IANA name) for rendering stored-UTC timestamps.
+    # Single source of truth — the frontend reads it via /api/config/app and the
+    # admin edits it in the System tab; nothing hardcodes a zone. Default "UTC".
+    "display_timezone": "UTC",
     # Title-token synonyms for the job-match scorer (job_match_service).
     # DATA, not code — editable in Mongo without a deploy (no role/title
     # knowledge is hardcoded in the scorer itself).
@@ -72,6 +76,15 @@ def _validate_palette(value) -> list[str]:
     return out
 
 
+def _validate_timezone(value) -> str:
+    """Accept only a valid IANA timezone name (or 'UTC'); rejects anything else."""
+    from zoneinfo import available_timezones
+    tz = str(value or "UTC").strip()
+    if tz != "UTC" and tz not in available_timezones():
+        raise ValueError(f"{tz!r} is not a valid IANA timezone name")
+    return tz
+
+
 async def update_system_config(patch: dict, db=None) -> dict:
     """Update recognised flags only; returns the full merged config."""
     db = db if db is not None else get_db()
@@ -79,6 +92,8 @@ async def update_system_config(patch: dict, db=None) -> dict:
                for k, v in patch.items() if k in DEFAULTS}
     if "template_accent_palette" in allowed:
         allowed["template_accent_palette"] = _validate_palette(allowed["template_accent_palette"])
+    if "display_timezone" in allowed:
+        allowed["display_timezone"] = _validate_timezone(allowed["display_timezone"])
     if allowed:
         await db.system_config.update_one({"_id": _DOC_ID}, {"$set": allowed}, upsert=True)
     return await get_system_config(db)

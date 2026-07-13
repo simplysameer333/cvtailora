@@ -10,6 +10,7 @@ import {
   savedResumeDownloadUrl, createResumeShare, listResumeShares, type SavedResume,
 } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
+import { formatDateUtc } from "@/lib/datetime";
 import { hasFeature, getTierLimit } from "@/lib/config";
 import ResumePreviewModal from "./ResumePreviewModal";
 import ShareResumeModal from "./ShareResumeModal";
@@ -209,7 +210,7 @@ export default function ResumeLibrary({
                       {r.type === "tailored" ? "Tailored" : "Uploaded"}
                     </span>
                     {r.tailored_for_employer && <span className="truncate">{r.tailored_for_employer}</span>}
-                    {new Date(r.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    {formatDateUtc(r.created_at, { month: "short", day: "numeric", year: undefined })}
                   </p>
                 </div>
 

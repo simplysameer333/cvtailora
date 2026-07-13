@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { FiX, FiDownload, FiZap, FiFileText, FiUpload, FiLoader } from "react-icons/fi";
 import { listSavedResumes, savedResumeDownloadUrl, type SavedResume } from "@/lib/api";
+import { formatDateUtc } from "@/lib/datetime";
 import Link from "next/link";
 
 interface Props {
@@ -13,7 +14,7 @@ interface Props {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return formatDateUtc(iso);
 }
 
 export default function ResumePickerModal({ open, onClose, onTailorNew, jobTitle, employerName }: Props) {

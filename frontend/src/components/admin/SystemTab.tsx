@@ -1,9 +1,28 @@
 "use client";
 import { useEffect, useState } from "react";
 import { fetchSystemConfig, updateSystemConfig, type SystemConfig } from "@/lib/api";
-import { FiBell, FiToggleLeft, FiToggleRight } from "react-icons/fi";
+import { FiBell, FiToggleLeft, FiToggleRight, FiClock } from "react-icons/fi";
 import AccentPaletteCard from "./AccentPaletteCard";
+import { setDisplayTimezone } from "@/lib/datetime";
 import { Spinner } from "./shared";
+
+// IANA timezone names for the display-timezone selector. Uses the browser's
+// full list when available (Intl.supportedValuesOf), else a small curated
+// fallback — the backend validates the final choice regardless.
+function _timezoneOptions(): string[] {
+  const intl = Intl as unknown as { supportedValuesOf?: (k: string) => string[] };
+  if (typeof intl.supportedValuesOf === "function") {
+    try {
+      const all = intl.supportedValuesOf("timeZone");
+      return all.includes("UTC") ? all : ["UTC", ...all];
+    } catch { /* fall through */ }
+  }
+  return [
+    "UTC", "Europe/London", "Europe/Paris", "Europe/Berlin", "Asia/Kolkata",
+    "Asia/Dubai", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney",
+    "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+  ];
+}
 
 // ── System tab (global master switches) ────────────────────────────────────────
 
@@ -25,6 +44,18 @@ function SystemTab() {
     try {
       setCfg(await updateSystemConfig({ alerts_enabled: next }));
       flash(next ? "Alerts resumed" : "Alerts paused");
+    } catch { flash("Failed"); }
+    finally { setSaving(false); }
+  }
+
+  async function changeTimezone(tz: string) {
+    if (!cfg || tz === cfg.display_timezone) return;
+    setSaving(true);
+    try {
+      const updated = await updateSystemConfig({ display_timezone: tz });
+      setCfg(updated);
+      setDisplayTimezone(updated.display_timezone);  // apply app-wide immediately
+      flash("Timezone updated");
     } catch { flash("Failed"); }
     finally { setSaving(false); }
   }
@@ -59,6 +90,36 @@ function SystemTab() {
             <button onClick={toggleAlerts} disabled={saving} title={on ? "Pause all alerts" : "Resume alerts"} className="disabled:opacity-50">
               {on ? <FiToggleRight className="w-9 h-9 text-teal-600" /> : <FiToggleLeft className="w-9 h-9 text-slate-300" />}
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Display timezone — single source of truth for rendering stored-UTC
+          timestamps across the whole app (no zone hardcoded anywhere). */}
+      <div className="card">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 text-slate-500">
+            <FiClock className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-slate-900">Display Timezone</h3>
+            <p className="text-sm text-slate-500 mt-0.5 max-w-xl">
+              All dates and times across the app render in this timezone (data is
+              stored in UTC). Applies to every user.
+            </p>
+            <div className="mt-3 flex items-center gap-3">
+              <select
+                value={cfg.display_timezone}
+                disabled={saving}
+                onChange={(e) => changeTimezone(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-50"
+              >
+                {_timezoneOptions().map((tz) => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-400">Current: {cfg.display_timezone}</span>
+            </div>
           </div>
         </div>
       </div>

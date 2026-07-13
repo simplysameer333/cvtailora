@@ -13,6 +13,7 @@ import {
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature } from "@/lib/config";
 import { getTierLimitDynamic } from "@/lib/tierConfig";
+import { formatDateUtc, formatDateTimeUtc } from "@/lib/datetime";
 
 const ACTION_META: Record<string, { icon: React.ComponentType<{ className?: string }>; label: (m: Record<string, unknown>) => string; color: string }> = {
   "job_alert.email_sent": {
@@ -127,12 +128,12 @@ function ActivityBars({ daily }: { daily: { date: string; count: number }[] }) {
             key={d.date}
             className="flex-1 rounded-t-sm bg-teal-500/80 hover:bg-teal-600 transition-colors min-w-[4px]"
             style={{ height: `${Math.max(d.count > 0 ? 8 : 2, (d.count / max) * 100)}%` }}
-            title={`${new Date(d.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}: ${d.count} action${d.count === 1 ? "" : "s"}`}
+            title={`${formatDateUtc(d.date, { month: "short", day: "numeric", year: undefined })}: ${d.count} action${d.count === 1 ? "" : "s"}`}
           />
         ))}
       </div>
       <div className="flex justify-between text-[10px] text-slate-400 mt-1.5">
-        <span>{new Date(days[0].date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+        <span>{formatDateUtc(days[0].date, { month: "short", day: "numeric", year: undefined })}</span>
         <span>Today</span>
       </div>
     </div>
@@ -174,7 +175,7 @@ function QualityTrend() {
               const color = s.min_score >= 80 ? "bg-teal-500" : s.min_score >= 65 ? "bg-amber-400" : "bg-red-400";
               return (
                 <div key={s.id} className="flex-1 h-full flex flex-col items-center justify-end gap-1 min-w-0"
-                  title={`${s.target_role || "Resume"} — ${s.min_score}/100 (${new Date(s.created_at).toLocaleDateString()})`}>
+                  title={`${s.target_role || "Resume"} — ${s.min_score}/100 (${formatDateUtc(s.created_at)})`}>
                   <span className="text-[10px] font-semibold text-slate-500">{s.min_score}</span>
                   <div className={`w-full rounded-t-md ${color}`} style={{ height: `${Math.max(6, s.min_score)}%` }} />
                 </div>
@@ -364,7 +365,7 @@ function ResumeHistory() {
                     {s.target_role || <span className="text-slate-400 italic font-normal">No role specified</span>}
                   </p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {new Date(s.created_at).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    {formatDateTimeUtc(s.created_at, { day: "numeric" })}
                   </p>
                 </div>
               </div>
@@ -502,7 +503,7 @@ export default function AnalyticsPage() {
                     )}
                   </div>
                   <span className="text-xs text-slate-400 shrink-0">
-                    {new Date(entry.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    {formatDateTimeUtc(entry.created_at, { day: "numeric", year: undefined })}
                   </span>
                 </div>
               );

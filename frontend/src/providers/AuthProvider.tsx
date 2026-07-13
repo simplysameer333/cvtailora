@@ -1,8 +1,9 @@
 "use client";
 import { SessionProvider, useSession, signOut } from "next-auth/react";
 import { useEffect, useRef } from "react";
-import { setApiToken, fetchTierConfig } from "@/lib/api";
+import { setApiToken, fetchTierConfig, fetchAppConfig } from "@/lib/api";
 import { setTierConfig } from "@/lib/tierConfig";
+import { setDisplayTimezone } from "@/lib/datetime";
 import DevProvider from "./DevProvider";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
@@ -25,6 +26,11 @@ function TierConfigLoader() {
     fetchTierConfig()
       .then((cfg) => setTierConfig(cfg.features, cfg.limits, cfg.pricing, cfg.currency_zones))
       .catch(() => { /* keep hardcoded defaults on network failure */ });
+    // App-wide display timezone — single source of truth for rendering
+    // stored-UTC timestamps (falls back to "UTC" on failure).
+    fetchAppConfig()
+      .then((cfg) => setDisplayTimezone(cfg.display_timezone))
+      .catch(() => { /* datetime.ts already defaults to UTC */ });
   }, []);
   return null;
 }

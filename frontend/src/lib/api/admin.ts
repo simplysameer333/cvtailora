@@ -150,6 +150,8 @@ export interface SystemConfig {
   template_accent_palette: string[];
   /** Title-token synonyms for the job-match scorer (abbrev → expansion tokens). */
   match_token_synonyms: Record<string, string[]>;
+  /** App-wide display timezone (IANA name) for rendering stored-UTC timestamps. */
+  display_timezone: string;
 }
 
 // ── Admin: scheduler run audit ────────────────────────────────────────────────

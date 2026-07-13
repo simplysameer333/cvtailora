@@ -372,6 +372,7 @@ class SystemConfigBody(BaseModel):
     alerts_enabled: bool | None = None
     template_accent_palette: list[str] | None = None
     match_token_synonyms: dict[str, list[str]] | None = None
+    display_timezone: str | None = None
 
 
 @router.put("/admin/system-config")

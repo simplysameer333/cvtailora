@@ -1,14 +1,24 @@
-"""Tier config endpoints.
+"""Config endpoints.
 
 GET  /api/config/tiers         — public; returns live feature gates + limits
+GET  /api/config/app           — public; non-sensitive app config (display timezone)
 PUT  /api/admin/config/tiers   — superadmin; updates MongoDB + reloads cache
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from dependencies.auth import require_superadmin
 from services import tier_config_service
+from services import system_config_service
 
 router = APIRouter()
+
+
+@router.get("/config/app")
+async def get_app_config():
+    """Public, non-sensitive app config for the frontend. Currently just the
+    display timezone (single source of truth for rendering stored-UTC times)."""
+    cfg = await system_config_service.get_system_config()
+    return {"display_timezone": cfg.get("display_timezone", "UTC")}
 
 
 class CurrencyPricing(BaseModel):

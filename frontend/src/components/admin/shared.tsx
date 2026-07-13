@@ -1,7 +1,7 @@
 "use client";
 // Shared building blocks for the admin tabs (split out of admin/page.tsx).
 import { FiX, FiClock, FiRefreshCw } from "react-icons/fi";
-import { formatDateTimeLocal } from "@/lib/datetime";
+import { formatDateTimeUtc, formatDateUtc } from "@/lib/datetime";
 
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -84,12 +84,11 @@ function AccountTypeBadge({ tier }: { tier?: string }) {
 }
 
 function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDateUtc(iso);
 }
 
 function formatDateTime(iso: string | null) {
-  return formatDateTimeLocal(iso);
+  return formatDateTimeUtc(iso);
 }
 
 function timeAgo(date: Date | null): string {

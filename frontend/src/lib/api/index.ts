@@ -3,6 +3,7 @@
 
 export { default } from "./client";
 export * from "./client";
+export * from "./app";
 export * from "./tiers";
 export * from "./cvScore";
 export * from "./linkedin";

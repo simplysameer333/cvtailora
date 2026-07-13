@@ -10,6 +10,7 @@ import {
 } from "react-icons/fi";
 import type { Job, JobAlert } from "@/lib/api";
 import JobMatchBadge from "@/components/JobMatchBadge";
+import { formatDateTimeUtc } from "@/lib/datetime";
 
 function timeAgo(iso?: string) {
   if (!iso) return null;
@@ -236,11 +237,10 @@ function AlertCard({
     ...alert.location_tags,
   ];
   const lastSent = alert.last_sent_at ? timeAgo(alert.last_sent_at) : null;
-  // "Last checked" renders in the VIEWER'S local timezone (toLocaleString) —
-  // the backend stores UTC; the browser localises it.
+  // "Last checked" renders in the app-wide configured display timezone
+  // (backend stores UTC) — see lib/datetime.
   const lastChecked = alert.last_checked_at
-    ? new Date(alert.last_checked_at + (alert.last_checked_at.endsWith("Z") ? "" : "Z"))
-        .toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    ? formatDateTimeUtc(alert.last_checked_at, { year: undefined })
     : null;
 
   return (

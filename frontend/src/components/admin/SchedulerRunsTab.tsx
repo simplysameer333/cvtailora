@@ -1,14 +1,14 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { FiClock, FiMail, FiInbox, FiLoader, FiChevronDown, FiChevronRight } from "react-icons/fi";
 import { fetchSchedulerRuns, type SchedulerRun } from "@/lib/api";
 
-import { formatDateTimeLocal } from "@/lib/datetime";
+import { formatDateTimeUtc } from "@/lib/datetime";
 
-/** All timestamps render in the ADMIN'S local timezone with an explicit
- *  timezone label (user request) — the backend stores/serves UTC. */
-function localTime(utcIso: string): string {
-  return formatDateTimeLocal(utcIso, {
+/** All timestamps render in UTC with an explicit "UTC" label (user request) —
+ *  the backend stores/serves UTC, and the scheduler itself runs on UTC. */
+function schedulerTime(utcIso: string): string {
+  return formatDateTimeUtc(utcIso, {
     weekday: "short", day: "numeric", year: undefined,
   });
 }
@@ -34,7 +34,7 @@ function DeliveryRow({ d }: { d: SchedulerRun["deliveries"][number] }) {
         }`}>
           {d.type === "sent" ? `${d.job_count} job${d.job_count !== 1 ? "s" : ""} sent` : "no-results email"}
         </span>
-        <span className="shrink-0 text-[11px] text-slate-400">{localTime(d.at)}</span>
+        <span className="shrink-0 text-[11px] text-slate-400">{schedulerTime(d.at)}</span>
       </button>
 
       {open && (
@@ -51,8 +51,9 @@ function DeliveryRow({ d }: { d: SchedulerRun["deliveries"][number] }) {
 }
 
 /**
- * Admin → Alert Scheduler: when each daily run happened (local timezone) and
- * exactly what it delivered — recipient, alert, and the jobs emailed.
+ * Admin → Alert Scheduler: when each daily run happened and exactly what it
+ * delivered — recipient, alert, and the jobs emailed. Times in the configured
+ * display timezone.
  */
 export default function SchedulerRunsTab() {
   const [runs, setRuns] = useState<SchedulerRun[] | null>(null);
@@ -73,7 +74,7 @@ export default function SchedulerRunsTab() {
     <div className="space-y-4">
       <p className="text-sm text-slate-500">
         Daily alert-scheduler runs (newest first) and the emails each run delivered.
-        Times shown in your local timezone.
+        Times shown in the app&apos;s configured display timezone.
       </p>
 
       {runs.length === 0 && (
@@ -86,7 +87,7 @@ export default function SchedulerRunsTab() {
         <div key={run.date} className="card">
           <div className="flex items-center gap-2 mb-3">
             <FiClock className="w-4 h-4 text-brand-600" />
-            <h3 className="font-semibold text-slate-900 text-sm">{localTime(run.started_at)}</h3>
+            <h3 className="font-semibold text-slate-900 text-sm">{schedulerTime(run.started_at)}</h3>
             <span className="text-xs text-slate-400">({run.date} UTC run)</span>
             <span className="ml-auto text-xs font-medium text-slate-500">
               {run.deliveries.length} email{run.deliveries.length !== 1 ? "s" : ""}
