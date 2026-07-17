@@ -215,6 +215,26 @@ export interface CategoryScore {
   score: number;
 }
 
+/** One concrete, user-supplied fix the AI cannot make itself (real data it
+ *  must never fabricate) — surfaced so the user can add it and regenerate. */
+export interface UserAction {
+  category: string;
+  priority: "critical" | "high" | "medium";
+  action: string;
+  example: string;
+  score_impact: number;
+}
+
+export interface UserActionsNeeded {
+  threshold_not_met: boolean;
+  current_score: number;
+  target_score: number;
+  points_needed: number;
+  estimated_points_available: number;
+  message: string;
+  actions: UserAction[];
+}
+
 export interface EvalSummary {
   cycles: number;
   all_passed: boolean;
@@ -240,6 +260,8 @@ export interface EvalSummary {
     truncated?: boolean;
     page_fit?: string;
   } | null;
+  /** Score-blocking fixes only the user can supply (present when below target). */
+  user_actions_needed?: UserActionsNeeded | null;
 }
 
 export interface PipelineResult {

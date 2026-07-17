@@ -3,8 +3,64 @@
  * Resume quality score panel — shared between builder/preview and builder/template.
  * Displays the multi-evaluator score, quality label, progress bar, and cycle count.
  */
-import { FiAward, FiAlertTriangle } from "react-icons/fi";
+import { FiAward, FiAlertTriangle, FiTrendingUp } from "react-icons/fi";
 import type { EvalSummary } from "@/lib/api";
+
+// Priority chip colours — critical (red) → high (amber) → medium (slate).
+const PRIORITY_STYLES: Record<string, string> = {
+  critical: "bg-red-100 text-red-700",
+  high:     "bg-amber-100 text-amber-700",
+  medium:   "bg-slate-100 text-slate-600",
+};
+
+/**
+ * "What only you can add" — the score-blocking fixes the AI cannot make itself
+ * because they require real data it must never fabricate (a team size, a
+ * metric, a missing contact field). Surfaced so the user can add them and
+ * regenerate for a higher score. Anti-hallucination checked server-side, so
+ * anything already in the CV is never shown here.
+ */
+function UserActionsCard({ summary }: { summary: EvalSummary }) {
+  const ua = summary.user_actions_needed;
+  if (!ua || !ua.actions || ua.actions.length === 0) return null;
+
+  return (
+    <div className="mt-3 rounded-xl border border-amber-200 bg-white/80 p-3.5">
+      <div className="flex items-center gap-2 mb-1.5">
+        <FiTrendingUp className="w-4 h-4 text-amber-600 shrink-0" />
+        <span className="font-semibold text-sm text-slate-800">Add these to raise your score</span>
+        {ua.estimated_points_available > 0 && (
+          <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">
+            +{ua.estimated_points_available} pts possible
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-slate-500 leading-relaxed mb-2.5">
+        {ua.current_score}/100 — {ua.points_needed} below your {ua.target_score} target. These are real
+        details only you can add; the AI never invents facts.
+      </p>
+      <ul className="flex flex-col gap-2">
+        {ua.actions.map((a, i) => (
+          <li key={i} className="flex items-start gap-2">
+            <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${PRIORITY_STYLES[a.priority] ?? PRIORITY_STYLES.medium}`}>
+              {a.priority}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-slate-800">
+                {a.action}
+                {a.score_impact > 0 && <span className="text-slate-400 font-normal"> · +{a.score_impact}</span>}
+              </p>
+              {a.example && <p className="text-[11px] text-slate-400 mt-0.5 truncate">e.g. {a.example}</p>}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-slate-400 mt-2.5">
+        Update these in your CV or profile, then regenerate for a higher score.
+      </p>
+    </div>
+  );
+}
 
 function qualityLabel(score: number, threshold: number): string {
   if (score >= threshold + 30) return "Excellent";
@@ -144,6 +200,7 @@ export function EvalSummaryPanel({ summary }: { summary: EvalSummary }) {
         )}
       </div>
       <ScoreBreakdown summary={summary} />
+      <UserActionsCard summary={summary} />
     </div>
   );
 }
