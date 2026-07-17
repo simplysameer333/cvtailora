@@ -69,11 +69,25 @@ export async function generateResume(
   additionalInstructions?: string,
   onProgress?: (status: GenerationJobStatus, elapsedMs: number) => void,
 ): Promise<PipelineResult | GeneratedResume> {
-  const { data } = await api.post(
-    `/api/generate?session_id=${sessionId}`,
-    { section: section ?? null, additional_instructions: additionalInstructions ?? null },
-    { timeout: 270_000 },  // section regen is still synchronous; job-start is instant
-  );
+  let data: unknown;
+  try {
+    ({ data } = await api.post(
+      `/api/generate?session_id=${sessionId}`,
+      { section: section ?? null, additional_instructions: additionalInstructions ?? null },
+      { timeout: 270_000 },  // section regen is still synchronous; job-start is instant
+    ));
+  } catch (e) {
+    // Builder sessions auto-expire after 24h; retrying an expired one 404s with
+    // "Session not found." Surface that distinctly so the UI can send the user
+    // to start a fresh session instead of looping on a dead one.
+    const ax = e as { response?: { status?: number; data?: { detail?: string } } };
+    if (ax.response?.status === 404 && /session not found/i.test(ax.response?.data?.detail || "")) {
+      const err = new Error("Your builder session expired. Please start a new resume.") as Error & { sessionExpired?: boolean };
+      err.sessionExpired = true;
+      throw err;
+    }
+    throw e;
+  }
   if (!(data as { async?: boolean })?.async) {
     return data as PipelineResult | GeneratedResume;  // section regen / legacy payload
   }

@@ -11,6 +11,7 @@ state persistence lives in services/generation_jobs.py. This module only:
 import asyncio
 import hashlib
 import logging
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from bson import ObjectId
 from pydantic import BaseModel
@@ -147,7 +148,7 @@ async def generate(
         f"{resume_text[:8000]}|{job_description[:4000]}|{target_role}|{tone}|{template_id}|{sample_fp}|{extra_instr[:500]}".encode()
     ).hexdigest()
 
-    job, started = await gen_jobs.acquire(db, session_id, input_hash)
+    job, started = await gen_jobs.acquire(db, session_id, input_hash, extra_instr)
     if started:
         asyncio.create_task(run_full_generation(session_id, extra_instr, user, input_hash))
     else:
@@ -156,14 +157,33 @@ async def generate(
 
 
 @router.get("/generate/status")
-async def generation_status(session_id: str):
+async def generation_status(session_id: str, user: dict | None = Depends(get_optional_user)):
     """Progress/result polling for the async generation job. Each poll is a
     short request — immune to the idle-connection kills that broke the old
-    single long-lived /generate call."""
+    single long-lived /generate call.
+
+    Self-healing: if the job is still "running" but its heartbeat died (the
+    background task was lost to a server restart/crash mid-run), the poll
+    atomically takes it over and resumes it from the last checkpoint — so the
+    page recovers on its own instead of spinning until the client's timeout.
+    """
     db = get_db()
     job = await gen_jobs.get(db, session_id)
     if not job:
         raise HTTPException(404, "No generation job for this session.")
+
+    if gen_jobs.is_stale(job, datetime.utcnow()):
+        claimed = await gen_jobs.claim_stale(db, session_id)
+        if claimed:
+            logger.warning(
+                "[generate] session %s: orphaned run detected (heartbeat dead) — "
+                "resuming from checkpoint as attempt %s",
+                session_id, claimed.get("attempt"),
+            )
+            asyncio.create_task(run_full_generation(
+                session_id, claimed.get("extra_instr", ""), user, claimed.get("input_hash", ""),
+            ))
+            job = claimed
     return gen_jobs.serialize(job)
 
 

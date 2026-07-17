@@ -16,7 +16,9 @@ One job doc per session (unique index). TTL mirrors the 24h session lifetime.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from pymongo import ReturnDocument
 
 logger = logging.getLogger("cvtailora")
 
@@ -44,11 +46,15 @@ def carry_checkpoint(prev: dict | None, input_hash: str) -> dict:
     return prev.get("checkpoint") or {}
 
 
-async def acquire(db, session_id: str, input_hash: str) -> tuple[dict, bool]:
+async def acquire(db, session_id: str, input_hash: str, extra_instr: str = "") -> tuple[dict, bool]:
     """Start (or attach to) the session's generation job.
 
     Returns (job_doc, started): started=False means a live run is already in
     flight for this session — the caller must NOT spawn a second pipeline.
+
+    `extra_instr` (the request's additional instructions) is persisted so a
+    later auto-resume of an orphaned run can rebuild the exact same inputs
+    without the original HTTP body.
     """
     now = datetime.utcnow()
     prev = await db.generation_jobs.find_one({"session_id": session_id})
@@ -59,6 +65,7 @@ async def acquire(db, session_id: str, input_hash: str) -> tuple[dict, bool]:
     doc = {
         "session_id": session_id,
         "input_hash": input_hash,
+        "extra_instr": extra_instr,
         "status": "running",
         "stage": "starting",
         "attempt": (prev or {}).get("attempt", 0) + 1,
@@ -76,6 +83,26 @@ async def acquire(db, session_id: str, input_hash: str) -> tuple[dict, bool]:
             doc["checkpoint"].get("cycle"), doc["checkpoint"].get("best_min_score"),
         )
     return doc, True
+
+
+async def claim_stale(db, session_id: str, now: datetime | None = None) -> dict | None:
+    """Atomically take over a stale (crashed) running job so a poller can resume it.
+
+    A running job whose heartbeat stopped means its in-process background task
+    was lost (server restart/crash mid-run). This flips it to a fresh running
+    state (bumped attempt) ONLY if it is still stale at write time, so exactly
+    one concurrent caller wins the claim and re-spawns the pipeline. Returns the
+    claimed job on success, else None (fresh heartbeat, already claimed, or the
+    job finished in the meantime).
+    """
+    now = now or datetime.utcnow()
+    threshold = now - timedelta(seconds=STALE_AFTER_S)
+    return await db.generation_jobs.find_one_and_update(
+        {"session_id": session_id, "status": "running", "updated_at": {"$lt": threshold}},
+        {"$set": {"stage": "resuming after interruption", "updated_at": now},
+         "$inc": {"attempt": 1}},
+        return_document=ReturnDocument.AFTER,
+    )
 
 
 async def checkpoint(db, session_id: str, stage: str, data: dict | None = None) -> None:

@@ -65,6 +65,7 @@ export default function PreviewPage() {
     return saved === null ? true : saved === "true";
   });
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(0);
   // "Taking longer than usual" note — set from real job progress (server-side
   // checkpoint retries), shown instead of ever surfacing a recoverable error.
@@ -160,6 +161,7 @@ export default function PreviewPage() {
     }
 
     setGenerationError(null);
+    setSessionExpired(false);
     if (!section) await persistTemplateToSession(sessionId);
 
     const additionalInstructions = section
@@ -191,12 +193,21 @@ export default function PreviewPage() {
         toast.success(section ? `${section} regenerated!` : "Resume generated!");
       }
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } }; code?: string; message?: string };
-      const detail = e?.response?.data?.detail;
-      const isTimeout = e?.code === "ECONNABORTED" || e?.message?.includes("timeout");
-      const msg = detail
-        ?? (isTimeout ? "Generation timed out — the AI is taking longer than usual. Please try again." : "Resume generation failed. Please try again.");
-      setGenerationError(msg);
+      const e = err as { response?: { data?: { detail?: string } }; code?: string; message?: string; sessionExpired?: boolean };
+      if (e?.sessionExpired) {
+        // Expired session — retrying the same session would just 404 again, so
+        // send the user to start a fresh one instead of offering "Try again".
+        setSessionExpired(true);
+        setGenerationError(
+          "Your builder session expired — sessions are kept for 24 hours. Start a new resume to continue.",
+        );
+      } else {
+        const detail = e?.response?.data?.detail;
+        const isTimeout = e?.code === "ECONNABORTED" || e?.message?.includes("timeout");
+        const msg = detail
+          ?? (isTimeout ? "Generation timed out — the AI is taking longer than usual. Please try again." : "Resume generation failed. Please try again.");
+        setGenerationError(msg);
+      }
     } finally {
       setLoading(false);
       setLoadingSection(null);
@@ -339,6 +350,28 @@ export default function PreviewPage() {
             </p>
           )}
         </div>
+      </div>
+    );
+  }
+
+  // Session expired — a distinct, non-alarming state. Retrying the same session
+  // would only 404 again, so the only action offered is starting a fresh one.
+  if (!resume && sessionExpired) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-5">
+        <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center">
+          <FiRefreshCw className="w-7 h-7 text-amber-500" />
+        </div>
+        <div className="text-center max-w-md">
+          <h2 className="text-lg font-semibold text-slate-800">Your session expired</h2>
+          <p className="text-sm text-slate-500 mt-2">{generationError}</p>
+        </div>
+        <button
+          onClick={() => router.push("/builder/upload")}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition"
+        >
+          Start a new resume
+        </button>
       </div>
     );
   }
