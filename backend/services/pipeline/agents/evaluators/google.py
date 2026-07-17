@@ -29,6 +29,8 @@ class GoogleEvaluatorAgent(BaseEvaluatorAgent):
             model=settings.google_evaluator_model,
             google_api_key=settings.google_api_key,
             max_output_tokens=1024,
+            # Scoring must be repeatable — same résumé, same score (no sampling noise).
+            temperature=0,
             max_retries=2,
         )
 

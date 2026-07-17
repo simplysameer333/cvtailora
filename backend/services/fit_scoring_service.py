@@ -82,6 +82,8 @@ async def score_fit(
         model="claude-haiku-4-5-20251001",
         api_key=settings.anthropic_api_key,
         max_tokens=800,
+        # Scoring must be repeatable — same resume+JD, same fit score.
+        temperature=0,
         timeout=30,
         max_retries=2,
     )
