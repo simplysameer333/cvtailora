@@ -55,6 +55,29 @@ PROMPT_CATEGORIES: dict[str, str] = {
 }
 
 
+# Placeholders each overridable prompt MUST retain — the pipeline substitutes
+# real data into them (via .format()/.replace() at call time). An override that
+# drops one would silently break the call or omit the candidate's own data
+# (e.g. a quality prompt without {resume_text} scores nothing), so writes that
+# remove a required placeholder are rejected. Verified against each prompt's
+# consumption site. Keys not listed have no required placeholders.
+REQUIRED_PLACEHOLDERS: dict[str, list[str]] = {
+    "generator_system":         ["{tone}", "{page_rules}"],
+    "job_analyzer_system":      ["{n}"],
+    "anthropic_evaluator_base": ["{scoring_criteria}", "{evaluator_context}"],
+    "openai_evaluator_base":    ["{scoring_criteria}", "{evaluator_context}"],
+    "google_evaluator_base":    ["{scoring_criteria}", "{evaluator_context}"],
+    "cv_score_quality_prompt":  ["{resume_text}"],
+    "cv_score_extract_prompt":  ["{resume_text}"],
+    "cv_score_grammar_prompt":  ["{resume_text}"],
+}
+
+
+def missing_placeholders(key: str, body: str) -> list[str]:
+    """Pure: required placeholders absent from an override body ([] = valid)."""
+    return [p for p in REQUIRED_PLACEHOLDERS.get(key, []) if p not in body]
+
+
 async def get_override(key: str) -> str | None:
     """Return the DB override body for key, or None if not set."""
     db = get_db()

@@ -19,6 +19,7 @@ from database import get_db
 from services.audit import log_audit
 from services.prompt_store import (
     PROMPT_KEYS, PROMPT_CATEGORIES, get_override, set_override, delete_override, list_overrides,
+    missing_placeholders,
 )
 
 # Import hardcoded defaults so admin UI can show them when no override exists
@@ -263,20 +264,32 @@ class PromptBody(BaseModel):
 
 
 @router.put("/admin/prompts/{key}")
-async def update_prompt(key: str, payload: PromptBody, _: dict = Depends(require_superadmin)):
+async def update_prompt(key: str, payload: PromptBody, admin: dict = Depends(require_superadmin)):
     if key not in PROMPT_KEYS:
         raise HTTPException(400, f"Unknown prompt key: {key}")
-    if not payload.body.strip():
+    body = payload.body.strip()
+    if not body:
         raise HTTPException(400, "Prompt body cannot be empty.")
-    await set_override(key, payload.body.strip())
+    # Validation gate: an override that drops a required placeholder would break
+    # the call or omit real data — reject it before it can be saved.
+    missing = missing_placeholders(key, body)
+    if missing:
+        raise HTTPException(
+            400,
+            "This prompt must keep these placeholders (the pipeline substitutes "
+            f"real data into them): {', '.join(missing)}.",
+        )
+    await set_override(key, body)
+    log_audit(admin, "admin.prompt.update", {"key": key})
     return {"key": key, "saved": True}
 
 
 @router.delete("/admin/prompts/{key}")
-async def reset_prompt(key: str, _: dict = Depends(require_superadmin)):
+async def reset_prompt(key: str, admin: dict = Depends(require_superadmin)):
     if key not in PROMPT_KEYS:
         raise HTTPException(400, f"Unknown prompt key: {key}")
     await delete_override(key)
+    log_audit(admin, "admin.prompt.reset", {"key": key})
     return {"key": key, "reset": True, "default_body": DEFAULTS.get(key, "")}
 
 
@@ -313,7 +326,7 @@ async def admin_list_professions(_: dict = Depends(require_superadmin)):
 
 
 @router.post("/admin/professions", status_code=201)
-async def admin_create_profession(body: ProfessionUpsertBody, _: dict = Depends(require_superadmin)):
+async def admin_create_profession(body: ProfessionUpsertBody, admin: dict = Depends(require_superadmin)):
     db = get_db()
     if await db.professions.find_one({"slug": body.slug}):
         raise HTTPException(409, f"Profession '{body.slug}' already exists.")
@@ -322,11 +335,12 @@ async def admin_create_profession(body: ProfessionUpsertBody, _: dict = Depends(
     doc = {**body.model_dump(), "is_active": True, "created_at": now, "updated_at": now}
     await db.professions.insert_one(doc)
     doc.pop("_id", None)
+    log_audit(admin, "admin.profession.create", {"slug": body.slug})
     return doc
 
 
 @router.patch("/admin/professions/{slug}")
-async def admin_update_profession(slug: str, body: ProfessionPatchBody, _: dict = Depends(require_superadmin)):
+async def admin_update_profession(slug: str, body: ProfessionPatchBody, admin: dict = Depends(require_superadmin)):
     db = get_db()
     from datetime import datetime
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -339,11 +353,12 @@ async def admin_update_profession(slug: str, body: ProfessionPatchBody, _: dict 
     if not result:
         raise HTTPException(404, f"Profession '{slug}' not found.")
     result.pop("_id", None)
+    log_audit(admin, "admin.profession.update", {"slug": slug, "fields": sorted(updates.keys())})
     return result
 
 
 @router.delete("/admin/professions/{slug}", status_code=204)
-async def admin_delete_profession(slug: str, _: dict = Depends(require_superadmin)):
+async def admin_delete_profession(slug: str, admin: dict = Depends(require_superadmin)):
     if slug == "generic":
         raise HTTPException(400, "Cannot delete the generic fallback profession.")
     db = get_db()
@@ -354,6 +369,7 @@ async def admin_delete_profession(slug: str, _: dict = Depends(require_superadmi
     )
     if result.modified_count == 0:
         raise HTTPException(404, f"Profession '{slug}' not found.")
+    log_audit(admin, "admin.profession.delete", {"slug": slug})
 
 
 # ── DOCX-template management removed — resume templates now live in the
