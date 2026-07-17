@@ -83,6 +83,10 @@ async def lifespan(app: FastAPI):
     from services.agent_memory import ensure_seed as ensure_agent_memory
     await ensure_agent_memory(get_db())
     start_scheduler()
+    # Durable jobs: resume any generation/CV-check run orphaned by the previous
+    # process (boot sweep + a periodic re-sweep for runs nobody is polling).
+    from services.job_recovery import start_recovery
+    start_recovery()
     yield
     stop_scheduler()
     await disconnect_db()

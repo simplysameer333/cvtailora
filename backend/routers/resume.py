@@ -237,6 +237,13 @@ async def check_resume_quality(
     key = cv_check_flow.job_key(text_hash)
     job, started = await gen_jobs.acquire(db, key, text_hash)
     if started:
+        # Checkpoint the inputs so an orphaned run (server restart mid-analysis)
+        # can be resumed by the recovery sweep without the original upload.
+        await gen_jobs.checkpoint(db, key, "starting", {
+            "raw_text": parsed["raw_text"],
+            "file_ext": file_ext,
+            "user_id": str(user["_id"]) if user else None,
+        })
         asyncio.create_task(cv_check_flow.run_cv_check_job(text_hash, parsed["raw_text"], file_ext, user))
     else:
         logger.info("[cv_score] attached to in-flight check for hash %s…", text_hash[:8])
