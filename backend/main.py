@@ -13,14 +13,14 @@ from config import settings
 from database import connect_db, disconnect_db
 from routers import (
     resume, profile, job_description, generate, export,
-    professions, auth, jobs, account, catalog, resume_library, job_alerts, admin, linkedin,
-    config as config_router, cv_templates, admin_cv_templates,
+    professions, auth, jobs, account, catalog, resume_library, job_alerts, linkedin,
+    config as config_router, cv_templates,
 )
+from routers.admin import router as admin_router   # all superadmin endpoints, grouped
 from routers.cover_letter import router as cover_letter_router
 from routers.interview_prep import router as interview_prep_router
 from routers.resume_share import router as resume_share_router
 from routers.applications import router as applications_router
-from routers.admin_scheduler import router as admin_scheduler_router
 from routers.salary import router as salary_router
 from services.alert_scheduler import start_scheduler, stop_scheduler
 from services import tier_config_service
@@ -158,17 +158,17 @@ app.include_router(account.router, prefix="/api")
 app.include_router(catalog.router, prefix="/api")
 app.include_router(resume_library.router, prefix="/api")
 app.include_router(job_alerts.router, prefix="/api")
-app.include_router(admin.router, prefix="/api")
 app.include_router(linkedin.router, prefix="/api")
 app.include_router(config_router.router, prefix="/api")
 app.include_router(cv_templates.router, prefix="/api")
-app.include_router(admin_cv_templates.router, prefix="/api")
 app.include_router(cover_letter_router, prefix="/api")
 app.include_router(interview_prep_router, prefix="/api")
 app.include_router(salary_router, prefix="/api")
 app.include_router(resume_share_router, prefix="/api")
 app.include_router(applications_router, prefix="/api")
-app.include_router(admin_scheduler_router, prefix="/api")
+# All superadmin endpoints (users, prompts, professions, system config,
+# CV templates, scheduler audit, tier config) — grouped in routers/admin/.
+app.include_router(admin_router, prefix="/api")
 
 
 @app.get("/health")

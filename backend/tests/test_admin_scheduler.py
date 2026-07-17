@@ -5,7 +5,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from routers.admin_scheduler import group_deliveries
+from routers.admin.scheduler import group_deliveries
 
 RUNS = [
     {"date": "2026-07-11", "started_at": datetime(2026, 7, 11, 14, 59, 7)},
