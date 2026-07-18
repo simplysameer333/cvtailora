@@ -41,7 +41,7 @@ export default function ResumePickerModal({ open, onClose, onTailorNew, jobTitle
       <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl flex flex-col max-h-[80vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <div>
+          <div className="min-w-0">
             <h2 className="font-semibold text-slate-900">Use Saved Resume</h2>
             {(jobTitle || employerName) && (
               <p className="text-xs text-slate-500 mt-0.5 truncate">
@@ -49,7 +49,7 @@ export default function ResumePickerModal({ open, onClose, onTailorNew, jobTitle
               </p>
             )}
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
+          <button onClick={onClose} className="shrink-0 text-slate-400 hover:text-slate-600 transition">
             <FiX className="w-5 h-5" />
           </button>
         </div>
