@@ -13,6 +13,7 @@ export const SESSION_KEYS = [
   "cvtailora_instructions",
   "cvtailora_locked_facts",
   "cvtailora_custom_sections",
+  "cvtailora_tailor_context",
 ];
 
 const api = axios.create({

@@ -6,9 +6,11 @@ interface TailorContext {
   title: string;
   employer: string;
   apply_link: string;
+  session_id?: string;
 }
 
 const LS_KEY = "cvtailora_tailor_context";
+const SESSION_KEY = "cvtailora_session_id";
 
 export default function JobContextBanner() {
   const [ctx, setCtx] = useState<TailorContext | null>(null);
@@ -20,8 +22,14 @@ export default function JobContextBanner() {
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as TailorContext;
-        // Only show if we have at least a title — guards against empty/corrupt entries
-        if (parsed?.title) setCtx(parsed);
+        // Show only when the context is bound to the CURRENT builder session.
+        // setSessionId binds a freshly-set tailor context to the new session;
+        // a context from an earlier session (different id) or an unbound one is
+        // stale for this workflow, so we don't surface it here.
+        const current = localStorage.getItem(SESSION_KEY);
+        if (parsed?.title && parsed.session_id && parsed.session_id === current) {
+          setCtx(parsed);
+        }
       }
     } catch { /* ignore corrupt data */ }
   }, []);
