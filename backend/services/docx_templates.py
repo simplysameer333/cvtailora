@@ -134,6 +134,10 @@ class TemplateConfig:
     sidebar_color: str    # sidebar background hex (sidebar / two-equal / left-bar layouts)
     sidebar_ratio: float  # sidebar share of content width (e.g. 0.32)
     banner_bg: str = ""   # override banner background colour (defaults to accent)
+    # Section-heading rule thickness in Word ⅛-pt units (sz), matched to the
+    # HTML template's line width so the DOCX separator looks the same. ~sz 6 = a
+    # 1px line, sz 15 ≈ 2.5px. Per-template in docx_config; 12 (~2px) if unset.
+    rule_size: int = 12
 
 
 _MM_TO_TWIPS = 56.7
@@ -336,8 +340,9 @@ def _render_single(r: dict, cfg: TemplateConfig) -> bytes:
         p = doc.add_paragraph()
         before = 6 if cfg.compact else 10
         _sp(p, before=before, after=2)
+        rs = cfg.rule_size
         if cfg.heading == "rule":
-            _para_border(p, ac, "bottom", 6)
+            _para_border(p, ac, "bottom", rs)
             _add_run(p, title.upper(), size=10, bold=True, color=ac, font=fn)
         elif cfg.heading == "colored":
             _add_run(p, title.upper(), size=10, bold=True, color=ac, font=fn)
@@ -346,11 +351,11 @@ def _render_single(r: dict, cfg: TemplateConfig) -> bytes:
             p.paragraph_format.left_indent = Pt(6)
             _add_run(p, title.upper(), size=10, bold=True, color=ac, font=fn)
         elif cfg.heading == "double-rule":
-            _para_border(p, ac, "top", 8)
-            _para_border(p, ac, "bottom", 4)
+            _para_border(p, ac, "top", rs)
+            _para_border(p, ac, "bottom", max(4, rs // 2))
             _add_run(p, title.upper(), size=10, bold=True, color=ac, font=fn)
         elif cfg.heading == "gold-rule":
-            _para_border(p, ac, "bottom", 8)
+            _para_border(p, ac, "bottom", rs)
             _add_run(p, title.upper(), size=10, bold=True, color=ac, font=fn)
         elif cfg.heading == "circle-marker":
             _add_run(p, "◉  ", size=10, bold=True, color=ac, font=fn)
@@ -490,7 +495,7 @@ def _render_sidebar(r: dict, cfg: TemplateConfig) -> bytes:
     def _main_heading(title: str, container):
         p = container.add_paragraph()
         _sp(p, before=10, after=2)
-        _para_border(p, ac, "bottom", 6)
+        _para_border(p, ac, "bottom", cfg.rule_size)
         _add_run(p, title.upper(), size=10, bold=True, color=ac, font=fn)
 
     def _main_bullet(text: str, container):
@@ -799,6 +804,7 @@ def _config_from_dict(d: dict) -> TemplateConfig:
         sidebar_color=str(d.get("sidebar_color") or "").lstrip("#"),
         sidebar_ratio=float(d.get("sidebar_ratio") or 0.0),
         banner_bg=str(d.get("banner_bg") or "").lstrip("#"),
+        rule_size=int(d.get("rule_size") or base.rule_size),
     )
 
 

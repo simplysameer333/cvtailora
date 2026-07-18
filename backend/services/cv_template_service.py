@@ -95,9 +95,33 @@ def validate_template_html(html: str) -> list[str]:
     return errs
 
 
-def normalize_docx_config(cfg: dict | None) -> dict:
+_DEFAULT_RULE_SIZE = 12  # ~2px section rule when the HTML width can't be read
+
+
+def derive_rule_size(html: str, accent: str) -> int | None:
+    """The section-heading rule thickness (Word ⅛-pt sz) inferred from the
+    template's HTML, so the DOCX separator matches on-screen. Uses the widest
+    accent-coloured horizontal border in the HTML — the section divider.
+    px → sz = round(px * 6) (1px→6, 2px→12, 2.5px→15). None if not detectable.
+
+    Generic on purpose: any template (built-in, admin-authored, or AI-generated)
+    is auto-aligned from its own HTML at save time — no per-template code.
+    """
+    if not html or not accent:
+        return None
+    acc = accent.lstrip("#")
+    widths = [float(w) for w in re.findall(
+        rf"border-(?:top|bottom)\s*:\s*([\d.]+)px\s+solid\s+#{re.escape(acc)}\b", html, re.I)]
+    if not widths:
+        return None
+    return max(6, min(20, round(max(widths) * 6)))
+
+
+def normalize_docx_config(cfg: dict | None, html: str = "") -> dict:
     """Coerce an arbitrary config dict to the allowed vocabulary, filling any
-    invalid/missing field with the safe default."""
+    invalid/missing field with the safe default. When `html` is supplied, the
+    section-rule thickness (`rule_size`) is auto-derived from it so the DOCX
+    matches the HTML — keeping every template (incl. future ones) aligned."""
     cfg = cfg or {}
 
     def pick(key: str, allowed: set[str]) -> str:
@@ -108,8 +132,20 @@ def normalize_docx_config(cfg: dict | None) -> dict:
         ratio = float(cfg.get("sidebar_ratio") or 0.0)
     except (TypeError, ValueError):
         ratio = 0.0
+
+    accent = (str(cfg.get("accent") or _DEFAULT_DOCX["accent"]).lstrip("#") or _DEFAULT_DOCX["accent"])
+    # rule_size: an explicit value wins; else derive from the HTML; else default.
+    explicit = cfg.get("rule_size")
+    if explicit is not None:
+        try:
+            rule_size = max(6, min(20, int(explicit)))
+        except (TypeError, ValueError):
+            rule_size = _DEFAULT_RULE_SIZE
+    else:
+        rule_size = derive_rule_size(html, accent) or _DEFAULT_RULE_SIZE
+
     return {
-        "accent": (str(cfg.get("accent") or _DEFAULT_DOCX["accent"]).lstrip("#") or _DEFAULT_DOCX["accent"]),
+        "accent": accent,
         "header": pick("header", _HEADERS),
         "font": pick("font", _FONTS),
         "heading": pick("heading", _HEADINGS),
@@ -118,6 +154,7 @@ def normalize_docx_config(cfg: dict | None) -> dict:
         "sidebar_color": str(cfg.get("sidebar_color") or "").lstrip("#"),
         "sidebar_ratio": max(0.0, min(0.6, ratio)),
         "banner_bg": str(cfg.get("banner_bg") or "").lstrip("#"),
+        "rule_size": rule_size,
     }
 
 
@@ -223,7 +260,7 @@ async def generate_template(prompt: str, base_html: str | None = None) -> dict:
 
     return {
         "html": html,
-        "docx_config": normalize_docx_config(data.get("docx_config")),
+        "docx_config": normalize_docx_config(data.get("docx_config"), html),
         "suggested_metadata": data.get("suggested_metadata") or {},
     }
 
@@ -282,7 +319,7 @@ async def seed_cv_templates(db) -> int:
             continue
         await db.cv_templates.insert_one({
             **t,
-            "docx_config": normalize_docx_config(t.get("docx_config")),
+            "docx_config": normalize_docx_config(t.get("docx_config"), t.get("html", "")),
             "source": "builtin",
             "is_active": True,
             "sort_order": i,
@@ -348,7 +385,7 @@ async def create_cv_template(db, body: dict) -> dict:
         "tier": body.get("tier") or "plus",
         "accentColor": body.get("accentColor") or "#1d4ed8",
         "html": html,
-        "docx_config": normalize_docx_config(body.get("docx_config")),
+        "docx_config": normalize_docx_config(body.get("docx_config"), html),
         "source": body.get("source") or "ai",
         "is_active": bool(body.get("is_active", True)),
         "show_in_cv_score": bool(body.get("show_in_cv_score", False)),
@@ -385,7 +422,13 @@ async def update_cv_template(db, key: str, patch: dict) -> dict | None:
         if errors:
             raise TemplateGenerationError("; ".join(errors))
     if "docx_config" in update:
-        update["docx_config"] = normalize_docx_config(update["docx_config"])
+        # Derive rule_size from the new HTML, or the existing template's HTML
+        # when only the config is being edited — so edits stay auto-aligned.
+        html_for_derive = update.get("html")
+        if html_for_derive is None:
+            existing = await db.cv_templates.find_one({"key": key}, {"html": 1})
+            html_for_derive = (existing or {}).get("html", "")
+        update["docx_config"] = normalize_docx_config(update["docx_config"], str(html_for_derive))
     if "accent_variants" in update:
         update["accent_variants"] = _normalize_accent_variants(update["accent_variants"] or [])
     if not update:
