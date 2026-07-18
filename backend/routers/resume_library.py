@@ -172,6 +172,71 @@ async def save_from_session(
     return _serialize(doc)
 
 
+# ── Shared: resume text with self-heal ────────────────────────────────────────
+
+async def _resume_text_with_selfheal(db, doc: dict) -> str:
+    """Stored resume_text, re-parsed from the stored file for old rows that
+    predate text capture (result persisted so the heal runs once)."""
+    resume_text = doc.get("resume_text") or ""
+    if not resume_text and doc.get("file_key"):
+        try:
+            storage = get_storage()
+            file_bytes = await storage.load(doc["file_key"])
+            parsed = parse_resume(file_bytes, doc.get("file_name", "resume"))
+            resume_text = parsed.get("raw_text", "")
+            if resume_text:
+                await db.saved_resumes.update_one(
+                    {"_id": doc["_id"]},
+                    {"$set": {"resume_text": resume_text}},
+                )
+        except Exception:
+            pass  # non-fatal — caller decides how to proceed without text
+    return resume_text
+
+
+# ── Prefill account profile from a library resume ─────────────────────────────
+
+@router.post("/account/resumes/{resume_id}/prefill-profile")
+async def prefill_profile_from_resume(
+    resume_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Extract profile fields from a saved resume — same contract as the
+    profile-page upload path: returns {"prefilled": ...} for the client to
+    merge into the form, which the user reviews and saves. Nothing is written
+    to the stored profile here.
+
+    Deliberately NOT feature-gated (all tiers, user decision 2026-07-18):
+    only ownership is checked, so any user who has saved resumes can use it.
+    Reuses the shared profile_prefill_service (one module serves the builder
+    step, the profile upload, and this path).
+    """
+    db = get_db()
+    try:
+        doc = await db.saved_resumes.find_one({"_id": ObjectId(resume_id), "user_id": user["_id"]})
+    except Exception:
+        doc = None
+    if not doc:
+        raise HTTPException(404, "Resume not found.")
+
+    resume_text = await _resume_text_with_selfheal(db, doc)
+    if not resume_text.strip():
+        raise HTTPException(422, "This resume has no readable text to extract from.")
+
+    from services.profile_prefill_service import prefill_full_profile
+    try:
+        prefilled = await prefill_full_profile(resume_text)
+    except Exception:
+        prefilled = {}  # best-effort, same as the upload path
+    if not prefilled:
+        raise HTTPException(502, "Could not extract profile details from this resume — please try again.")
+
+    log_audit(user, "profile.prefill_from_library", {
+        "resume_id": resume_id, "resume_name": doc.get("name", ""),
+    })
+    return {"prefilled": prefilled}
+
+
 # ── Create builder session from library resume ───────────────────────────────
 
 class CreateSessionBody(BaseModel):
@@ -194,24 +259,9 @@ async def create_session_from_library(
     if not doc:
         raise HTTPException(404, "Resume not found.")
 
-    resume_text = doc.get("resume_text") or ""
-
-    # Self-heal: old library entries may have no resume_text — re-parse from stored file
-    if not resume_text and doc.get("file_key"):
-        try:
-            from services.storage import get_storage
-            from services.resume_parser import parse_resume as _parse
-            storage = get_storage()
-            file_bytes = await storage.load(doc["file_key"])
-            parsed = _parse(file_bytes, doc.get("file_name", "resume"))
-            resume_text = parsed.get("raw_text", "")
-            if resume_text:
-                await db.saved_resumes.update_one(
-                    {"_id": ObjectId(resume_id)},
-                    {"$set": {"resume_text": resume_text}},
-                )
-        except Exception:
-            pass  # non-fatal — session still created, prefill falls back to user_profile
+    # Self-heal: old library entries may have no resume_text — re-parse from
+    # the stored file (non-fatal: session still created without text).
+    resume_text = await _resume_text_with_selfheal(db, doc)
 
     # Pre-fill user_profile from the user's account profile (if it exists)
     from routers.account import _get_profile

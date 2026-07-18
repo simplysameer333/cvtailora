@@ -13,6 +13,7 @@ import {
   getAccountProfile,
   saveAccountProfile,
   uploadProfileResume,
+  prefillProfileFromResume,
   searchCatalogRoles,
   searchCatalogSkills,
   type AccountProfile,
@@ -116,6 +117,7 @@ export default function ProfilePage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingResume, setUploadingResume] = useState(false);
+  const [prefillBusyId, setPrefillBusyId] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("personal");
 
   useEffect(() => {
@@ -157,32 +159,39 @@ export default function ProfilePage() {
     setForm((f) => ({ ...f, [field]: f[field].filter((_, i) => i !== index) }));
   }
 
+  /** Merge AI-extracted fields into the form (extracted value wins, existing
+   *  kept as fallback) — shared by the upload path and use-saved-resume path.
+   *  The user still reviews and saves; nothing persists automatically. */
+  const applyPrefilled = useCallback((prefilled: Partial<AccountProfile>) => {
+    setForm((f) => ({
+      ...f,
+      full_name:     prefilled.full_name     || f.full_name,
+      email:         prefilled.email         || f.email,
+      phone:         prefilled.phone         || f.phone,
+      linkedin:      prefilled.linkedin      || f.linkedin,
+      location:      prefilled.location      || f.location,
+      target_roles:  prefilled.target_roles?.length ? prefilled.target_roles
+                     : (prefilled as { target_role?: string }).target_role
+                       ? [(prefilled as { target_role?: string }).target_role!]
+                       : f.target_roles,
+      primary_skill: (prefilled as { primary_skill?: string }).primary_skill || f.primary_skill,
+      key_skills:    prefilled.key_skills?.length ? prefilled.key_skills : f.key_skills,
+      summary:       prefilled.summary       || f.summary,
+      experience:     prefilled.experience?.length     ? prefilled.experience     : f.experience,
+      education:      prefilled.education?.length      ? prefilled.education      : f.education,
+      projects:       prefilled.projects?.length       ? prefilled.projects       : f.projects,
+      certifications: prefilled.certifications?.length ? prefilled.certifications : f.certifications,
+    }));
+    setHasResume(true);
+  }, []);
+
   const onDrop = useCallback(async (files: File[]) => {
     const file = files[0];
     if (!file) return;
     setUploadingResume(true);
     try {
       const { prefilled } = await uploadProfileResume(file);
-      setForm((f) => ({
-        ...f,
-        full_name:     prefilled.full_name     || f.full_name,
-        email:         prefilled.email         || f.email,
-        phone:         prefilled.phone         || f.phone,
-        linkedin:      prefilled.linkedin      || f.linkedin,
-        location:      prefilled.location      || f.location,
-        target_roles:  prefilled.target_roles?.length ? prefilled.target_roles
-                       : (prefilled as { target_role?: string }).target_role
-                         ? [(prefilled as { target_role?: string }).target_role!]
-                         : f.target_roles,
-        primary_skill: (prefilled as { primary_skill?: string }).primary_skill || f.primary_skill,
-        key_skills:    prefilled.key_skills?.length ? prefilled.key_skills : f.key_skills,
-        summary:       prefilled.summary       || f.summary,
-        experience:     prefilled.experience?.length     ? prefilled.experience     : f.experience,
-        education:      prefilled.education?.length      ? prefilled.education      : f.education,
-        projects:       prefilled.projects?.length       ? prefilled.projects       : f.projects,
-        certifications: prefilled.certifications?.length ? prefilled.certifications : f.certifications,
-      }));
-      setHasResume(true);
+      applyPrefilled(prefilled);
       toast.success("Resume parsed — review the tabs and save.");
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -196,7 +205,23 @@ export default function ProfilePage() {
     } finally {
       setUploadingResume(false);
     }
-  }, []);
+  }, [applyPrefilled]);
+
+  /** "Use for profile" on a saved library resume — same review-then-save flow
+   *  as the upload path, without re-uploading the file. All tiers. */
+  async function handleUseSavedResume(resume: { id: string; name: string }) {
+    setPrefillBusyId(resume.id);
+    try {
+      const { prefilled } = await prefillProfileFromResume(resume.id);
+      applyPrefilled(prefilled);
+      toast.success(`Profile updated from "${resume.name}" — review the tabs and save.`);
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(detail ?? "Could not extract details from this resume — please try again.");
+    } finally {
+      setPrefillBusyId(null);
+    }
+  }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -619,7 +644,10 @@ export default function ProfilePage() {
       {/* Full-width library below the grid — the narrow rail distorted it */}
       <ResumeLibrary
         variant="full"
-        subtitle="Save multiple resumes — upload directly or save tailored ones from the builder."
+        subtitle="Save multiple resumes — upload directly or save tailored ones from the builder. Use any of them to update your profile."
+        ctaLabel="Use for profile"
+        onUseResume={handleUseSavedResume}
+        busyId={prefillBusyId}
       />
     </div>
   );

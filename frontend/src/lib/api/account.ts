@@ -81,6 +81,13 @@ export async function uploadProfileResume(file: File): Promise<{ prefilled: Part
   return data;
 }
 
+/** Extract profile fields from a saved library resume (all tiers) — same
+ *  contract as uploadProfileResume: client merges, user reviews and saves. */
+export async function prefillProfileFromResume(resumeId: string): Promise<{ prefilled: Partial<AccountProfile> }> {
+  const { data } = await api.post(`/api/account/resumes/${resumeId}/prefill-profile`, {}, { timeout: 60_000 });
+  return data;
+}
+
 export async function createSessionFromProfileWithJob(jobDescription: string): Promise<{ session_id: string }> {
   const { data } = await api.post("/api/sessions/from-profile", { job_description: jobDescription });
   return data;

@@ -225,6 +225,20 @@ export default function ResumeLibrary({
 
                   {variant === "full" ? (
                     <>
+                      {/* Optional host CTA (e.g. profile page "Use for profile")
+                          — full variant keeps its manage actions alongside. */}
+                      {onUseResume && (
+                        <button
+                          onClick={() => onUseResume(r)}
+                          disabled={!!busyId || noText}
+                          title={noText ? "No text available for this resume" : ctaLabel}
+                          className="btn-secondary text-xs px-2.5 py-1 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 mr-1"
+                        >
+                          {busyId === r.id
+                            ? <><FiLoader className="w-3.5 h-3.5 animate-spin" /> Loading…</>
+                            : ctaLabel}
+                        </button>
+                      )}
                       <button
                         onClick={() => { setEditingId(r.id); setEditingName(r.name); }}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition"
