@@ -1,9 +1,72 @@
 # Session Handoff — CVTailora
 
-> Rolling context for continuing work. **Last updated: 2026-07-09.**
+> Rolling context for continuing work. **Last updated: 2026-07-18.**
 > Branch: `main`. Railway auto-deploys both services on push.
 
 This is the broad handoff. CV-score-preview specifics live in `docs/CV_SCORE_PREVIEW_CONTEXT.md`.
+
+---
+
+## What shipped in the 2026-07-17/18 session — repeatability, durable jobs, admin hardening, builder redesign
+
+All commits below are on `main` and **deployed** (Railway) except the last one (#25), which is
+committed locally and **awaiting the user's push/deploy go-ahead**. Deploys verified via
+`https://api.cvtailora.com/health` → `.commit`.
+
+### 1. CV-score repeatability — DONE + deployed
+- Same CV scored 82 then 74 across runs. Root cause: scoring LLM calls used a non-zero temperature.
+  **Set `temperature=0` on all scoring calls** (`check_resume`, grammar, evaluator scoring) so a
+  given CV → a stable score. Generator/job-analyzer keep their default (creative) temperature.
+
+### 2. Durable job queue (Option 1) — DONE + deployed
+- `services/job_recovery.py`: a startup + periodic **orphan-recovery sweep** (`SWEEP_INTERVAL_S=300`)
+  re-drives generation jobs whose worker died / had no poller, so a run completes even if the client
+  disconnects. Builds on the async Mongo-checkpointed job model (boom.tds fix). Commit `a230b0e`.
+
+### 3. Admin prompt-injection hardening — DONE + deployed
+- Admin prompt/profession edits are **audit-logged** and pass a **placeholder-integrity gate** so a
+  malicious/broken edit can't silently strip required `{placeholders}` from a live prompt.
+
+### 4. CV Builder redesign — DONE + deployed (commits `f76dc5e` flow, `7a66d3e` DOCX fidelity)
+- **New 6-step flow, template chosen BEFORE generation** (intentional — lets the user compare
+  templates and change template on the Ready step):
+  `Upload Resume → Finalize Profile → Job Description → Template Selection → Resume Preview → Ready`.
+  `StepBar.tsx` (full-width, descriptive labels, last pill not flex-1), `stepGuard.ts` (added
+  `ready`; `preview` requires a chosen template, `ready` requires a generated resume).
+- **Template Selection previews with the USER'S OWN content** — `lib/resumePreview.ts`
+  (`toPreviewData`, `accountProfileToPreviewData`, `SAMPLE_PREVIEW` "Alex Morgan" fallback);
+  template page loads the account profile and previews with it, falling back to the sample only when
+  the profile is empty. Page is now pure selection (export removed).
+- **Ready page** (`builder/ready/page.tsx`, NEW) is compact: a small selected-template thumbnail +
+  name/description, "Preview resume" (opens a **modal** with the full render — not inline), "Change
+  template", "Edit content", the `EvalQualityPanel`, and the Download panel (DOCX/PDF + save-to-library).
+- **DOCX render fidelity, made GENERIC so new templates auto-align** (commit `7a66d3e`): the
+  downloaded DOCX drew section-heading rules at a fixed `sz=6` (~1px) regardless of template while the
+  HTML uses 1–3px accent lines. `TemplateConfig` gained `rule_size`; `cv_template_service.derive_rule_size(html, accent)`
+  reads the widest accent-coloured border from the template HTML (px→sz = px*6, clamped 6–20);
+  `normalize_docx_config(cfg, html)` auto-injects it at EVERY save (create/update/AI-generate/seed),
+  explicit value wins. Existing prod templates **backfilled in the DB** (durable — seed skips existing
+  rows). 8 unit tests (`tests/test_docx_rule_size.py`). Colour/placement were already correct; only
+  thickness was off. All "résumé" accented chars in the new UI were replaced with "resume".
+
+### 5. BUG #25 — Find-Jobs job leaking into a new builder workflow — FIXED (committed `49c1e78`, NOT yet pushed)
+- Symptom: a job chosen in Find Jobs stayed in the "Tailoring for:" banner on a later, unrelated
+  builder run. `cvtailora_tailor_context` was written to localStorage but bound to nothing.
+- **Fix (bind-to-session):** `setSessionId()` (`lib/session.ts`) stamps the current session_id into a
+  freshly-set (unbound) tailor context and never re-binds an already-bound one — every session-creation
+  path (upload, library) flows through it. `JobContextBanner` shows the context only when its
+  `session_id === cvtailora_session_id`. Added `cvtailora_tailor_context` to `SESSION_KEYS` (cleared on
+  session-expiry). `frontend` tsc clean.
+- **Next action for the new session:** get the user's go-ahead, then push `49c1e78` and verify the
+  deploy via `/health`. (Everything else this session is already live.)
+
+### Parked / deferred (from this session)
+- **Railway API token** `3ba4a93d-...` still active — user said "will rotate later".
+- Seed-data file `cv_template_seed_data.py` docx_configs still lack `rule_size` (prod DB is
+  backfilled, so only matters for a fresh-from-seed environment — not critical).
+- Bare `cvtailora.com` via Cloudflare after ~Sept 7; drop old `tailormycv` Mongo snapshot; optional
+  GitHub `ANTHROPIC_API_KEY` secret (CI stays green-skipped without it); per-call telemetry for
+  one-off LLM tools; UAT/pre-prod env (see 2026-07-11 note below).
 
 ---
 
