@@ -154,9 +154,17 @@ async def _run(db, session_id: str, user: dict | None) -> None:
                     [c for c in categories if int(c.get("score", 0) or 0) < pass_threshold],
                     key=lambda c: int(c.get("score", 0) or 0),
                 ),
-                "evaluator_results": [cv_result],
+                # User actions are rebuilt from the ORIGINAL evaluation's
+                # suggestion pool, NOT the fresh rescore. A fresh check_resume
+                # authors different improvement hints for the edited text, which
+                # match different action rules — the user saw their to-do list
+                # CHURN to unrelated items while the score stood still (bug
+                # report 2026-07-18). With the stable pool the list can only
+                # shrink: build_user_actions' check_present suppresses items
+                # whose data auto-fix just inserted. evaluator_results is left
+                # untouched for the same reason (a 2nd auto-fix reuses it).
                 "user_actions_needed": None if all_passed else build_user_actions(
-                    eval_results=[cv_result],
+                    eval_results=eval_summary.get("evaluator_results") or [],
                     pass_threshold=pass_threshold,
                     final_score=int(score_after),
                     resume_json=new_resume,
