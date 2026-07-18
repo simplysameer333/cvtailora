@@ -272,7 +272,12 @@ export default function PreviewPage() {
       localStorage.setItem(LS_RESUME, JSON.stringify(result.resume));
       localStorage.setItem(LS_EVAL, JSON.stringify(result.eval_summary));
       const r = result.report;
-      if (r.applied.length > 0) {
+      if (r.reverted) {
+        toast(
+          `Found ${r.reverted_count} improvement${r.reverted_count === 1 ? "" : "s"} in your data, but they didn't raise your score — kept your higher-scoring version (${r.score_before}).`,
+          { icon: "ℹ️", duration: 7000 },
+        );
+      } else if (r.applied.length > 0) {
         const gained = r.score_after - r.score_before;
         toast.success(
           `Fixed ${r.applied.length} item${r.applied.length === 1 ? "" : "s"} from your own data` +

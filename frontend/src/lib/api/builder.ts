@@ -131,6 +131,10 @@ export interface AutofixReport {
   unfillable: { action: string; reason: string }[];
   score_before: number;
   score_after: number;
+  /** True when sourced edits were found but rescored LOWER, so the service
+   *  kept the user's higher-scoring version (keep-best rule). */
+  reverted?: boolean;
+  reverted_count?: number;
 }
 
 export interface AutofixResult {

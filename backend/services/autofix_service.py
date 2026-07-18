@@ -126,6 +126,7 @@ async def _run(db, session_id: str, user: dict | None) -> None:
     llm_calls = 1
     new_resume = gate["resume"]
     new_summary = dict(eval_summary)
+    reverted = False
 
     if applied:
         # ── 4. Re-score with the same engine the user sees ────────────────────
@@ -142,6 +143,19 @@ async def _run(db, session_id: str, user: dict | None) -> None:
         if score_after is None:  # scoring failed — keep edits, keep old score
             score_after = score_before
             logger.warning("[autofix] session %s: rescore failed, keeping prior score.", session_id)
+        elif score_after < score_before:
+            # ── Keep-best: never ship a WORSE resume ──────────────────────────
+            # The judge is deterministic for identical text but sensitive to
+            # small changes — even faithful edits can rescore lower (observed
+            # in prod 2026-07-18: 5 sourced edits, 87→82 persisted). Same rule
+            # as the generation loop's best-cycle collapse: resume and score
+            # are a bound pair, keep the better pair. Edits are reverted, the
+            # user keeps their higher-scoring version, and the report says so.
+            logger.info("[autofix] session %s: rescore %s < %s — reverting edits (keep-best).",
+                        session_id, score_after, score_before)
+            new_resume = resume_json
+            new_summary = dict(eval_summary)
+            reverted = True
         else:
             categories = cv_result.get("categories") or []
             all_passed = score_after >= pass_threshold
@@ -173,7 +187,7 @@ async def _run(db, session_id: str, user: dict | None) -> None:
 
         # Applied edits can lengthen content — refresh the page-fit status the
         # preview shows (pure function, no LLM call, no latency).
-        if new_summary.get("template_pages"):
+        if not reverted and new_summary.get("template_pages"):
             try:
                 from services.resume_checker_service import validate_resume_layout
                 new_summary["layout_validation"] = validate_resume_layout(
@@ -184,19 +198,22 @@ async def _run(db, session_id: str, user: dict | None) -> None:
             except Exception as exc:
                 logger.warning("[autofix] layout revalidation skipped (non-fatal): %s", exc)
 
-        await db.sessions.update_one(
-            {"_id": ObjectId(session_id)},
-            {"$set": {
-                "generated_resume": new_resume,
-                "final_min_score": new_summary.get("min_score", score_before),
-                "final_all_passed": new_summary.get("all_passed", False),
-            }},
-        )
+        if not reverted:
+            await db.sessions.update_one(
+                {"_id": ObjectId(session_id)},
+                {"$set": {
+                    "generated_resume": new_resume,
+                    "final_min_score": new_summary.get("min_score", score_before),
+                    "final_all_passed": new_summary.get("all_passed", False),
+                }},
+            )
     else:
         score_after = score_before
 
     report = {
-        "applied": [
+        # On a revert the edits were NOT kept — report them as candidates that
+        # didn't survive keep-best, never as applied changes.
+        "applied": [] if reverted else [
             {"gap": c.get("gap", ""), "path": c.get("path", ""),
              "source_quote": c.get("source_quote", "")}
             for c in applied
@@ -205,12 +222,14 @@ async def _run(db, session_id: str, user: dict | None) -> None:
         "unfillable": unfillable,
         "score_before": score_before,
         "score_after": new_summary.get("min_score", score_before),
+        "reverted": reverted,
+        "reverted_count": len(applied) if reverted else 0,
     }
     new_summary["autofix"] = report
 
     # Keep the generation-job result in sync so a later auto-fix (or reload)
     # reads the post-fix resume and the SHRUNKEN gap list, not stale data.
-    if applied and gen_job:
+    if applied and not reverted and gen_job:
         await db.generation_jobs.update_one(
             {"session_id": session_id},
             {"$set": {"result.resume": new_resume, "result.eval_summary": new_summary}},
@@ -223,9 +242,9 @@ async def _run(db, session_id: str, user: dict | None) -> None:
     # governed by the daily/monthly USD budgets (increment_usage below).
     usage = telemetry.summary()
     logger.info(
-        "[autofix] TELEMETRY session=%s tier=%s applied=%d rejected=%d score %s->%s | "
+        "[autofix] TELEMETRY session=%s tier=%s applied=%d rejected=%d reverted=%s score %s->%s | "
         "llm_calls=%d in_tok=%d out_tok=%d est_cost=$%.4f",
-        session_id, user_tier, len(applied), len(rejected),
+        session_id, user_tier, len(report["applied"]), len(rejected), reverted,
         score_before, report["score_after"], usage["llm_calls"],
         usage["input_tokens"], usage["output_tokens"], usage["est_cost_usd"],
     )
@@ -234,8 +253,9 @@ async def _run(db, session_id: str, user: dict | None) -> None:
         from services.audit import log_audit
         log_audit(user, "resume.autofix", {
             "session_id": session_id,
-            "applied": len(applied),
+            "applied": len(report["applied"]),
             "rejected": len(rejected),
+            "reverted": reverted,
             "unfillable": len(unfillable),
             "score_before": score_before,
             "score_after": report["score_after"],
