@@ -16,6 +16,7 @@ export const FEATURE_TIERS = {
   section_regen:   ["pro"],
   locked_facts:    ["pro"],
   sample_cv:       ["pro"],
+  auto_fix:        ["pro"],
   // ── Jobs ─────────────────────────────────────────────────────────────────
   job_search:      ["free", "plus", "pro"],   // search/browse only on free
   save_jobs:       ["plus", "pro"],

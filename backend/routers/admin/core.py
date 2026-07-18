@@ -30,6 +30,7 @@ from services.pipeline.prompts.anthropic import (
     _PAGE_RULES_1PAGE,
     _PAGE_RULES_2PAGE,
 )
+from services.pipeline.agents.gap_filler import _SYSTEM as _GAP_FILLER_SYSTEM
 from services.pipeline.prompts.openai import _OPENAI_EVALUATOR_BASE
 from services.pipeline.prompts.google import _GOOGLE_EVALUATOR_BASE
 from services.resume_checker_service import (
@@ -50,6 +51,7 @@ DEFAULTS: dict[str, str] = {
     "anthropic_evaluator_base": _ANTHROPIC_EVALUATOR_BASE,
     "openai_evaluator_base": _OPENAI_EVALUATOR_BASE,
     "google_evaluator_base": _GOOGLE_EVALUATOR_BASE,
+    "gap_filler_system": _GAP_FILLER_SYSTEM,
     "cv_score_quality_system": _CV_QUALITY_SYSTEM,
     "cv_score_quality_prompt": _CV_QUALITY_PROMPT,
     "cv_score_extract_system": _CV_EXTRACT_SYSTEM,

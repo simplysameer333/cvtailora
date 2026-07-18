@@ -116,6 +116,64 @@ export async function generateResume(
   throw new Error("Resume generation is taking unusually long — please retry in a minute.");
 }
 
+// ── AI Auto-Fix (Pro) ─────────────────────────────────────────────────────────
+
+/** One gap the auto-fix closed using a fact from the user's own data. */
+export interface AutofixAppliedItem {
+  gap: string;
+  path: string;
+  source_quote: string;
+}
+
+export interface AutofixReport {
+  applied: AutofixAppliedItem[];
+  rejected_count: number;
+  unfillable: { action: string; reason: string }[];
+  score_before: number;
+  score_after: number;
+}
+
+export interface AutofixResult {
+  resume: GeneratedResume;
+  eval_summary: EvalSummary;
+  report: AutofixReport;
+}
+
+interface AutofixJobStatus {
+  status: "running" | "complete" | "failed";
+  stage: string;
+  error: string | null;
+  result?: AutofixResult;
+}
+
+/** Pro: fill score gaps from the user's OWN profile + original CV (never
+ *  invented data). Async backend job — POST starts it, then poll status. */
+export async function runAutofix(
+  sessionId: string,
+  onProgress?: (stage: string) => void,
+): Promise<AutofixResult> {
+  await api.post(`/api/sessions/${sessionId}/autofix`, {}, { timeout: 15_000 });
+  const started = Date.now();
+  const MAX_WAIT_MS = 4 * 60_000;
+  let pollFailures = 0;
+  while (Date.now() - started < MAX_WAIT_MS) {
+    await _sleep(3_000);
+    let status: AutofixJobStatus;
+    try {
+      const { data } = await api.get(`/api/sessions/${sessionId}/autofix/status`, { timeout: 15_000 });
+      status = data as AutofixJobStatus;
+      pollFailures = 0;
+    } catch {
+      if (++pollFailures >= 8) throw new Error("Lost connection during auto-fix — please retry.");
+      continue;
+    }
+    onProgress?.(status.stage);
+    if (status.status === "complete" && status.result) return status.result;
+    if (status.status === "failed") throw new Error(status.error || "Auto-fix failed. Please try again.");
+  }
+  throw new Error("Auto-fix is taking unusually long — please retry in a minute.");
+}
+
 export async function exportResume(sessionId: string, includePdf = false, boldKeywords = true) {
   let resumeData: unknown = null;
   try {
@@ -262,6 +320,8 @@ export interface EvalSummary {
   } | null;
   /** Score-blocking fixes only the user can supply (present when below target). */
   user_actions_needed?: UserActionsNeeded | null;
+  /** Set after an AI Auto-Fix run — what was filled from the user's own data. */
+  autofix?: AutofixReport | null;
 }
 
 export interface PipelineResult {

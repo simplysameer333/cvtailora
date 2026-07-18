@@ -19,6 +19,7 @@ PROMPT_KEYS: dict[str, str] = {
     "anthropic_evaluator_base": "Anthropic Evaluator — Base Prompt",
     "openai_evaluator_base": "OpenAI Evaluator — Base Prompt",
     "google_evaluator_base": "Google Evaluator — Base Prompt",
+    "gap_filler_system": "Auto-Fix Gap Filler — System Prompt",
     # ── CV Score (services/resume_checker_service.py) ─────────────────────────
     "cv_score_quality_system": "Quality Check — System Prompt",
     "cv_score_quality_prompt": "Quality Check — User Prompt (keep {resume_text})",
@@ -42,6 +43,7 @@ PROMPT_CATEGORIES: dict[str, str] = {
     "anthropic_evaluator_base": "builder",
     "openai_evaluator_base": "builder",
     "google_evaluator_base": "builder",
+    "gap_filler_system": "builder",
     "cv_score_quality_system": "cv_score",
     "cv_score_quality_prompt": "cv_score",
     "cv_score_extract_system": "cv_score",

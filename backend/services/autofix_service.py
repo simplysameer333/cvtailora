@@ -1,0 +1,228 @@
+"""Auto-fix service — Pro feature: close score gaps using the user's OWN data.
+
+Orchestrates the async auto-fix job (see routers/generate.py for the HTTP
+layer). Flow, per the agreed design (2026-07-18):
+
+  1. Gather sources: original CV text + session profile + account profile.
+     These are the ONLY permitted fact pool.
+  2. One dedicated gap-filler call (temperature=0) proposes minimal edits,
+     each citing a verbatim source_quote.
+  3. The PURE validation gate (autofix_validator) applies only edits whose
+     every fact traces to the sources — fabrication is structurally dropped.
+  4. Re-score with the SAME CV-Score engine the builder/score page uses, then
+     rebuild the eval summary + the shrunken "only you can add" list.
+  5. Persist, charge usage, audit-log (visible in Admin → Audit / cost columns).
+
+Anything not present in any source stays on the user's to-do list — the
+feature never invents emails, URLs, metrics, skills, or any other fact.
+"""
+from __future__ import annotations
+
+import logging
+
+from bson import ObjectId
+
+from database import get_db
+from services import autofix_jobs
+from services.pipeline import telemetry
+from services import generation_jobs as gen_jobs
+from services.pipeline.toon import encode as toon_encode
+from services.pipeline.agents.gap_filler import GapFillerAgent
+from services.pipeline.agents.evaluators.cv_score import CvScoreEvaluatorAgent
+from services.autofix_validator import build_source_corpus, validate_and_apply
+from services.user_actions_service import build_user_actions
+from services.usage_service import increment_usage
+
+logger = logging.getLogger("cvtailora")
+
+
+def build_gaps_text(eval_summary: dict) -> str:
+    """Serialise the score gaps for the gap-filler prompt.
+
+    Combines the user-action items (the concrete missing-data fixes) with the
+    weak-category CV-Score suggestions, deduplicated, capped for prompt size.
+    """
+    lines: list[str] = []
+    ua = eval_summary.get("user_actions_needed") or {}
+    for a in (ua.get("actions") or []):
+        line = f"- [{a.get('category', '')}] {a.get('action', '')}"
+        if a.get("example"):
+            line += f" (e.g. {a['example']})"
+        lines.append(line)
+    for r in (eval_summary.get("evaluator_results") or []):
+        if r.get("model") == "cv_score":
+            for s in (r.get("suggestions") or []):
+                lines.append(f"- {s}")
+    seen: set[str] = set()
+    unique = [ln for ln in lines if not (ln in seen or seen.add(ln))]
+    return "\n".join(unique[:20])
+
+
+async def run_autofix(session_id: str, user: dict | None) -> None:
+    """Background task: fill gaps, validate, rescore, persist, complete the job."""
+    db = get_db()
+    try:
+        await _run(db, session_id, user)
+    except Exception as exc:
+        logger.exception("[autofix] session %s failed: %s", session_id, exc)
+        await autofix_jobs.fail(db, session_id, "Auto-fix failed. Please try again.")
+
+
+async def _run(db, session_id: str, user: dict | None) -> None:
+    session = await db.sessions.find_one({"_id": ObjectId(session_id)})
+    if not session or not session.get("generated_resume"):
+        await autofix_jobs.fail(db, session_id, "Generate a resume first.")
+        return
+
+    gen_job = await gen_jobs.get(db, session_id)
+    eval_summary = ((gen_job or {}).get("result") or {}).get("eval_summary") or {}
+    if not eval_summary:
+        await autofix_jobs.fail(db, session_id, "No score report found for this session — regenerate first.")
+        return
+
+    resume_json = session["generated_resume"]
+    resume_text = (session.get("resume_parsed") or {}).get("raw_text", "")
+    session_profile = session.get("user_profile") or {}
+    user_tier = (user or {}).get("tier", "free")
+
+    # Account profile (structured experience/education/skills) is a richer fill
+    # source than the session profile alone; absent for anonymous users.
+    account_profile: dict = {}
+    if user and user.get("_id") is not None:
+        account_profile = await db.user_profiles.find_one({"user_id": user["_id"]}) or {}
+        account_profile.pop("_id", None)
+        account_profile.pop("user_id", None)
+
+    gaps_text = build_gaps_text(eval_summary)
+    if not gaps_text:
+        await autofix_jobs.fail(db, session_id, "Nothing to fix — no score gaps recorded.")
+        return
+
+    telemetry.start_capture()
+    score_before = int(eval_summary.get("min_score", 0) or 0)
+    pass_threshold = int(eval_summary.get("pass_threshold", 0) or 0)
+
+    # ── 1+2. Dedicated fill call ──────────────────────────────────────────────
+    await autofix_jobs.stage(db, session_id, "finding facts in your data")
+    profile_text = toon_encode({"session_profile": session_profile,
+                                "account_profile": account_profile})
+    fill = await GapFillerAgent().run(
+        resume_json=resume_json,
+        gaps_text=gaps_text,
+        source_resume_text=resume_text,
+        profile_text=profile_text,
+    )
+    unfillable = fill.get("unfillable") or []
+
+    # ── 3. Faithfulness gate (pure) — unverifiable edits are dropped ─────────
+    corpus = build_source_corpus(resume_text, session_profile, account_profile)
+    gate = validate_and_apply(resume_json, fill.get("changes") or [], corpus)
+    applied, rejected = gate["applied"], gate["rejected"]
+    if rejected:
+        logger.info("[autofix] session %s: gate rejected %d/%d changes: %s",
+                    session_id, len(rejected), len(rejected) + len(applied),
+                    [r.get("reason") for r in rejected])
+
+    llm_calls = 1
+    new_resume = gate["resume"]
+    new_summary = dict(eval_summary)
+
+    if applied:
+        # ── 4. Re-score with the same engine the user sees ────────────────────
+        await autofix_jobs.stage(db, session_id, "re-scoring your resume")
+        cv_result = await CvScoreEvaluatorAgent().run(
+            resume_json=new_resume,
+            job_description=session.get("job_description") or "",
+            profession_config={},
+            source_resume_text=resume_text,
+            conservative=user_tier not in ("plus", "pro"),
+        )
+        llm_calls += 1
+        score_after = cv_result.get("score")
+        if score_after is None:  # scoring failed — keep edits, keep old score
+            score_after = score_before
+            logger.warning("[autofix] session %s: rescore failed, keeping prior score.", session_id)
+        else:
+            categories = cv_result.get("categories") or []
+            all_passed = score_after >= pass_threshold
+            new_summary.update({
+                "min_score": score_after,
+                "score": score_after,
+                "all_passed": all_passed,
+                "category_scores": categories,
+                "blocking_categories": sorted(
+                    [c for c in categories if int(c.get("score", 0) or 0) < pass_threshold],
+                    key=lambda c: int(c.get("score", 0) or 0),
+                ),
+                "evaluator_results": [cv_result],
+                "user_actions_needed": None if all_passed else build_user_actions(
+                    eval_results=[cv_result],
+                    pass_threshold=pass_threshold,
+                    final_score=int(score_after),
+                    resume_json=new_resume,
+                ),
+            })
+
+        await db.sessions.update_one(
+            {"_id": ObjectId(session_id)},
+            {"$set": {
+                "generated_resume": new_resume,
+                "final_min_score": new_summary.get("min_score", score_before),
+                "final_all_passed": new_summary.get("all_passed", False),
+            }},
+        )
+    else:
+        score_after = score_before
+
+    report = {
+        "applied": [
+            {"gap": c.get("gap", ""), "path": c.get("path", ""),
+             "source_quote": c.get("source_quote", "")}
+            for c in applied
+        ],
+        "rejected_count": len(rejected),
+        "unfillable": unfillable,
+        "score_before": score_before,
+        "score_after": new_summary.get("min_score", score_before),
+    }
+    new_summary["autofix"] = report
+
+    # Keep the generation-job result in sync so a later auto-fix (or reload)
+    # reads the post-fix resume and the SHRUNKEN gap list, not stale data.
+    if applied and gen_job:
+        await db.generation_jobs.update_one(
+            {"session_id": session_id},
+            {"$set": {"result.resume": new_resume, "result.eval_summary": new_summary}},
+        )
+
+    # ── 5. Cost + monitoring — same surfaces as every other AI feature ────────
+    from services.generation_service import increment_call_count
+    await increment_call_count(db, session_id, llm_calls)
+    usage = telemetry.summary()
+    logger.info(
+        "[autofix] TELEMETRY session=%s tier=%s applied=%d rejected=%d score %s->%s | "
+        "llm_calls=%d in_tok=%d out_tok=%d est_cost=$%.4f",
+        session_id, user_tier, len(applied), len(rejected),
+        score_before, report["score_after"], usage["llm_calls"],
+        usage["input_tokens"], usage["output_tokens"], usage["est_cost_usd"],
+    )
+    if user:
+        await increment_usage(db, str(user.get("_id", "")), llm_calls, usage["est_cost_usd"])
+        from services.audit import log_audit
+        log_audit(user, "resume.autofix", {
+            "session_id": session_id,
+            "applied": len(applied),
+            "rejected": len(rejected),
+            "unfillable": len(unfillable),
+            "score_before": score_before,
+            "score_after": report["score_after"],
+            "llm_calls": usage["llm_calls"],
+            "tokens": usage["input_tokens"] + usage["output_tokens"],
+            "est_cost_usd": usage["est_cost_usd"],
+        })
+
+    await autofix_jobs.complete(db, session_id, {
+        "resume": new_resume,
+        "eval_summary": new_summary,
+        "report": report,
+    })

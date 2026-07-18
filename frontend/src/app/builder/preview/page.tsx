@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   generateResume,
+  runAutofix,
   setLockedFacts,
   setSessionTemplate,
   syncResumeToSession,
@@ -46,6 +47,7 @@ export default function PreviewPage() {
   const { data: session } = useAuth();
   const tier = session?.user?.tier ?? "free";
   const isPro = hasFeature(tier, "section_regen"); // true only for Pro
+  const canAutofix = hasFeature(tier, "auto_fix"); // Pro: AI fills gaps from the user's own data
   const [resume, setResume] = useState<GeneratedResume | null>(null);
   const [evalSummary, setEvalSummary] = useState<EvalSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,6 +76,7 @@ export default function PreviewPage() {
   const [coverLetterLoading, setCoverLetterLoading] = useState(false);
   const [interviewPrep, setInterviewPrep] = useState<InterviewPrepResult | null>(null);
   const [interviewPrepLoading, setInterviewPrepLoading] = useState(false);
+  const [autofixLoading, setAutofixLoading] = useState(false);
 
   useEffect(() => {
     const storedResume = localStorage.getItem(LS_RESUME);
@@ -253,6 +256,41 @@ export default function PreviewPage() {
       toast.error("Failed to save locked facts.");
     } finally {
       setSavingFacts(false);
+    }
+  }
+
+  async function handleAutofix() {
+    const sessionId = getSessionId();
+    if (!sessionId) { toast.error("No session found."); return; }
+    setAutofixLoading(true);
+    try {
+      // Ensure the backend fixes the resume the user is looking at (inline edits live in localStorage).
+      if (resume) await syncResumeToSession(sessionId, resume).catch(() => {});
+      const result = await runAutofix(sessionId);
+      setResume(result.resume);
+      setEvalSummary(result.eval_summary);
+      localStorage.setItem(LS_RESUME, JSON.stringify(result.resume));
+      localStorage.setItem(LS_EVAL, JSON.stringify(result.eval_summary));
+      const r = result.report;
+      if (r.applied.length > 0) {
+        const gained = r.score_after - r.score_before;
+        toast.success(
+          `Fixed ${r.applied.length} item${r.applied.length === 1 ? "" : "s"} from your own data` +
+          (gained > 0 ? ` — score ${r.score_before} → ${r.score_after}` : "") +
+          (r.unfillable.length > 0 ? `. ${r.unfillable.length} still need${r.unfillable.length === 1 ? "s" : ""} your input.` : "."),
+          { duration: 6000 },
+        );
+      } else {
+        toast(
+          "Nothing could be safely filled — the remaining items need real details only you can add.",
+          { icon: "ℹ️", duration: 6000 },
+        );
+      }
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } }; message?: string };
+      toast.error(e?.response?.data?.detail ?? e?.message ?? "Auto-fix failed. Please try again.");
+    } finally {
+      setAutofixLoading(false);
     }
   }
 
@@ -472,7 +510,14 @@ export default function PreviewPage() {
       </div>
 
       {/* Quality status panel */}
-      {evalSummary && <EvalSummaryPanel summary={evalSummary} />}
+      {evalSummary && (
+        <EvalSummaryPanel
+          summary={evalSummary}
+          canAutofix={canAutofix}
+          onAutofix={handleAutofix}
+          autofixLoading={autofixLoading}
+        />
+      )}
 
       {/* Locked facts panel — Pro only */}
       {isPro ? (

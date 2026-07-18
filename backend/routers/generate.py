@@ -187,6 +187,61 @@ async def generation_status(session_id: str, user: dict | None = Depends(get_opt
     return gen_jobs.serialize(job)
 
 
+@router.post("/sessions/{session_id}/autofix")
+async def start_autofix(session_id: str, user: dict | None = Depends(get_optional_user)):
+    """Start the async auto-fix job — Pro only.
+
+    Fills score gaps using ONLY facts from the user's own data (original CV +
+    profile); every edit is verified against those sources before it is kept
+    (services/autofix_service.py). 2 LLM calls (~20–45 s), so it runs as a
+    background job the client polls — same model as /generate.
+    """
+    user_tier = (user or {}).get("tier", "free")
+    from services.tier_config_service import has_feature as _hf
+    if not _hf(user_tier, "auto_fix"):
+        raise HTTPException(403, "AI Auto-Fix is not available on your plan. Visit /settings/plan to upgrade.")
+
+    db = get_db()
+    session = await db.sessions.find_one({"_id": ObjectId(session_id)}, {"generated_resume": 1})
+    if not session:
+        raise HTTPException(404, "Session not found.")
+    if not session.get("generated_resume"):
+        raise HTTPException(422, "Generate a resume first.")
+
+    # Fast-fail cost guards stay in the HTTP request (clear 4xx to the user).
+    if user:
+        await check_budget(db, user, user_tier)
+    await check_cost_limit(db, session_id)
+
+    from services import autofix_jobs
+    from services.autofix_service import run_autofix
+    job, started = await autofix_jobs.acquire(db, session_id)
+    if started:
+        asyncio.create_task(run_autofix(session_id, user))
+    else:
+        logger.info("[autofix] session %s attached to in-flight job (no duplicate run)", session_id)
+    return {"async": True, "job": autofix_jobs.serialize(job, include_result=False)}
+
+
+@router.get("/sessions/{session_id}/autofix/status")
+async def autofix_status(session_id: str):
+    """Progress/result polling for the async auto-fix job.
+
+    A run whose heartbeat died (server restart mid-run) has no checkpoint to
+    resume from — unlike generation, it's just two cheap calls — so the poll
+    marks it failed and the user simply clicks the button again.
+    """
+    from services import autofix_jobs
+    db = get_db()
+    job = await autofix_jobs.get(db, session_id)
+    if not job:
+        raise HTTPException(404, "No auto-fix job for this session.")
+    if autofix_jobs.is_stale(job, datetime.utcnow()):
+        await autofix_jobs.fail(db, session_id, "Auto-fix was interrupted — please try again.")
+        job = await autofix_jobs.get(db, session_id) or job
+    return autofix_jobs.serialize(job)
+
+
 @router.put("/sessions/{session_id}/resume")
 async def save_resume(session_id: str, body: dict):
     """Sync a client-side resume back into the session (used when preview loads from localStorage)."""

@@ -54,6 +54,7 @@ DEFAULT_FEATURES: dict[str, list[str]] = {
     "section_regen":   ["pro"],
     "locked_facts":    ["pro"],
     "sample_cv":       ["pro"],
+    "auto_fix":        ["pro"],
     # Jobs
     "job_search":      ["free", "plus", "pro"],
     "save_jobs":       ["plus", "pro"],
@@ -91,6 +92,7 @@ FEATURE_LABELS: dict[str, str] = {
     "section_regen":   "Section-level Regeneration",
     "locked_facts":    "Locked Facts Panel",
     "sample_cv":       "Sample CV Reference",
+    "auto_fix":        "AI Auto-Fix (fill gaps from your own data)",
     "job_search":      "Job Search (browse)",
     "save_jobs":       "Save Jobs",
     "tailor_job":      "One-click Tailor from Job Listing",

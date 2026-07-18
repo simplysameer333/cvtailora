@@ -3,7 +3,8 @@
  * Resume quality score panel — shared between builder/preview and builder/template.
  * Displays the multi-evaluator score, quality label, progress bar, and cycle count.
  */
-import { FiAward, FiAlertTriangle, FiTrendingUp } from "react-icons/fi";
+import Link from "next/link";
+import { FiAward, FiAlertTriangle, FiTrendingUp, FiZap, FiLock, FiRefreshCw } from "react-icons/fi";
 import type { EvalSummary } from "@/lib/api";
 
 // Priority chip colours — critical (red) → high (amber) → medium (slate).
@@ -20,7 +21,14 @@ const PRIORITY_STYLES: Record<string, string> = {
  * regenerate for a higher score. Anti-hallucination checked server-side, so
  * anything already in the CV is never shown here.
  */
-function UserActionsCard({ summary }: { summary: EvalSummary }) {
+interface AutofixProps {
+  /** Pro tier: shows the auto-fix button; other tiers see the upgrade row. */
+  canAutofix?: boolean;
+  onAutofix?: () => void;
+  autofixLoading?: boolean;
+}
+
+function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { summary: EvalSummary } & AutofixProps) {
   const ua = summary.user_actions_needed;
   if (!ua || !ua.actions || ua.actions.length === 0) return null;
 
@@ -58,6 +66,40 @@ function UserActionsCard({ summary }: { summary: EvalSummary }) {
       <p className="text-[11px] text-slate-400 mt-2.5">
         Update these in your CV or profile, then regenerate for a higher score.
       </p>
+
+      {/* AI Auto-Fix — Pro: one click fills what the user's OWN data already
+          supports (original CV + profile); nothing is ever invented. Items
+          with no source stay on this list. */}
+      {onAutofix && (canAutofix ? (
+        <div className="mt-3 pt-3 border-t border-amber-100 flex flex-col sm:flex-row sm:items-center gap-2">
+          <button
+            onClick={onAutofix}
+            disabled={autofixLoading}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 transition disabled:opacity-60 shrink-0"
+          >
+            {autofixLoading
+              ? <FiRefreshCw className="w-3.5 h-3.5 animate-spin" />
+              : <FiZap className="w-3.5 h-3.5" />}
+            {autofixLoading ? "Fixing from your data…" : "Auto-fix from my profile & CV"}
+          </button>
+          <p className="text-[11px] text-slate-400 leading-snug">
+            Fills what your saved profile and original CV already prove — never invents facts.
+            Anything not in your data stays on this list.
+          </p>
+        </div>
+      ) : (
+        <Link
+          href="/settings/plan"
+          className="mt-3 pt-3 border-t border-amber-100 flex items-center gap-2 group"
+        >
+          <FiLock className="w-3.5 h-3.5 text-slate-400 group-hover:text-brand-500 shrink-0" />
+          <span className="text-[11px] text-slate-500 group-hover:text-brand-600">
+            <span className="font-semibold">Auto-fix with AI</span>
+            <span className="ml-1 text-[10px] font-semibold bg-brand-100 text-brand-700 rounded px-1 py-0.5">PRO</span>
+            <span className="ml-1.5">— let the AI fill these from your own profile &amp; CV. Upgrade to unlock.</span>
+          </span>
+        </Link>
+      ))}
     </div>
   );
 }
@@ -178,7 +220,7 @@ export function EvalQualityPanel({ evalSummary }: { evalSummary: EvalSummary }) 
 
 // ── Expanded variant — used on builder/preview ────────────────────────────────
 
-export function EvalSummaryPanel({ summary }: { summary: EvalSummary }) {
+export function EvalSummaryPanel({ summary, canAutofix, onAutofix, autofixLoading }: { summary: EvalSummary } & AutofixProps) {
   const { min_score, pass_threshold, profession } = summary;
   const label  = qualityLabel(min_score, pass_threshold);
   const colors = qualityColors(min_score, pass_threshold);
@@ -200,7 +242,7 @@ export function EvalSummaryPanel({ summary }: { summary: EvalSummary }) {
         )}
       </div>
       <ScoreBreakdown summary={summary} />
-      <UserActionsCard summary={summary} />
+      <UserActionsCard summary={summary} canAutofix={canAutofix} onAutofix={onAutofix} autofixLoading={autofixLoading} />
     </div>
   );
 }
