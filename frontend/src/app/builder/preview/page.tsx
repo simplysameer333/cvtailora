@@ -817,8 +817,8 @@ export default function PreviewPage() {
         <button onClick={() => router.back()} className="btn-secondary">
           ← Back
         </button>
-        <button onClick={() => router.push("/builder/template")} className="btn-primary">
-          Choose Template →
+        <button onClick={() => router.push("/builder/ready")} className="btn-primary">
+          Finish &amp; Download →
         </button>
       </div>
     </div>

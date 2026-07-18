@@ -3,11 +3,12 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 
 const STEPS = [
-  { label: "Upload",   href: "/builder/upload" },
-  { label: "Profile",  href: "/builder/profile" },
-  { label: "Job",      href: "/builder/job" },
-  { label: "Preview",  href: "/builder/preview" },
-  { label: "Template", href: "/builder/template" },
+  { label: "Upload Resume",      href: "/builder/upload" },
+  { label: "Finalize Profile",   href: "/builder/profile" },
+  { label: "Job Description",    href: "/builder/job" },
+  { label: "Template Selection", href: "/builder/template" },
+  { label: "Resume Preview",     href: "/builder/preview" },
+  { label: "Ready",              href: "/builder/ready" },
 ];
 
 export default function StepBar() {
@@ -19,13 +20,15 @@ export default function StepBar() {
     // Transparent — sits on the emerald PageBanner band (see builder/layout.tsx)
     <div className="w-full">
 
-      {/* Desktop step pills */}
-      <ol className="hidden sm:flex items-center gap-1">
+      {/* Desktop step pills — connectors flex to fill the full card width, so
+          the final "Ready" pill sits flush at the right edge (no trailing gap) */}
+      <ol className="hidden sm:flex items-center gap-1 w-full">
         {STEPS.map((step, i) => {
           const done   = i < current;
           const active = i === current;
+          const isLast = i === STEPS.length - 1;
           return (
-            <li key={step.href} className="flex items-center gap-1 flex-1">
+            <li key={step.href} className={clsx("flex items-center gap-1", !isLast && "flex-1")}>
               <div
                 className={clsx(
                   "flex items-center gap-1.5 text-xs font-semibold px-3 py-0.5 rounded-lg transition whitespace-nowrap",

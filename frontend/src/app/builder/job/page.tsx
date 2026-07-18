@@ -185,7 +185,7 @@ export default function JobPage() {
     setLoading(true);
     try {
       await saveJobDescription(sessionId, jd);
-      router.push("/builder/preview");
+      router.push("/builder/template");
     } catch {
       toast.error("Failed to save job description.");
     } finally {
@@ -195,7 +195,7 @@ export default function JobPage() {
 
   function handleSkip() {
     // No JD saved — backend will polish the resume without job-specific tailoring
-    router.push("/builder/preview");
+    router.push("/builder/template");
   }
 
   const showCheckFit = jd.trim().length >= 200;

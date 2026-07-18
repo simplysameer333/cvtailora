@@ -17,29 +17,36 @@ import toast from "react-hot-toast";
 const LS = {
   session:   "cvtailora_session_id",
   generated: "cvtailora_generated",
+  template:  "cvtailora_template_id",
 };
 
-type Step = "profile" | "job" | "template" | "preview";
+// New builder order: Upload → Profile → Job → Template → Preview → Ready.
+type Step = "profile" | "job" | "template" | "preview" | "ready";
 
 const MESSAGES: Record<Step, string> = {
   profile:  "Please upload your resume first.",
   job:      "Please upload your resume first.",
-  preview:  "Please upload your resume first.",
-  template: "Please generate your resume first.",
+  template: "Please upload your resume first.",
+  preview:  "Please choose a template first.",
+  ready:    "Please generate your resume first.",
 };
 
 const REDIRECTS: Record<Step, string> = {
   profile:  "/builder/upload",
   job:      "/builder/upload",
-  preview:  "/builder/upload",
-  template: "/builder/preview",
+  template: "/builder/upload",
+  preview:  "/builder/template",
+  ready:    "/builder/preview",
 };
 
 function check(step: Step): boolean {
   if (typeof window === "undefined") return true;
   const hasSession = Boolean(localStorage.getItem(LS.session));
   if (!hasSession) return false;
-  if (step === "template") return Boolean(localStorage.getItem(LS.generated));
+  // Preview generates INTO the chosen template, so a template must be picked first.
+  if (step === "preview") return Boolean(localStorage.getItem(LS.template));
+  // Ready needs a generated resume to export/compare.
+  if (step === "ready") return Boolean(localStorage.getItem(LS.generated));
   return true;
 }
 

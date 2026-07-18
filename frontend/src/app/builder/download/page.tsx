@@ -4,6 +4,6 @@ import { useRouter } from "next/navigation";
 
 export default function DownloadRedirect() {
   const router = useRouter();
-  useEffect(() => { router.replace("/builder/template"); }, [router]);
+  useEffect(() => { router.replace("/builder/ready"); }, [router]);
   return null;
 }

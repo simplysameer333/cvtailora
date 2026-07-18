@@ -3,11 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { useDropzone } from "react-dropzone";
-import {
-  uploadSampleCv, exportResume, downloadUrl,
-  setSessionTemplate, saveResumeFromSession,
-  type GeneratedResume, type EvalSummary,
-} from "@/lib/api";
+import { uploadSampleCv, setSessionTemplate, getAccountProfile } from "@/lib/api";
 import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
 import { useAuth } from "@/lib/useAuth";
@@ -15,48 +11,18 @@ import { hasFeature } from "@/lib/config";
 import Link from "next/link";
 import clsx from "clsx";
 import {
-  FiUploadCloud, FiCheckCircle, FiFile, FiLock, FiZap,
-  FiDownload, FiRefreshCw, FiBookmark, FiX,
+  FiUploadCloud, FiCheckCircle, FiFile, FiLock, FiZap, FiRefreshCw, FiX,
 } from "react-icons/fi";
 import {
   CATEGORY_COLORS, CATEGORY_HEADER, useCvTemplateInfos,
   type PreviewData, type TemplateInfo,
 } from "@/components/TemplatePreviews";
 import { getTemplateHtml } from "@/lib/templateHtml";
-import { EvalQualityPanel } from "@/components/EvalQualityPanel";
+import { SAMPLE_PREVIEW, accountProfileToPreviewData } from "@/lib/resumePreview";
 import AccentSwatches from "@/components/AccentSwatches";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function toPreviewData(resume: GeneratedResume): PreviewData {
-  const skills: string[] =
-    resume.skills?.length
-      ? resume.skills
-      : (resume.sections?.find(s => s.title.toLowerCase().includes("skill"))?.items ?? []);
-  return {
-    name:     resume.name                   || "",
-    title:    resume.experience?.[0]?.role  || "",
-    email:    resume.contact?.email         || "",
-    phone:    resume.contact?.phone         || "",
-    location: resume.contact?.location      || "",
-    linkedin: resume.contact?.linkedin      || "",
-    summary:  resume.summary                || "",
-    skills,
-    experience: resume.experience?.length
-      ? resume.experience.map(e => ({ title: e.role, company: e.company, date: e.dates, bullets: e.bullets }))
-      : [],
-    education: resume.education?.length
-      ? resume.education.map(e => ({ degree: e.degree, school: e.institution, year: e.dates }))
-      : [],
-  };
-}
-
-function getFilename(resume: GeneratedResume | null): string {
-  if (resume?.name) return resume.name.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
-  return "resume";
-}
-
-type ExportResult = { docx_file_id?: string; pdf_file_id?: string; pdf_error?: string };
 type TemplateWithId = TemplateInfo & { _id: string };
 
 // ── Gallery card — accent-colour header strip, text visible at a glance ─────
@@ -105,7 +71,7 @@ function GalleryCard({
           <span className="text-[9px] font-medium text-slate-400">{info.pages}p</span>
           {typeof info.quality_score === "number" && (
             <span
-              title="CV-Score this template achieves with a strong résumé"
+              title="CV-Score this template achieves with a strong resume"
               className={clsx("text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0",
                 info.quality_score >= 85 ? "bg-emerald-50 text-emerald-700"
                   : info.quality_score >= 78 ? "bg-amber-50 text-amber-700"
@@ -138,9 +104,9 @@ function GalleryCard({
 // ── Template modal — full-screen overlay matching competitor design ───────────
 
 function TemplateModal({
-  info, previewData, isSelected, initialAccent, onSelect, onClose,
+  info, previewData, personalised, isSelected, initialAccent, onSelect, onClose,
 }: {
-  info: TemplateWithId; previewData: PreviewData | null;
+  info: TemplateWithId; previewData: PreviewData | null; personalised: boolean;
   isSelected: boolean; initialAccent: string | null;
   onSelect: (accent: string | null) => void; onClose: () => void;
 }) {
@@ -160,7 +126,8 @@ function TemplateModal({
     return () => { document.body.style.overflow = prev; };
   }, []);
   const html = previewData ? getTemplateHtml(info.key, previewData, accent) : "";
-  const isPersonalised = !!(previewData?.name);
+  // Shows the user's OWN resume content when their profile is loaded, else sample.
+  const isPersonalised = personalised;
   const hdr = CATEGORY_HEADER[info.category] ?? CATEGORY_HEADER["Classic"];
 
   return (
@@ -278,7 +245,7 @@ function TemplateModal({
             <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
               <span className={clsx("w-1.5 h-1.5 rounded-full shrink-0",
                 isPersonalised ? "bg-brand-500" : "bg-slate-300")} />
-              {isPersonalised ? "Showing your tailored CV content" : "Sample content — replaced with your CV on export"}
+              {isPersonalised ? "Showing your resume content" : "Sample content — your CV fills this in after you generate"}
             </p>
           </div>
 
@@ -290,7 +257,7 @@ function TemplateModal({
               style={{ background: accent || info.accentColor }}
             >
               {isSelected
-                ? <><FiCheckCircle className="w-4 h-4" /> Selected — click Generate &amp; Download below</>
+                ? <><FiCheckCircle className="w-4 h-4" /> Selected — click Continue below</>
                 : <>Use this template →</>}
             </button>
             <button
@@ -317,23 +284,17 @@ export default function TemplatePage() {
   // A user may use it only if their tier rank meets the template's.
   const TIER_RANK: Record<string, number> = { free: 0, plus: 1, pro: 2 };
   const userRank = TIER_RANK[tier] ?? 0;
-  const isPro          = hasFeature(tier, "sample_cv");
-  const canExportPdf   = hasFeature(tier, "pdf_export");
-  const canSaveLibrary = hasFeature(tier, "save_to_library");
-  const canUseAll      = tier === "plus" || tier === "pro";
+  const isPro     = hasFeature(tier, "sample_cv");
+  const canUseAll = tier === "plus" || tier === "pro";
 
-  const [selected, setSelected]               = useState<string | null>(null);
+  const [selected, setSelected]  = useState<string | null>(null);
   // Colour variant for the SELECTED template (null = template's own accent)
-  const [accent, setAccentState]              = useState<string | null>(null);
-  const [detailId, setDetailId]               = useState<string | null>(null); // which template is previewed
-  const [generatedResume, setGeneratedResume] = useState<GeneratedResume | null>(null);
-  const [evalSummary, setEvalSummary]         = useState<EvalSummary | null>(null);
-  const [previewData, setPreviewData]         = useState<PreviewData | null>(null);
-
-  const [exporting, setExporting] = useState(false);
-  const [files, setFiles]         = useState<ExportResult | null>(null);
-  const [saving, setSaving]       = useState(false);
-  const [saved, setSaved]         = useState(false);
+  const [accent, setAccentState] = useState<string | null>(null);
+  const [detailId, setDetailId]  = useState<string | null>(null); // which template is previewed
+  const [continuing, setContinuing] = useState(false);
+  // Preview templates with the user's OWN content (from their profile / uploaded
+  // resume); falls back to neutral sample content until it loads or if empty.
+  const [previewData, setPreviewData] = useState<PreviewData>(SAMPLE_PREVIEW);
 
   // Sample CV (Pro)
   const [sampleFile, setSampleFile]           = useState<File | null>(null);
@@ -341,26 +302,20 @@ export default function TemplatePage() {
   const [sampleUploaded, setSampleUploaded]   = useState(false);
 
   const templates = useCvTemplateInfos();
-  // Each gallery card's id is its cv_template key — exported as selected_template_id.
+  // Each gallery card's id is its cv_template key — saved as selected_template_id.
   const templatesWithId: TemplateWithId[] = templates.map(info => ({ ...info, _id: info.key }));
 
-  const detailInfo   = detailId   ? (templatesWithId.find(t => t._id === detailId)   ?? null) : null;
-  const selectedInfo = selected   ? (templatesWithId.find(t => t._id === selected)   ?? null) : null;
+  const detailInfo   = detailId ? (templatesWithId.find(t => t._id === detailId) ?? null) : null;
+  const selectedInfo = selected ? (templatesWithId.find(t => t._id === selected) ?? null) : null;
 
   useEffect(() => {
-    try {
-      const storedResume = localStorage.getItem("cvtailora_generated");
-      const storedEval   = localStorage.getItem("cvtailora_eval_summary");
-      if (storedResume) {
-        const parsed = JSON.parse(storedResume) as GeneratedResume;
-        setGeneratedResume(parsed);
-        setPreviewData(toPreviewData(parsed));
-      }
-      if (storedEval) setEvalSummary(JSON.parse(storedEval));
-    } catch { /* ignore */ }
     const savedTemplate = localStorage.getItem("cvtailora_template_id");
     if (savedTemplate) setSelected(savedTemplate);
     setAccentState(localStorage.getItem("cvtailora_accent") || null);
+    // Preview with the user's own resume content when available.
+    getAccountProfile()
+      .then(p => { const pd = accountProfileToPreviewData(p); if (pd) setPreviewData(pd); })
+      .catch(() => { /* keep sample */ });
   }, []);
 
   /** Set + persist the colour variant for the selected template. */
@@ -394,101 +349,27 @@ export default function TemplatePage() {
     } finally { setUploadingSample(false); }
   }
 
-  async function handleGenerate() {
-    if (!selected && !sampleUploaded) { toast.error("Select a template to continue."); return; }
+  // Save the chosen template on the session, then generate INTO it on the next
+  // step. Picking the template first means the generator knows the exact page
+  // budget up front (better page-fit) — the whole point of this step ordering.
+  async function handleContinue() {
+    if (!selected && !sampleUploaded) {
+      toast.error("Pick a template (or upload a formatting reference) to continue.");
+      return;
+    }
     const sessionId = getSessionId();
     if (!sessionId) { toast.error("No session found."); return; }
-    setExporting(true);
+    setContinuing(true);
     try {
       if (selected) {
         await setSessionTemplate(sessionId, selected, accent);
         localStorage.setItem("cvtailora_template_id", selected);
       }
-      const boldKeywords = localStorage.getItem("cvtailora_bold_keywords") !== "false";
-      const result = await exportResume(sessionId, canExportPdf, boldKeywords);
-      setFiles(result);
-      if (result.pdf_error) toast(`PDF note: ${result.pdf_error}`, { icon: "⚠️", duration: 6000 });
-      else toast.success("Resume ready to download!");
+      router.push("/builder/preview");
     } catch (err: unknown) {
-      toast.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Export failed.");
-    } finally { setExporting(false); }
-  }
-
-  async function handleSaveToLibrary() {
-    const sessionId = getSessionId();
-    if (!sessionId) return;
-    const name = getFilename(generatedResume).replace(/_/g, " ");
-    setSaving(true);
-    try {
-      await saveResumeFromSession(sessionId, `Tailored — ${name}`);
-      setSaved(true);
-      toast.success("Saved to your Resume Library.");
-    } catch (err: unknown) {
-      toast.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Could not save.");
-    } finally { setSaving(false); }
-  }
-
-  const filename = getFilename(generatedResume);
-  const hasFiles = !!(files?.docx_file_id || files?.pdf_file_id);
-
-  // ── Download screen ───────────────────────────────────────────────────────
-
-  if (hasFiles) {
-    return (
-      <div className="max-w-lg mx-auto space-y-5">
-        <div className="text-center">
-          <div className="text-4xl mb-3">🎉</div>
-          <h1 className="text-2xl font-bold text-slate-900">Your Resume is Ready!</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {selectedInfo ? `Generated with the ${selectedInfo.name} template.` : "Your tailored resume is ready."}
-          </p>
-        </div>
-
-        {evalSummary && <EvalQualityPanel evalSummary={evalSummary} />}
-
-        <div className="card p-5 space-y-3">
-          {files?.docx_file_id && (
-            <a href={downloadUrl(files.docx_file_id)} download={`${filename}.docx`}
-              className="w-full flex items-center justify-center gap-2 btn-primary py-3 text-base">
-              <FiDownload className="w-5 h-5" /> Download Word (.docx)
-            </a>
-          )}
-          {files?.pdf_file_id && (
-            <a href={downloadUrl(files.pdf_file_id)} download={`${filename}.pdf`}
-              className="w-full flex items-center justify-center gap-2 btn-secondary py-3">
-              <FiDownload className="w-4 h-4" /> Download PDF
-            </a>
-          )}
-          {!canExportPdf && (
-            <Link href="/settings/plan"
-              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl py-3 text-sm text-brand-600 font-medium hover:border-brand-300 transition">
-              <FiLock className="w-4 h-4" /> PDF export — Plus / Pro
-            </Link>
-          )}
-          {canSaveLibrary && (
-            <button onClick={handleSaveToLibrary} disabled={saving || saved}
-              className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2">
-              {saved ? <><FiCheckCircle className="w-4 h-4 text-teal-500" /> Saved to Library</>
-                : saving ? <><FiRefreshCw className="w-4 h-4 animate-spin" /> Saving…</>
-                : <><FiBookmark className="w-4 h-4" /> Save to Resume Library</>}
-            </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => { setFiles(null); setSaved(false); setDetailId(null); }}
-            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 transition"
-          >
-← Different template
-          </button>
-          <Link href="/builder/upload"
-            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 transition">
-            New Resume →
-          </Link>
-        </div>
-      </div>
-    );
+      toast.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Could not save your template.");
+      setContinuing(false);
+    }
   }
 
   // ── Gallery + modal overlay ───────────────────────────────────────────────
@@ -501,6 +382,7 @@ export default function TemplatePage() {
         <TemplateModal
           info={detailInfo}
           previewData={previewData}
+          personalised={previewData !== SAMPLE_PREVIEW}
           isSelected={selected === detailInfo._id}
           initialAccent={selected === detailInfo._id ? accent : null}
           onSelect={(a) => { setSelected(detailInfo._id); setAccent(a); setDetailId(null); }}
@@ -582,17 +464,15 @@ export default function TemplatePage() {
         getRootProps={getRootProps} getInputProps={getInputProps} isDragActive={isDragActive}
       />}
 
-      {evalSummary && <EvalQualityPanel evalSummary={evalSummary} />}
-
-      {/* Generate */}
+      {/* Continue — saves the template, then the next step generates into it */}
       <button
-        onClick={handleGenerate}
-        disabled={exporting || (!selected && !sampleUploaded)}
+        onClick={handleContinue}
+        disabled={continuing || (!selected && !sampleUploaded)}
         className="w-full btn-primary py-4 text-base flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {exporting
-          ? <><FiRefreshCw className="w-5 h-5 animate-spin" /> Generating files…</>
-          : <><FiDownload className="w-5 h-5" /> Generate &amp; Download</>}
+        {continuing
+          ? <><FiRefreshCw className="w-5 h-5 animate-spin" /> Saving…</>
+          : <>Continue to Generate →</>}
       </button>
 
       <div className="flex justify-start pb-2">
