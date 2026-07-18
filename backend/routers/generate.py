@@ -208,10 +208,14 @@ async def start_autofix(session_id: str, user: dict | None = Depends(get_optiona
     if not session.get("generated_resume"):
         raise HTTPException(422, "Generate a resume first.")
 
-    # Fast-fail cost guards stay in the HTTP request (clear 4xx to the user).
+    # Cost guard: the daily/monthly USD budgets only — NOT the per-session AI
+    # call cap. That cap is sized for anonymous generation loops; a normal Pro
+    # generation already uses ~9-11 of its 10 calls, so gating auto-fix on it
+    # blocked the feature on real sessions (alert email 2026-07-18:
+    # "at AI call limit: used=11 limit=10"). Auto-fix is Pro-only, i.e. always
+    # authenticated, so the real dollar budgets always apply.
     if user:
         await check_budget(db, user, user_tier)
-    await check_cost_limit(db, session_id)
 
     from services import autofix_jobs
     from services.autofix_service import run_autofix

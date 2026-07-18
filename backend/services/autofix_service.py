@@ -171,6 +171,19 @@ async def _run(db, session_id: str, user: dict | None) -> None:
                 ),
             })
 
+        # Applied edits can lengthen content — refresh the page-fit status the
+        # preview shows (pure function, no LLM call, no latency).
+        if new_summary.get("template_pages"):
+            try:
+                from services.resume_checker_service import validate_resume_layout
+                new_summary["layout_validation"] = validate_resume_layout(
+                    resume=new_resume,
+                    page_count=int(new_summary["template_pages"]),
+                    source_resume_text=resume_text,
+                )
+            except Exception as exc:
+                logger.warning("[autofix] layout revalidation skipped (non-fatal): %s", exc)
+
         await db.sessions.update_one(
             {"_id": ObjectId(session_id)},
             {"$set": {
@@ -204,8 +217,10 @@ async def _run(db, session_id: str, user: dict | None) -> None:
         )
 
     # ── 5. Cost + monitoring — same surfaces as every other AI feature ────────
-    from services.generation_service import increment_call_count
-    await increment_call_count(db, session_id, llm_calls)
+    # Deliberately NOT charged to the per-session AI-call cap: that cap is the
+    # anonymous-generation guardrail and a Pro generation already nearly fills
+    # it — charging auto-fix here starved later regenerations. Auth'd users are
+    # governed by the daily/monthly USD budgets (increment_usage below).
     usage = telemetry.summary()
     logger.info(
         "[autofix] TELEMETRY session=%s tier=%s applied=%d rejected=%d score %s->%s | "
