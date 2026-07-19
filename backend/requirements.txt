@@ -13,6 +13,8 @@ langchain-anthropic==1.4.3
 langchain-openai==1.2.2
 langchain-google-genai==4.2.3
 reportlab==4.5.1
+playwright==1.61.0
+pypdfium2==5.8.0
 Pillow==11.2.1
 rapidocr-onnxruntime==1.2.3   # OCR fallback for scanned PDFs — pure pip, bundled models, no system deps
 python-dotenv==1.0.1

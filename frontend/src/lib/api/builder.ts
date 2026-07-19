@@ -178,7 +178,15 @@ export async function runAutofix(
   throw new Error("Auto-fix is taking unusually long — please retry in a minute.");
 }
 
-export async function exportResume(sessionId: string, includePdf = false, boldKeywords = true) {
+export async function exportResume(
+  sessionId: string,
+  includePdf = false,
+  boldKeywords = true,
+  /** Exact template HTML as previewed — backend prints it with headless
+   *  Chromium so the PDF matches the preview pixel-for-pixel. Omitted →
+   *  legacy generic PDF layout. */
+  renderedHtml?: string,
+) {
   let resumeData: unknown = null;
   try {
     const stored = localStorage.getItem("cvtailora_generated");
@@ -186,7 +194,12 @@ export async function exportResume(sessionId: string, includePdf = false, boldKe
   } catch { /* ignore */ }
   const { data } = await api.post(
     `/api/export?session_id=${sessionId}`,
-    { include_pdf: includePdf, resume_data: resumeData, bold_keywords: boldKeywords },
+    {
+      include_pdf: includePdf,
+      resume_data: resumeData,
+      bold_keywords: boldKeywords,
+      rendered_html: renderedHtml ?? null,
+    },
     { timeout: 60_000 },  // 60s — DOCX is fast; PDF can be slower
   );
   return data as { docx_file_id?: string; pdf_file_id?: string; pdf_error?: string };
@@ -320,6 +333,8 @@ export interface EvalSummary {
   faithfulness_warning?: string | null;
   /** A4 page budget of the selected template (used to show page-fit status). */
   template_pages?: number;
+  /** Top JD skills extracted by the job analyzer (used for export bolding). */
+  key_skills?: string[];
   /** Deterministic layout QA against the page budget. */
   layout_validation?: {
     estimated_pages?: number;

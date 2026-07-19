@@ -18,6 +18,10 @@ class ExportBody(BaseModel):
     include_pdf: bool = False
     resume_data: dict | None = None  # fallback when session lacks generated_resume
     bold_keywords: bool = True        # bold key skills extracted from JD in the output
+    # The EXACT template HTML the client previews (rendered once, client-side,
+    # in lib/cvTemplates.ts). When present the PDF is printed from it with
+    # headless Chromium — pixel-identical to the preview for every template.
+    rendered_html: str | None = None
 
 
 @router.post("/export")
@@ -90,7 +94,23 @@ async def export_resume(
     # ── PDF generation (optional) ──────────────────────────────────────────────
     if body.include_pdf:
         try:
-            pdf_bytes = generate_pdf(resume_data, bold_keywords=bold_keywords)
+            pdf_bytes: bytes | None = None
+            # Template-faithful path: print the exact preview HTML with headless
+            # Chromium. Falls back to the legacy generic PDF on ANY failure —
+            # the user always gets a file.
+            if body.rendered_html:
+                from services import pdf_renderer
+                if pdf_renderer.is_available():
+                    try:
+                        pdf_bytes = await pdf_renderer.render_html_to_pdf(body.rendered_html)
+                    except Exception as render_exc:
+                        import logging
+                        logging.getLogger("cvtailora").warning(
+                            "[export] template-faithful PDF failed (%s) — using legacy layout.",
+                            render_exc,
+                        )
+            if pdf_bytes is None:
+                pdf_bytes = generate_pdf(resume_data, bold_keywords=bold_keywords)
             pdf_id = await fs.upload_from_stream(
                 f"resume_{session_id}.pdf",
                 io.BytesIO(pdf_bytes),

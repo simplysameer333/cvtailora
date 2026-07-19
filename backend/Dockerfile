@@ -11,6 +11,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Headless Chromium for template-faithful PDF export (services/pdf_renderer.py).
+# --with-deps pulls the shared libraries Chromium needs on debian-slim.
+RUN python -m playwright install --with-deps chromium
+
 COPY . .
 
 RUN mkdir -p templates/prebuilt templates/uploads

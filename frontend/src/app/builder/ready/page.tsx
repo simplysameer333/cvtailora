@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -17,6 +17,7 @@ import {
 import { useCvTemplateInfos } from "@/components/TemplatePreviews";
 import { getTemplateHtml } from "@/lib/templateHtml";
 import { toPreviewData, getFilename, SAMPLE_PREVIEW } from "@/lib/resumePreview";
+import { boldKeywordsInHtml } from "@/lib/exportHtml";
 import { EvalQualityPanel } from "@/components/EvalQualityPanel";
 
 type ExportResult = { docx_file_id?: string; pdf_file_id?: string; pdf_error?: string };
@@ -88,6 +89,7 @@ export default function ReadyPage() {
   const templates = useCvTemplateInfos();
   const templateInfo = templateId ? templates.find(t => t.key === templateId) ?? null : null;
 
+  const [lsLoaded, setLsLoaded] = useState(false);
   useEffect(() => {
     try {
       const r = localStorage.getItem("cvtailora_generated");
@@ -97,18 +99,50 @@ export default function ReadyPage() {
     } catch { /* ignore */ }
     setTemplateId(localStorage.getItem("cvtailora_template_id"));
     setAccent(localStorage.getItem("cvtailora_accent") || null);
+    setLsLoaded(true);
   }, []);
 
-  // Prepare the downloadable DOCX/PDF once (the resume + template are already
-  // chosen; this just renders them into files).
+  const previewData = useMemo(() => (resume ? toPreviewData(resume) : null), [resume]);
+  const templateHtml = useMemo(
+    () => (templateId && previewData ? getTemplateHtml(templateId, previewData, accent) : ""),
+    [templateId, previewData, accent],
+  );
+
+  // Prepare the downloadable DOCX/PDF once. Runs only after (a) localStorage
+  // state has loaded and (b) the template store can render the preview HTML —
+  // that same HTML is sent with the export so the PDF is printed from it
+  // (pixel-identical to the preview). Guarded by a ref so late template-store
+  // loads never trigger a second export.
+  const exportStartedRef = useRef(false);
+  // Safety valve: if the template store never loads (network/API failure),
+  // export anyway after a short grace period — a legacy-layout PDF beats a
+  // page stuck on "Preparing files" forever.
+  const [exportFallbackDue, setExportFallbackDue] = useState(false);
   useEffect(() => {
+    const t = setTimeout(() => setExportFallbackDue(true), 6000);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    if (exportStartedRef.current || !lsLoaded) return;
+    const templatesReady = templates.length > 0;
+    // With a chosen template, wait for its HTML (store load) — unless the
+    // store has loaded and still can't render it (deleted template), or the
+    // grace period expired: proceed with the legacy PDF rather than never
+    // exporting.
+    if (templateId && !templateHtml && !templatesReady && !exportFallbackDue) return;
+    exportStartedRef.current = true;
+
     const sessionId = getSessionId();
     if (!sessionId) { setExporting(false); return; }
     let cancelled = false;
     (async () => {
       try {
         const boldKeywords = localStorage.getItem("cvtailora_bold_keywords") !== "false";
-        const result = await exportResume(sessionId, canExportPdf, boldKeywords);
+        let html = templateHtml || undefined;
+        if (html && boldKeywords) {
+          html = boldKeywordsInHtml(html, evalSummary?.key_skills ?? []);
+        }
+        const result = await exportResume(sessionId, canExportPdf, boldKeywords, html);
         if (cancelled) return;
         setFiles(result);
         if (result.pdf_error) toast(`PDF note: ${result.pdf_error}`, { icon: "⚠️", duration: 6000 });
@@ -119,13 +153,8 @@ export default function ReadyPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [canExportPdf]);
-
-  const previewData = useMemo(() => (resume ? toPreviewData(resume) : null), [resume]);
-  const templateHtml = useMemo(
-    () => (templateId && previewData ? getTemplateHtml(templateId, previewData, accent) : ""),
-    [templateId, previewData, accent],
-  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lsLoaded, templateId, templateHtml, templates.length, canExportPdf]);
   const sampleHtml = useMemo(
     () => (templateId ? getTemplateHtml(templateId, SAMPLE_PREVIEW, accent) : ""),
     [templateId, accent],
