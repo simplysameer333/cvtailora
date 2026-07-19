@@ -83,6 +83,11 @@ DEFAULT_LIMITS: dict[str, dict[str, int | None]] = {
     # max_eval_cycles: generator-evaluator loop budget per tier.
     "pass_threshold":  {"free": 70, "plus": 80, "pro": 90},
     "max_eval_cycles": {"free": 3,  "plus": 4,  "pro": 5},
+    # Aspirational score target shown in improvement guidance. The loop only
+    # has to clear pass_threshold; anyone below stretch_score still sees "what
+    # to add to reach N" (user decision 2026-07-19: Pro passes at 85 but keeps
+    # a visible path to 90+).
+    "stretch_score":   {"free": 75, "plus": 85, "pro": 90},
 }
 
 # Human-readable labels — used by the admin UI
@@ -112,6 +117,7 @@ LIMIT_LABELS: dict[str, str] = {
     "monthly_cost_cents": "Monthly AI Cost Budget (US¢)",
     "pass_threshold":  "Generation Pass Threshold (CV-Score)",
     "max_eval_cycles": "Generation Max Eval Cycles",
+    "stretch_score":   "Improvement Guidance Target (CV-Score)",
 }
 
 # ── In-memory cache ────────────────────────────────────────────────────────────

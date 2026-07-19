@@ -116,9 +116,16 @@ def _rebuild_actions(
     """Rebuild the user-actions card from the STABLE original suggestion pool
     (churn fix), then fold in this run's per-gap outcomes: verifiably-addressed
     items drop off, unfillable ones get a needs_user label + reason."""
+    # Keep the guidance target the generation run chose (the tier's stretch
+    # score, e.g. Pro 90) rather than reverting to the pass bar; guidance
+    # disappears only once the STRETCH target is reached.
+    prior_target = ((eval_summary.get("user_actions_needed") or {}).get("target_score")) or pass_threshold
+    target = max(prior_target, pass_threshold)
+    if score_after >= target:
+        return None
     ua = build_user_actions(
         eval_results=eval_summary.get("evaluator_results") or [],
-        pass_threshold=pass_threshold,
+        pass_threshold=target,
         final_score=score_after,
         resume_json=new_resume,
     )
@@ -246,7 +253,9 @@ async def _run(db, session_id: str, user: dict | None) -> None:
                 # shrink: build_user_actions' check_present suppresses items
                 # whose data auto-fix just inserted. evaluator_results is left
                 # untouched for the same reason (a 2nd auto-fix reuses it).
-                "user_actions_needed": None if all_passed else _rebuild_actions(
+                # _rebuild_actions returns None once the STRETCH target is
+                # reached — guidance persists on passing-but-below-stretch runs.
+                "user_actions_needed": _rebuild_actions(
                     eval_summary, pass_threshold, int(score_after), new_resume,
                     gap_tags, applied, unfillable,
                 ),

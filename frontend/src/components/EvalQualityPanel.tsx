@@ -36,7 +36,9 @@ function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { s
     <div className="mt-3 rounded-xl border border-amber-200 bg-white/80 p-3.5">
       <div className="flex items-center gap-2 mb-1.5">
         <FiTrendingUp className="w-4 h-4 text-amber-600 shrink-0" />
-        <span className="font-semibold text-sm text-slate-800">Add these to raise your score</span>
+        <span className="font-semibold text-sm text-slate-800">
+          {summary.all_passed ? "Push your score higher" : "Add these to raise your score"}
+        </span>
         {ua.estimated_points_available > 0 && (
           <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">
             +{ua.estimated_points_available} pts possible
@@ -44,8 +46,9 @@ function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { s
         )}
       </div>
       <p className="text-xs text-slate-500 leading-relaxed mb-2.5">
-        {ua.current_score}/100 — {ua.points_needed} below your {ua.target_score} target. These are real
-        details only you can add; the AI never invents facts.
+        {summary.all_passed
+          ? `${ua.current_score}/100 — you've passed your target. ${ua.points_needed} more would reach ${ua.target_score}. These are real details only you can add; the AI never invents facts.`
+          : `${ua.current_score}/100 — ${ua.points_needed} below your ${ua.target_score} target. These are real details only you can add; the AI never invents facts.`}
       </p>
       <ul className="flex flex-col gap-2">
         {ua.actions.map((a, i) => (

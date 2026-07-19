@@ -697,11 +697,19 @@ async def _generation_body(db, session_id: str, extra_instr: str, user: dict | N
             session_id, final_score, original_score, user_tier, final_state["cycle"],
         )
 
+    # Improvement guidance targets the tier's STRETCH score, not just the pass
+    # bar — a Pro run that passes at 85-89 still shows "what to add to reach
+    # 90+" (user decision 2026-07-19). The guidance target never sits below
+    # the pass bar, so failed runs keep a single consistent number.
+    stretch_target = max(
+        pass_threshold,
+        _tier_limit(user_tier, "stretch_score") or 0,
+    )
     user_actions = None
-    if not final_state["all_passed"]:
+    if final_score < stretch_target:
         user_actions = build_user_actions(
             eval_results=final_state.get("eval_results") or [],
-            pass_threshold=pass_threshold,
+            pass_threshold=stretch_target,
             final_score=final_score,
             resume_json=final_state.get("best_resume_json") or final_state.get("resume_json"),
         )
