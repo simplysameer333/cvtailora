@@ -275,6 +275,45 @@ async def run_full_generation(session_id: str, extra_instr: str, user: dict | No
                 continue
 
             logger.exception("[generate-job] session %s failed permanently: %s", session_id, exc)
+
+            # ── Complete-with-best: a run that already produced a scored resume
+            # never surfaces as an error. Observed in prod (2026-07-19): three
+            # attempts crashed identically at the same cycle while the
+            # checkpoint held best=87 — the user got "Try again" although the
+            # system HAD an excellent result. Deliver the checkpointed best
+            # (persisted for export) with a minimal eval summary instead.
+            job_doc = await gen_jobs.get(db, session_id)
+            cp = (job_doc or {}).get("checkpoint") or {}
+            if cp.get("best_resume_json") and int(cp.get("best_min_score", 0) or 0) > 0:
+                best, best_score = cp["best_resume_json"], int(cp["best_min_score"])
+                from services.tier_config_service import get_limit as _tl
+                tier_bar = _tl((user or {}).get("tier", "free"), "pass_threshold") or settings.pass_threshold
+                await db.sessions.update_one(
+                    {"_id": ObjectId(session_id)},
+                    {"$set": {"generated_resume": best, "final_min_score": best_score,
+                              "final_all_passed": best_score >= tier_bar}},
+                )
+                await gen_jobs.complete(db, session_id, {
+                    "resume": best,
+                    "mode": "tailored",
+                    "eval_summary": {
+                        "cycles": int(cp.get("cycle", 0) or 0),
+                        "min_score": best_score,
+                        "score": best_score,
+                        "all_passed": best_score >= tier_bar,
+                        "pass_threshold": tier_bar,
+                        "evaluator_results": [],
+                        "profession": "General",
+                        "completed_from_checkpoint": True,
+                    },
+                })
+                logger.warning(
+                    "[generate-job] session %s completed from checkpoint best=%d after "
+                    "exhausted retries — user gets the result, not an error.",
+                    session_id, best_score,
+                )
+                return
+
             await gen_jobs.fail(
                 db, session_id,
                 str(detail) if isinstance(exc, HTTPException)

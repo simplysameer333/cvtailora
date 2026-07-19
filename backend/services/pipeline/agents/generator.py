@@ -79,10 +79,26 @@ class GeneratorAgent(BaseAgent):
             current_resume, patch_keys, profession_config,
             locked_facts or [], key_skills or [], template_pages,
         )
-        # Smaller budget: we're only outputting a handful of sections.
-        response = await self._model(max_tokens=1500, timeout=45).ainvoke(messages)
+        # Budget sized for the LARGEST patch (experience + sections of a long
+        # CV): 1500 truncated real patches mid-JSON (prod 2026-07-19).
+        response = await self._model(max_tokens=2500, timeout=60).ainvoke(messages)
         record_usage(settings.generator_model, self.name, response)
-        patch = parse_json_response(response.content)
+        try:
+            patch = parse_json_response(response.content)
+        except Exception:
+            # parse_json_response RAISES on unparseable/empty content, so the
+            # isinstance fallback below never fired — a bad patch response
+            # crashed the whole attempt (prod 2026-07-19: 3 identical crashes
+            # → permanent failure despite a best=87 checkpoint). A patch has a
+            # safe value by definition: keep the last good resume and let the
+            # loop evaluate/continue. Log enough to diagnose the bad response.
+            import logging
+            logging.getLogger("cvtailora").warning(
+                "[generator] patch response unparseable (len=%s, stop=%s) — keeping current resume",
+                len(response.content or ""),
+                (getattr(response, "response_metadata", {}) or {}).get("stop_reason"),
+            )
+            return current_resume
         if not isinstance(patch, dict):
             return current_resume  # safe fallback — use last good result
         result = dict(current_resume)
@@ -107,7 +123,10 @@ class GeneratorAgent(BaseAgent):
         messages = await trim_messages(resume_json, template_pages, overflow_note)
         response = await self._model(max_tokens=3000, timeout=60).ainvoke(messages)
         record_usage(settings.generator_model, "generator_trim", response)
-        trimmed = parse_json_response(response.content)
+        try:
+            trimmed = parse_json_response(response.content)
+        except Exception:
+            return resume_json  # same latent raise-before-fallback bug as run_patch
         return trimmed if isinstance(trimmed, dict) and trimmed.get("experience") else resume_json
 
     async def run_section(
