@@ -277,6 +277,19 @@ async def _run(db, session_id: str, user: dict | None) -> None:
     else:
         score_after = score_before
 
+    # Even a run that applied NOTHING learned something: which card items the
+    # filler declared unfillable. Fold those needs_user labels in so the most
+    # common repeat-click outcome ("all remaining gaps need you") is explained
+    # on the card instead of looking like a silent failure (observed in prod
+    # right after the outcomes feature shipped: 7/7 rejected -> no labels).
+    if not applied and unfillable:
+        ua = new_summary.get("user_actions_needed")
+        if ua and ua.get("actions"):
+            new_summary["user_actions_needed"] = {
+                **ua,
+                "actions": apply_gap_outcomes(ua["actions"], gap_tags, [], unfillable),
+            }
+
     report = {
         # On a revert the edits were NOT kept — report them as candidates that
         # didn't survive keep-best, never as applied changes.
@@ -295,12 +308,14 @@ async def _run(db, session_id: str, user: dict | None) -> None:
     new_summary["autofix"] = report
 
     # Keep the generation-job result in sync so a later auto-fix (or reload)
-    # reads the post-fix resume and the SHRUNKEN gap list, not stale data.
-    if applied and not reverted and gen_job:
-        await db.generation_jobs.update_one(
-            {"session_id": session_id},
-            {"$set": {"result.resume": new_resume, "result.eval_summary": new_summary}},
-        )
+    # reads the post-fix resume and the annotated gap list, not stale data.
+    # The summary syncs even on applied=0 runs (needs_user labels + report);
+    # the resume syncs only when edits were actually kept.
+    if gen_job and not reverted:
+        sync: dict = {"result.eval_summary": new_summary}
+        if applied:
+            sync["result.resume"] = new_resume
+        await db.generation_jobs.update_one({"session_id": session_id}, {"$set": sync})
 
     # ── 5. Cost + monitoring — same surfaces as every other AI feature ────────
     # Deliberately NOT charged to the per-session AI-call cap: that cap is the
