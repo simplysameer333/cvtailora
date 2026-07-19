@@ -285,6 +285,10 @@ export interface UserAction {
   action: string;
   example: string;
   score_impact: number;
+  /** Auto-fix explicitly determined this needs data only the user has. */
+  needs_user?: boolean;
+  /** Auto-fix's reason why it could not fill this from the user's sources. */
+  why_ai_cannot?: string;
 }
 
 export interface UserActionsNeeded {

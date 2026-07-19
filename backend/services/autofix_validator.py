@@ -174,6 +174,13 @@ def validate_and_apply(
                 continue
             before = parent.get(last, "")
 
+        # 0. No-op "changes" (value identical to what's already there) spend
+        #    budget and mislead the report — observed in prod (2026-07-19:
+        #    "confirming existing value is correct; no change"). Reject them.
+        if normalize(_value_text(new_value)) == normalize(_value_text(before)):
+            _reject("no_op")
+            continue
+
         # 1. Every change must cite real user data.
         norm_quote = normalize(quote)
         if len(norm_quote) < _MIN_QUOTE_LEN:

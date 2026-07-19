@@ -4,7 +4,7 @@
  * Displays the multi-evaluator score, quality label, progress bar, and cycle count.
  */
 import Link from "next/link";
-import { FiAward, FiAlertTriangle, FiTrendingUp, FiZap, FiLock, FiRefreshCw } from "react-icons/fi";
+import { FiAward, FiAlertTriangle, FiTrendingUp, FiZap, FiLock, FiRefreshCw, FiCheck, FiUser } from "react-icons/fi";
 import type { EvalSummary } from "@/lib/api";
 
 // Priority chip colours — critical (red) → high (amber) → medium (slate).
@@ -57,12 +57,39 @@ function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { s
               <p className="text-xs font-medium text-slate-800">
                 {a.action}
                 {a.score_impact > 0 && <span className="text-slate-400 font-normal"> · +{a.score_impact}</span>}
+                {a.needs_user && (
+                  <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-brand-700 bg-brand-50 border border-brand-200 rounded px-1.5 py-0.5 align-middle">
+                    <FiUser className="w-2.5 h-2.5" /> needs your input
+                  </span>
+                )}
               </p>
               {a.example && <p className="text-[11px] text-slate-400 mt-0.5 truncate">e.g. {a.example}</p>}
+              {a.needs_user && a.why_ai_cannot && (
+                <p className="text-[11px] text-slate-400 mt-0.5">AI can&apos;t fill this: {a.why_ai_cannot}</p>
+              )}
             </div>
           </li>
         ))}
       </ul>
+
+      {/* Persistent record of what the last auto-fix changed — the toast is
+          transient, and an unchanged-looking card read as "nothing happened"
+          even when edits were persisted (user report 2026-07-19). */}
+      {summary.autofix && summary.autofix.applied.length > 0 && (
+        <div className="mt-3 rounded-lg border border-green-200 bg-green-50/70 p-2.5">
+          <p className="text-xs font-semibold text-green-800 flex items-center gap-1.5">
+            <FiCheck className="w-3.5 h-3.5" />
+            Auto-fixed from your data ({summary.autofix.applied.length})
+            {summary.autofix.score_after > summary.autofix.score_before &&
+              ` — score ${summary.autofix.score_before} → ${summary.autofix.score_after}`}
+          </p>
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {summary.autofix.applied.slice(0, 6).map((c, i) => (
+              <li key={i} className="text-[11px] text-green-900/80 truncate">• {c.gap || c.path}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p className="text-[11px] text-slate-400 mt-2.5">
         Update these in your CV or profile, then regenerate for a higher score.
       </p>

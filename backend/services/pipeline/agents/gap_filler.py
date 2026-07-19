@@ -44,6 +44,10 @@ For each gap, in order:
 
 Rewording existing resume content (stronger verbs, ATS keyword phrasing of facts already present) is allowed and needs no new facts — but still cite the existing text you reworked as the source_quote.
 
+NEVER return a change whose new_value equals the current value ("confirming it is correct" is NOT a change — such entries are discarded). If the resume already satisfies a gap, put it in `unfillable` with reason "already satisfied".
+
+Some gaps carry an ID like [A1], [A2] — echo that ID in the `gap_id` field of the change or unfillable entry that addresses it (empty string when a gap has no ID). This is how the user's to-do list gets updated, so be accurate.
+
 ## EDIT PATHS
 `path` addresses the CURRENT RESUME JSON: dot keys with [n] list indices.
 Examples: "contact.linkedin", "summary", "experience[0].bullets[2]", "sections[1].items".
@@ -56,11 +60,12 @@ To add an item to a list, return the FULL new list at the list's path (e.g. all 
       "path": "contact.linkedin",
       "new_value": "https://linkedin.com/in/example",
       "source_quote": "the verbatim source text (resume or profile) proving this fact",
-      "gap": "which gap this closes, in a few words"
+      "gap": "which gap this closes, in a few words",
+      "gap_id": "A1"
     }
   ],
   "unfillable": [
-    {"action": "the gap that needs the candidate", "reason": "not present in resume or profile"}
+    {"action": "the gap that needs the candidate", "reason": "not present in resume or profile", "gap_id": "A2"}
   ]
 }
 Return at most 12 changes. `source_quote` must be copied VERBATIM from the sources — it is checked mechanically."""

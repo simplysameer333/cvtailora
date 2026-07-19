@@ -19,6 +19,7 @@ feature never invents emails, URLs, metrics, skills, or any other fact.
 from __future__ import annotations
 
 import logging
+import re
 
 from bson import ObjectId
 
@@ -36,16 +37,23 @@ from services.usage_service import increment_usage
 logger = logging.getLogger("cvtailora")
 
 
-def build_gaps_text(eval_summary: dict) -> str:
+def build_gaps_text(eval_summary: dict) -> tuple[str, dict[str, str]]:
     """Serialise the score gaps for the gap-filler prompt.
 
-    Combines the user-action items (the concrete missing-data fixes) with the
-    weak-category CV-Score suggestions, deduplicated, capped for prompt size.
+    User-action items (the card the user sees) get stable IDs ([A1], [A2] …)
+    so the filler can report per-item outcomes and the card can drop items it
+    verifiably addressed / label the ones it declared unfillable. Weak-category
+    CV-Score suggestions ride along untagged (they aren't card items).
+
+    Returns (gaps_text, {tag: action_text}).
     """
     lines: list[str] = []
+    tags: dict[str, str] = {}
     ua = eval_summary.get("user_actions_needed") or {}
-    for a in (ua.get("actions") or []):
-        line = f"- [{a.get('category', '')}] {a.get('action', '')}"
+    for i, a in enumerate(ua.get("actions") or []):
+        tag = f"A{i + 1}"
+        tags[tag] = a.get("action", "")
+        line = f"- [{tag}] [{a.get('category', '')}] {a.get('action', '')}"
         if a.get("example"):
             line += f" (e.g. {a['example']})"
         lines.append(line)
@@ -55,7 +63,68 @@ def build_gaps_text(eval_summary: dict) -> str:
                 lines.append(f"- {s}")
     seen: set[str] = set()
     unique = [ln for ln in lines if not (ln in seen or seen.add(ln))]
-    return "\n".join(unique[:20])
+    return "\n".join(unique[:20]), tags
+
+
+def apply_gap_outcomes(
+    actions: list[dict],
+    tags: dict[str, str],
+    applied_changes: list[dict],
+    unfillable: list[dict],
+) -> list[dict]:
+    """Pure: fold the filler's per-gap outcomes into the rebuilt action list.
+
+    - An action whose tag appears in a GATE-VERIFIED applied change is removed
+      (the data now demonstrably exists in the resume).
+    - An action whose tag the filler declared unfillable is kept but marked
+      needs_user (+ the filler's reason) so the UI can explain WHY it persists.
+    Matching is by tag -> original action text (the rebuilt list preserves
+    action texts; index positions may differ).
+    """
+    addressed = {tags[t] for c in applied_changes
+                 for t in _GAP_TAG.findall(str(c.get("gap_id", "") or c.get("gap", "")))
+                 if t in tags}
+    needs_user: dict[str, str] = {}
+    for u in unfillable:
+        for t in _GAP_TAG.findall(str(u.get("gap_id", "") or u.get("action", ""))):
+            if t in tags:
+                needs_user[tags[t]] = str(u.get("reason", ""))[:200]
+
+    out: list[dict] = []
+    for a in actions:
+        text = a.get("action", "")
+        if text in addressed:
+            continue
+        if text in needs_user:
+            a = {**a, "needs_user": True, "why_ai_cannot": needs_user[text]}
+        out.append(a)
+    return out
+
+
+_GAP_TAG = re.compile(r"\b(A\d+)\b")
+
+
+def _rebuild_actions(
+    eval_summary: dict,
+    pass_threshold: int,
+    score_after: int,
+    new_resume: dict,
+    gap_tags: dict[str, str],
+    applied: list[dict],
+    unfillable: list[dict],
+) -> dict | None:
+    """Rebuild the user-actions card from the STABLE original suggestion pool
+    (churn fix), then fold in this run's per-gap outcomes: verifiably-addressed
+    items drop off, unfillable ones get a needs_user label + reason."""
+    ua = build_user_actions(
+        eval_results=eval_summary.get("evaluator_results") or [],
+        pass_threshold=pass_threshold,
+        final_score=score_after,
+        resume_json=new_resume,
+    )
+    ua["actions"] = apply_gap_outcomes(ua.get("actions") or [], gap_tags, applied, unfillable)
+    ua["estimated_points_available"] = sum(a.get("score_impact", 0) for a in ua["actions"])
+    return ua
 
 
 async def run_autofix(session_id: str, user: dict | None) -> None:
@@ -93,7 +162,7 @@ async def _run(db, session_id: str, user: dict | None) -> None:
         account_profile.pop("_id", None)
         account_profile.pop("user_id", None)
 
-    gaps_text = build_gaps_text(eval_summary)
+    gaps_text, gap_tags = build_gaps_text(eval_summary)
     if not gaps_text:
         await autofix_jobs.fail(db, session_id, "Nothing to fix — no score gaps recorded.")
         return
@@ -177,11 +246,9 @@ async def _run(db, session_id: str, user: dict | None) -> None:
                 # shrink: build_user_actions' check_present suppresses items
                 # whose data auto-fix just inserted. evaluator_results is left
                 # untouched for the same reason (a 2nd auto-fix reuses it).
-                "user_actions_needed": None if all_passed else build_user_actions(
-                    eval_results=eval_summary.get("evaluator_results") or [],
-                    pass_threshold=pass_threshold,
-                    final_score=int(score_after),
-                    resume_json=new_resume,
+                "user_actions_needed": None if all_passed else _rebuild_actions(
+                    eval_summary, pass_threshold, int(score_after), new_resume,
+                    gap_tags, applied, unfillable,
                 ),
             })
 
