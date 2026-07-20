@@ -194,7 +194,11 @@ export default function JobPage() {
   }
 
   function handleSkip() {
-    // No JD saved — backend will polish the resume without job-specific tailoring
+    // No JD saved — backend will polish the resume without job-specific
+    // tailoring. Clear any job picked earlier (e.g. from Find Jobs), or the
+    // "Tailoring for: X" banner keeps showing a job that isn't actually
+    // being tailored for on this run (bug report 2026-07-20).
+    localStorage.removeItem("cvtailora_tailor_context");
     router.push("/builder/template");
   }
 

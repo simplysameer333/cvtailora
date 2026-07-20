@@ -30,14 +30,25 @@ interface AutofixProps {
 
 function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { summary: EvalSummary } & AutofixProps) {
   const ua = summary.user_actions_needed;
-  if (!ua || !ua.actions || ua.actions.length === 0) return null;
+  // Show the panel whenever there's a genuine score gap (ua is only built
+  // below-target — see generation_service.py). Previously this returned null
+  // when the rule-based matcher found zero concrete items, which also hid
+  // the Auto-fix button even though auto-fix's gap-filler independently
+  // receives the raw CV-Score suggestions (e.g. date-format/abbreviation
+  // fixes) and can still attempt safe reword-only changes on them (bug
+  // report 2026-07-19: score 82/85 with real blocking categories, but no
+  // panel and no way to reach Auto-fix).
+  if (!ua) return null;
+  const hasActions = !!ua.actions && ua.actions.length > 0;
 
   return (
     <div className="mt-3 rounded-xl border border-amber-200 bg-white/80 p-3.5">
       <div className="flex items-center gap-2 mb-1.5">
         <FiTrendingUp className="w-4 h-4 text-amber-600 shrink-0" />
         <span className="font-semibold text-sm text-slate-800">
-          {summary.all_passed ? "Push your score higher" : "Add these to raise your score"}
+          {hasActions
+            ? (summary.all_passed ? "Push your score higher" : "Add these to raise your score")
+            : "Room to improve"}
         </span>
         {ua.estimated_points_available > 0 && (
           <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">
@@ -46,34 +57,38 @@ function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { s
         )}
       </div>
       <p className="text-xs text-slate-500 leading-relaxed mb-2.5">
-        {summary.all_passed
-          ? `${ua.current_score}/100 — you've passed your target. ${ua.points_needed} more would reach ${ua.target_score}. These are real details only you can add; the AI never invents facts.`
-          : `${ua.current_score}/100 — ${ua.points_needed} below your ${ua.target_score} target. These are real details only you can add; the AI never invents facts.`}
+        {hasActions
+          ? (summary.all_passed
+              ? `${ua.current_score}/100 — you've passed your target. ${ua.points_needed} more would reach ${ua.target_score}. These are real details only you can add; the AI never invents facts.`
+              : `${ua.current_score}/100 — ${ua.points_needed} below your ${ua.target_score} target. These are real details only you can add; the AI never invents facts.`)
+          : `${ua.current_score}/100 — ${ua.points_needed} below your ${ua.target_score} target. No specific missing data found — the gap is likely wording, formatting, or ATS phrasing. Try Auto-fix or Regenerate for a fresh pass.`}
       </p>
-      <ul className="flex flex-col gap-2">
-        {ua.actions.map((a, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${PRIORITY_STYLES[a.priority] ?? PRIORITY_STYLES.medium}`}>
-              {a.priority}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-slate-800">
-                {a.action}
-                {a.score_impact > 0 && <span className="text-slate-400 font-normal"> · +{a.score_impact}</span>}
-                {a.needs_user && (
-                  <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-brand-700 bg-brand-50 border border-brand-200 rounded px-1.5 py-0.5 align-middle">
-                    <FiUser className="w-2.5 h-2.5" /> needs your input
-                  </span>
+      {hasActions && (
+        <ul className="flex flex-col gap-2">
+          {ua.actions.map((a, i) => (
+            <li key={i} className="flex items-start gap-2">
+              <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${PRIORITY_STYLES[a.priority] ?? PRIORITY_STYLES.medium}`}>
+                {a.priority}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-slate-800">
+                  {a.action}
+                  {a.score_impact > 0 && <span className="text-slate-400 font-normal"> · +{a.score_impact}</span>}
+                  {a.needs_user && (
+                    <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-brand-700 bg-brand-50 border border-brand-200 rounded px-1.5 py-0.5 align-middle">
+                      <FiUser className="w-2.5 h-2.5" /> needs your input
+                    </span>
+                  )}
+                </p>
+                {a.example && <p className="text-[11px] text-slate-400 mt-0.5 truncate">e.g. {a.example}</p>}
+                {a.needs_user && a.why_ai_cannot && (
+                  <p className="text-[11px] text-slate-400 mt-0.5">AI can&apos;t fill this: {a.why_ai_cannot}</p>
                 )}
-              </p>
-              {a.example && <p className="text-[11px] text-slate-400 mt-0.5 truncate">e.g. {a.example}</p>}
-              {a.needs_user && a.why_ai_cannot && (
-                <p className="text-[11px] text-slate-400 mt-0.5">AI can&apos;t fill this: {a.why_ai_cannot}</p>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* Persistent record of what the last auto-fix changed — the toast is
           transient, and an unchanged-looking card read as "nothing happened"
@@ -93,9 +108,11 @@ function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { s
           </ul>
         </div>
       )}
-      <p className="text-[11px] text-slate-400 mt-2.5">
-        Update these in your CV or profile, then regenerate for a higher score.
-      </p>
+      {hasActions && (
+        <p className="text-[11px] text-slate-400 mt-2.5">
+          Update these in your CV or profile, then regenerate for a higher score.
+        </p>
+      )}
 
       {/* AI Auto-Fix — Pro: one click fills what the user's OWN data already
           supports (original CV + profile); nothing is ever invented. Items
