@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from bson import ObjectId
 from pydantic import BaseModel
 from typing import Optional
+from config import settings
 from database import get_db
 from dependencies.auth import get_optional_user
 from services.audit import log_audit
@@ -185,6 +186,56 @@ async def generation_status(session_id: str, user: dict | None = Depends(get_opt
             ))
             job = claimed
     return gen_jobs.serialize(job)
+
+
+@router.post("/sessions/{session_id}/restore-previous-best")
+async def restore_previous_best(session_id: str, user: dict | None = Depends(get_optional_user)):
+    """Undo a regenerate that scored lower than the session's prior best.
+
+    generation_service snapshots the pre-run resume/score onto the session
+    whenever a fresh full-generate scores below what was already there
+    (regenerate is an explicit user action, so it isn't auto-reverted like
+    auto-fix — but nothing is ever silently lost). This restores that
+    snapshot. The rebuilt eval_summary is intentionally minimal (no
+    per-category breakdown was preserved) — the frontend panels already
+    degrade gracefully when those fields are absent.
+    """
+    db = get_db()
+    session = await db.sessions.find_one({"_id": ObjectId(session_id)})
+    if not session:
+        raise HTTPException(404, "Session not found.")
+    prev_resume = session.get("previous_best_resume")
+    prev_score = session.get("previous_best_score")
+    if not prev_resume or prev_score is None:
+        raise HTTPException(422, "No previous version to restore.")
+
+    from services.tier_config_service import get_limit as _tl
+    user_tier = (user or {}).get("tier", "free")
+    pass_threshold = _tl(user_tier, "pass_threshold") or settings.pass_threshold
+    all_passed = prev_score >= pass_threshold
+
+    eval_summary = {
+        "cycles": 0, "min_score": prev_score, "score": prev_score,
+        "all_passed": all_passed, "pass_threshold": pass_threshold, "tier": user_tier,
+        "evaluator_results": [], "profession": "General",
+        "restored_previous_best": True,
+    }
+    await db.sessions.update_one(
+        {"_id": ObjectId(session_id)},
+        {"$set": {
+            "generated_resume": prev_resume,
+            "final_min_score": prev_score,
+            "final_all_passed": all_passed,
+            "previous_best_resume": None,
+            "previous_best_score": None,
+        }},
+    )
+    await gen_jobs.complete(db, session_id, {
+        "resume": prev_resume, "mode": "restored", "eval_summary": eval_summary,
+    })
+    if user:
+        log_audit(user, "resume.restore_previous_best", {"session_id": session_id, "score": prev_score})
+    return {"resume": prev_resume, "eval_summary": eval_summary}
 
 
 @router.post("/sessions/{session_id}/autofix")

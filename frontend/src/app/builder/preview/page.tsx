@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import {
   generateResume,
   runAutofix,
+  restorePreviousBest,
   setLockedFacts,
   setSessionTemplate,
   syncResumeToSession,
@@ -77,6 +78,7 @@ export default function PreviewPage() {
   const [interviewPrep, setInterviewPrep] = useState<InterviewPrepResult | null>(null);
   const [interviewPrepLoading, setInterviewPrepLoading] = useState(false);
   const [autofixLoading, setAutofixLoading] = useState(false);
+  const [restoringPrevious, setRestoringPrevious] = useState(false);
 
   useEffect(() => {
     const storedResume = localStorage.getItem(LS_RESUME);
@@ -256,6 +258,25 @@ export default function PreviewPage() {
       toast.error("Failed to save locked facts.");
     } finally {
       setSavingFacts(false);
+    }
+  }
+
+  async function handleRestorePrevious() {
+    const sessionId = getSessionId();
+    if (!sessionId) { toast.error("No session found."); return; }
+    setRestoringPrevious(true);
+    try {
+      const result = await restorePreviousBest(sessionId);
+      setResume(result.resume);
+      setEvalSummary(result.eval_summary);
+      localStorage.setItem(LS_RESUME, JSON.stringify(result.resume));
+      localStorage.setItem(LS_EVAL, JSON.stringify(result.eval_summary));
+      toast.success(`Restored your previous version (${result.eval_summary.min_score}/100).`);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      toast.error(e?.response?.data?.detail ?? "Could not restore the previous version.");
+    } finally {
+      setRestoringPrevious(false);
     }
   }
 
@@ -521,6 +542,8 @@ export default function PreviewPage() {
           canAutofix={canAutofix}
           onAutofix={handleAutofix}
           autofixLoading={autofixLoading}
+          onRestorePrevious={handleRestorePrevious}
+          restoringPrevious={restoringPrevious}
         />
       )}
 

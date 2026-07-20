@@ -554,6 +554,20 @@ async def _generation_body(db, session_id: str, extra_instr: str, user: dict | N
         usage["output_tokens"], usage["cache_read_tokens"], usage["est_cost_usd"],
     )
 
+    # ── Regression guard: never silently lose a better previous result ───────
+    # A full regenerate is an explicit user action (unlike auto-fix, which
+    # auto-reverts) — respect it and keep the new content. But if it scored
+    # LOWER than the session's existing best, snapshot that best first so
+    # nothing is lost and the user can restore it with one click (observed in
+    # prod 2026-07-20: "Regenerate with guidance" dropped 87->82 with a NEW
+    # fabrication warning, silently overwriting the better version).
+    prev_score = session.get("final_min_score")
+    prev_resume = session.get("generated_resume")
+    regressed = (
+        prev_score is not None and prev_resume is not None
+        and final_state["min_score"] < prev_score
+    )
+
     await db.sessions.update_one(
         {"_id": ObjectId(session_id)},
         {"$set": {
@@ -565,6 +579,8 @@ async def _generation_body(db, session_id: str, extra_instr: str, user: dict | N
             "final_min_score": final_state["min_score"],
             "final_all_passed": final_state["all_passed"],
             "llm_usage": usage,
+            "previous_best_resume": prev_resume if regressed else None,
+            "previous_best_score": prev_score if regressed else None,
         }},
     )
 
@@ -736,6 +752,9 @@ async def _generation_body(db, session_id: str, extra_instr: str, user: dict | N
         "template_pages": template_pages,
         "user_actions_needed": user_actions,
         "timed_out": _timed_out,
+        "regression_warning": (
+            {"previous_score": prev_score, "current_score": final_score} if regressed else None
+        ),
     }
 
     if final_state.get("resume_json") and not _timed_out:

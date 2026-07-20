@@ -213,6 +213,46 @@ function ScoreBreakdown({ summary }: { summary: EvalSummary }) {
   );
 }
 
+/**
+ * Shown when a regenerate scored LOWER than the session's prior best. The
+ * prior version was snapshotted server-side (never silently lost) — this
+ * offers a one-click way back, mirroring the transparency of auto-fix's
+ * keep-best guard but for the one flow that's an explicit user action and
+ * so isn't auto-reverted (user report 2026-07-20: "Regenerate with
+ * guidance" dropped 87->82 with no way to undo it).
+ */
+function RegressionWarning({ summary, onRestore, restoring }: {
+  summary: EvalSummary;
+  onRestore?: () => void;
+  restoring?: boolean;
+}) {
+  const rw = summary.regression_warning;
+  if (!rw) return null;
+  return (
+    <div className="flex items-start gap-2 text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg p-2.5">
+      <FiAlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p>
+          <span className="font-semibold">This version scored lower: </span>
+          {rw.current_score}/100, down from your previous {rw.previous_score}/100. Your prior version is saved.
+        </p>
+        {onRestore && (
+          <button
+            onClick={onRestore}
+            disabled={restoring}
+            className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-red-700 hover:text-red-900 underline underline-offset-2 disabled:opacity-50"
+          >
+            {restoring
+              ? <FiRefreshCw className="w-3 h-3 animate-spin" />
+              : <FiRefreshCw className="w-3 h-3" />}
+            {restoring ? "Restoring…" : `Restore previous version (${rw.previous_score}/100)`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** One-line page-fit status against the template's A4 page budget. */
 function PageFit({ summary }: { summary: EvalSummary }) {
   const lv = summary.layout_validation;
@@ -267,7 +307,9 @@ export function EvalQualityPanel({ evalSummary }: { evalSummary: EvalSummary }) 
 
 // ── Expanded variant — used on builder/preview ────────────────────────────────
 
-export function EvalSummaryPanel({ summary, canAutofix, onAutofix, autofixLoading }: { summary: EvalSummary } & AutofixProps) {
+export function EvalSummaryPanel({
+  summary, canAutofix, onAutofix, autofixLoading, onRestorePrevious, restoringPrevious,
+}: { summary: EvalSummary; onRestorePrevious?: () => void; restoringPrevious?: boolean } & AutofixProps) {
   const { min_score, pass_threshold, profession } = summary;
   const label  = qualityLabel(min_score, pass_threshold);
   const colors = qualityColors(min_score, pass_threshold);
@@ -288,6 +330,7 @@ export function EvalSummaryPanel({ summary, canAutofix, onAutofix, autofixLoadin
           </span>
         )}
       </div>
+      <RegressionWarning summary={summary} onRestore={onRestorePrevious} restoring={restoringPrevious} />
       <ScoreBreakdown summary={summary} />
       <UserActionsCard summary={summary} canAutofix={canAutofix} onAutofix={onAutofix} autofixLoading={autofixLoading} />
     </div>

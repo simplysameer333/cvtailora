@@ -178,6 +178,12 @@ export async function runAutofix(
   throw new Error("Auto-fix is taking unusually long — please retry in a minute.");
 }
 
+/** Undo a regenerate that scored lower than the session's prior best. */
+export async function restorePreviousBest(sessionId: string): Promise<{ resume: GeneratedResume; eval_summary: EvalSummary }> {
+  const { data } = await api.post(`/api/sessions/${sessionId}/restore-previous-best`, {}, { timeout: 15_000 });
+  return data;
+}
+
 export async function exportResume(
   sessionId: string,
   includePdf = false,
@@ -345,6 +351,11 @@ export interface EvalSummary {
   user_actions_needed?: UserActionsNeeded | null;
   /** Set after an AI Auto-Fix run — what was filled from the user's own data. */
   autofix?: AutofixReport | null;
+  /** Set when a regenerate scored LOWER than the session's prior best — that
+   *  prior version is preserved server-side and can be restored. */
+  regression_warning?: { previous_score: number; current_score: number } | null;
+  /** True on the minimal summary returned by /restore-previous-best. */
+  restored_previous_best?: boolean;
 }
 
 export interface PipelineResult {
