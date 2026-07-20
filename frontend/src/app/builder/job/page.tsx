@@ -1,11 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import toast from "react-hot-toast";
-import { saveJobDescription, checkFit, getSalaryBenchmark, type FitScoreResult, type SalaryBenchmarkResult } from "@/lib/api";
+import { saveJobDescription, checkFit, getSalaryBenchmark, type FitScoreResult, type SalaryBenchmarkResult, type FitImprovementAction } from "@/lib/api";
 import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
-import { FiBriefcase, FiTarget, FiArrowRight, FiInfo, FiZap, FiDollarSign } from "react-icons/fi";
+import { FiBriefcase, FiTarget, FiArrowRight, FiInfo, FiZap, FiDollarSign, FiUser, FiEdit3, FiMessageSquare, FiCheck } from "react-icons/fi";
 
 // ── Fit score helpers ──────────────────────────────────────────────────────────
 
@@ -94,7 +95,69 @@ function FitPanel({ fit }: { fit: FitScoreResult }) {
           </div>
         )}
       </div>
+
+      {/* How to improve chances — concrete, conditional steps the candidate
+          can take BEFORE tailoring, so gaps get fixed here instead of
+          surfacing as a surprise at the Preview step. Same fit-scoring call,
+          no extra LLM cost. */}
+      {fit.improvement_actions && fit.improvement_actions.length > 0 && (
+        <div className="px-5 py-4 border-t border-current/10 bg-white/60">
+          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-2.5">
+            How to improve your chances
+          </p>
+          <ul className="flex flex-col gap-2.5">
+            {fit.improvement_actions.map((a, i) => (
+              <ImprovementActionRow key={i} action={a} />
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
+  );
+}
+
+const WHERE_META: Record<FitImprovementAction["where"], { icon: React.ReactNode; label: string }> = {
+  profile:      { icon: <FiUser className="w-3 h-3" />,          label: "Profile" },
+  summary:      { icon: <FiEdit3 className="w-3 h-3" />,         label: "Summary phrasing" },
+  instructions: { icon: <FiMessageSquare className="w-3 h-3" />, label: "Tailoring notes" },
+};
+
+function ImprovementActionRow({ action }: { action: FitImprovementAction }) {
+  const [added, setAdded] = useState(false);
+  const meta = WHERE_META[action.where];
+
+  function addToInstructions() {
+    // The Job step has no instructions field of its own — the Preview step's
+    // "Additional Instructions" reads this same key at generate time.
+    const key = "cvtailora_instructions";
+    const existing = localStorage.getItem(key) ?? "";
+    const next = existing ? `${existing}\n${action.action}` : action.action;
+    localStorage.setItem(key, next);
+    setAdded(true);
+    toast.success("Added to your tailoring notes — applied when you generate.");
+  }
+
+  return (
+    <li className="flex items-start gap-2.5">
+      <span className="mt-0.5 shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold uppercase text-slate-500 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">
+        {meta.icon}{meta.label}
+      </span>
+      <p className="text-xs text-slate-700 leading-relaxed flex-1 min-w-0">{action.action}</p>
+      {action.where === "profile" && (
+        <Link href="/profile" className="text-xs font-medium text-brand-600 hover:text-brand-700 shrink-0 whitespace-nowrap">
+          Edit profile →
+        </Link>
+      )}
+      {action.where === "instructions" && (
+        <button
+          onClick={addToInstructions}
+          disabled={added}
+          className="text-xs font-medium text-brand-600 hover:text-brand-700 shrink-0 whitespace-nowrap disabled:text-emerald-600 flex items-center gap-1"
+        >
+          {added ? <><FiCheck className="w-3 h-3" /> Added</> : "Add to notes"}
+        </button>
+      )}
+    </li>
   );
 }
 

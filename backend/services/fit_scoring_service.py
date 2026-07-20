@@ -36,6 +36,10 @@ Also identify:
 - missing_required: skills listed as "required"/"must have" in the JD that the candidate lacks (list, max 5)
 - missing_nice_to_have: skills listed as preferred/nice-to-have the candidate lacks (list, max 5)
 - summary: 1–2 sentences on the overall fit, honest and specific
+- improvement_actions: up to 5 concrete steps the candidate could take BEFORE tailoring, to close the gaps above. Each is {"action", "where"}:
+  - "action": one specific, conditional sentence. Conditional on the candidate ACTUALLY having the thing — never assume. E.g. "If you have hands-on Kotlin experience, add it to your profile skills — it's a required skill this JD lists." Never invent a skill or experience the resume doesn't support; when a gap has no honest fix, omit it rather than force an action.
+  - "where": exactly one of "profile" | "summary" | "instructions" — profile = add/edit a skill or experience entry in their account profile; summary = reframe how their existing experience is described; instructions = a note to give the AI generator for this specific tailoring run (e.g. "emphasise hands-on delivery over management scope").
+  Order by impact, most important first. Empty list is a valid, honest answer when there's nothing actionable.
 
 ## SCORING GUIDANCE
 - 80–100: Direct match, strong evidence
@@ -55,8 +59,31 @@ Return ONLY valid JSON — no preamble, no markdown fences:
   "matched_skills": [],
   "missing_required": [],
   "missing_nice_to_have": [],
-  "summary": "string"
+  "summary": "string",
+  "improvement_actions": [
+    {"action": "string", "where": "profile"}
+  ]
 }"""
+
+_VALID_WHERE = {"profile", "summary", "instructions"}
+
+
+def validate_improvement_actions(raw) -> list[dict]:
+    """Pure eval gate — raw LLM output is never trusted (CLAUDE.md). Keeps
+    only well-formed {action, where} items: non-empty action text and a
+    `where` from the fixed vocabulary the frontend knows how to render/link.
+    Malformed or out-of-vocabulary items are dropped, not coerced."""
+    if not isinstance(raw, list):
+        return []
+    out: list[dict] = []
+    for item in raw[:5]:
+        if not isinstance(item, dict):
+            continue
+        action = str(item.get("action", "")).strip()
+        where = str(item.get("where", "")).strip().lower()
+        if action and where in _VALID_WHERE:
+            out.append({"action": action, "where": where})
+    return out
 
 
 def _verdict(score: int) -> str:
@@ -141,4 +168,5 @@ async def score_fit(
         "missing_required": data.get("missing_required") or [],
         "missing_nice_to_have": data.get("missing_nice_to_have") or [],
         "summary": data.get("summary", ""),
+        "improvement_actions": validate_improvement_actions(data.get("improvement_actions")),
     }

@@ -3,6 +3,15 @@ import api from "./client";
 
 // ── Fit Score ─────────────────────────────────────────────────────────────────
 
+/** One concrete, conditional step to close a fit gap BEFORE tailoring.
+ *  where: "profile" = edit an account-profile field; "summary" = reframe
+ *  how existing experience is described; "instructions" = a note for the
+ *  AI generator on this specific tailoring run. */
+export interface FitImprovementAction {
+  action: string;
+  where: "profile" | "summary" | "instructions";
+}
+
 export interface FitScoreResult {
   overall: number;
   verdict: "Strong Fit" | "Good Fit" | "Moderate Fit" | "Weak Fit";
@@ -11,7 +20,9 @@ export interface FitScoreResult {
   career_alignment: number;
   matched_skills: string[];
   missing_required: string[];
+  missing_nice_to_have?: string[];
   summary: string;
+  improvement_actions?: FitImprovementAction[];
 }
 
 export async function checkFit(sessionId: string): Promise<FitScoreResult> {
