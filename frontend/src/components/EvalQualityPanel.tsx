@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { FiAward, FiAlertTriangle, FiTrendingUp, FiZap, FiLock, FiRefreshCw, FiCheck, FiUser } from "react-icons/fi";
 import type { EvalSummary } from "@/lib/api";
+import InfoTooltip from "@/components/InfoTooltip";
 
 // Priority chip colours — critical (red) → high (amber) → medium (slate).
 const PRIORITY_STYLES: Record<string, string> = {
@@ -40,6 +41,14 @@ function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { s
   // panel and no way to reach Auto-fix).
   if (!ua) return null;
   const hasActions = !!ua.actions && ua.actions.length > 0;
+  // Every visible item is confirmation-only (needs_user, set BEFORE any
+  // autofix attempt for structurally unfixable gaps — see
+  // user_actions_service.py). Auto-fix can't touch any of these specific
+  // items, but it still scans the full CV-Score suggestion pool, so it can
+  // sometimes find fixes not shown on this list (user question 2026-07-20:
+  // "if both items need my input, how will Auto-fix fix them?" — it won't;
+  // say so, don't leave it ambiguous).
+  const allNeedUser = hasActions && ua.actions!.every(a => a.needs_user);
 
   return (
     <div className="mt-3 rounded-xl border border-amber-200 bg-white/80 p-3.5">
@@ -118,7 +127,7 @@ function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { s
           supports (original CV + profile); nothing is ever invented. Items
           with no source stay on this list. */}
       {onAutofix && (canAutofix ? (
-        <div className="mt-3 pt-3 border-t border-amber-100 flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="mt-3 pt-3 border-t border-amber-100 flex items-center gap-2">
           <button
             onClick={onAutofix}
             disabled={autofixLoading}
@@ -127,13 +136,13 @@ function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { s
             {autofixLoading
               ? <FiRefreshCw className="w-3.5 h-3.5 animate-spin" />
               : <FiZap className="w-3.5 h-3.5" />}
-            {autofixLoading ? "Fixing from your data…" : "Auto-fix from my profile & CV"}
+            {autofixLoading ? "Fixing from your data…" : allNeedUser ? "Try Auto-fix anyway" : "Auto-fix from my profile & CV"}
           </button>
-          <p className="text-[11px] text-slate-400 leading-snug">
-            <span className="font-semibold text-green-700">Safest option</span> — fills what your
-            saved profile and original CV already prove, never invents facts, and never lowers
-            your score. Anything not in your data stays on this list.
-          </p>
+          <InfoTooltip text={
+            allNeedUser
+              ? "Every item above needs your input — Auto-fix can't resolve them. It may still find other fixes (formatting, missing dates, dropped details) not listed above, from your own profile & CV only. Never invents facts, never lowers your score."
+              : "Safest option — fills what your saved profile and original CV already prove, never invents facts, and never lowers your score. Anything not in your data stays on this list."
+          } />
         </div>
       ) : (
         <Link

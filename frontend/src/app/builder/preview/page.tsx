@@ -26,6 +26,7 @@ import Link from "next/link";
 import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSquare, FiTrash2, FiZap, FiCopy, FiMail, FiBookOpen, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import { SUPPORT_EMAIL, hasFeature } from "@/lib/config";
 import { EvalSummaryPanel } from "@/components/EvalQualityPanel";
+import InfoTooltip from "@/components/InfoTooltip";
 import {
   CoverLetterCard, LockedFactsPanel, Section, EditableField, InterviewPrepCard,
 } from "@/components/builder/PreviewPanels";
@@ -79,10 +80,8 @@ export default function PreviewPage() {
   const [interviewPrepLoading, setInterviewPrepLoading] = useState(false);
   const [autofixLoading, setAutofixLoading] = useState(false);
   const [restoringPrevious, setRestoringPrevious] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
-    setShowGuide(localStorage.getItem("cvtailora_guide_dismissed") !== "true");
     const storedResume = localStorage.getItem(LS_RESUME);
     const storedEval = localStorage.getItem(LS_EVAL);
     const storedFacts = localStorage.getItem(LS_LOCKED_FACTS);
@@ -490,32 +489,22 @@ export default function PreviewPage() {
               Click any field to edit inline, or regenerate sections with guidance.
             </p>
           </div>
-          <div className="flex flex-col items-end gap-1 self-start sm:self-auto shrink-0">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowGlobalComment((s) => !s)}
-                className={`flex items-center gap-1 text-sm btn-secondary ${showGlobalComment || globalComment ? "text-brand-600 border-brand-300" : ""}`}
-              >
-                <FiMessageSquare className="w-3.5 h-3.5" />
-                {globalComment ? "Edit guidance" : "Regenerate with guidance"}
-              </button>
-              <button
-                onClick={() => { runGenerate(undefined, globalComment || undefined); }}
-                disabled={loading}
-                className="btn-secondary gap-2"
-              >
-                <FiRefreshCw className={loading ? "animate-spin" : ""} /> Regenerate All
-              </button>
-            </div>
-            {/* Distinguishes this from the safer, targeted options below (Auto-fix,
-                per-section Regenerate) — a full rewrite is the biggest change you
-                can make here, so set the expectation up front (user feedback
-                2026-07-20: three unlabelled ways to change the CV, one of which
-                had silently overwritten a better version). */}
-            <p className="text-[11px] text-slate-400 max-w-xs text-right">
-              Full rewrite of the whole resume — bigger changes, review after. If it scores
-              lower, your previous version is saved and restorable below.
-            </p>
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <button
+              onClick={() => setShowGlobalComment((s) => !s)}
+              className={`flex items-center gap-1 text-sm btn-secondary ${showGlobalComment || globalComment ? "text-brand-600 border-brand-300" : ""}`}
+            >
+              <FiMessageSquare className="w-3.5 h-3.5" />
+              {globalComment ? "Edit guidance" : "Regenerate with guidance"}
+            </button>
+            <button
+              onClick={() => { runGenerate(undefined, globalComment || undefined); }}
+              disabled={loading}
+              className="btn-secondary gap-2"
+            >
+              <FiRefreshCw className={loading ? "animate-spin" : ""} /> Regenerate All
+            </button>
+            <InfoTooltip text="Full rewrite of the whole resume — the biggest change you can make. Bigger risk of drift; if it scores lower, your previous version is saved and restorable below the score card. Prefer Auto-fix or a per-section Regenerate first." />
           </div>
         </div>
         {showGlobalComment && (
@@ -547,47 +536,6 @@ export default function PreviewPage() {
           </div>
         )}
       </div>
-
-      {/* Which option should I use? — explicit sequential guidance, not just
-          per-button captions (user feedback 2026-07-20: 3 unlabelled ways to
-          change the CV needed an actual decision order, not just tooltips).
-          Dismissible; stays hidden once acknowledged. */}
-      {showGuide && (
-        <div className="card p-4 bg-brand-50/50 border-brand-100">
-          <div className="flex items-start justify-between gap-3 mb-2.5">
-            <p className="text-sm font-semibold text-slate-800">Which option should I use?</p>
-            <button
-              onClick={() => { localStorage.setItem("cvtailora_guide_dismissed", "true"); setShowGuide(false); }}
-              className="text-xs text-slate-400 hover:text-slate-600 shrink-0"
-            >
-              Got it, don&apos;t show again
-            </button>
-          </div>
-          <ol className="space-y-2 text-xs text-slate-600">
-            <li className="flex items-start gap-2">
-              <span className="font-bold text-brand-600 shrink-0">1.</span>
-              <span><span className="font-semibold text-slate-700">Auto-fix from my profile &amp; CV</span> — start here.
-                Fills gaps only from data you&apos;ve already given us; never invents facts, never lowers your score.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-bold text-brand-600 shrink-0">2.</span>
-              <span><span className="font-semibold text-slate-700">Regenerate with guidance</span> — use for a different
-                angle, not gap-filling: emphasise leadership, target a different seniority, shift focus. Bigger change;
-                your previous version is saved if it scores lower.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-bold text-brand-600 shrink-0">3.</span>
-              <span><span className="font-semibold text-slate-700">Regenerate</span> on one section — redo just that
-                section (e.g. only the Summary) without touching the rest.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-bold text-brand-600 shrink-0">4.</span>
-              <span><span className="font-semibold text-slate-700">Regenerate All</span> — full fresh rewrite from
-                scratch. Rarely needed once you&apos;ve already tailored once.</span>
-            </li>
-          </ol>
-        </div>
-      )}
 
       {/* Quality status panel */}
       {evalSummary && (
