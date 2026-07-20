@@ -248,6 +248,7 @@ function Section({
             <>
               <button
                 onClick={() => setShowFeedback((s) => !s)}
+                title={`Redo just the ${title} section with your notes — leaves the rest of the resume untouched`}
                 className={`flex items-center gap-1 text-xs transition ${showFeedback || comment ? "text-brand-600" : "text-slate-400 hover:text-brand-500"}`}
               >
                 <FiMessageSquare className="w-3 h-3" />
@@ -256,6 +257,7 @@ function Section({
               <button
                 onClick={() => onRegenerate("")}
                 disabled={loading}
+                title={`Redo just the ${title} section — leaves the rest of the resume untouched`}
                 className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 disabled:opacity-50"
               >
                 <FiRefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />

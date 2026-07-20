@@ -488,21 +488,32 @@ export default function PreviewPage() {
               Click any field to edit inline, or regenerate sections with guidance.
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-            <button
-              onClick={() => setShowGlobalComment((s) => !s)}
-              className={`flex items-center gap-1 text-sm btn-secondary ${showGlobalComment || globalComment ? "text-brand-600 border-brand-300" : ""}`}
-            >
-              <FiMessageSquare className="w-3.5 h-3.5" />
-              {globalComment ? "Edit guidance" : "Regenerate with guidance"}
-            </button>
-            <button
-              onClick={() => { runGenerate(undefined, globalComment || undefined); }}
-              disabled={loading}
-              className="btn-secondary gap-2"
-            >
-              <FiRefreshCw className={loading ? "animate-spin" : ""} /> Regenerate All
-            </button>
+          <div className="flex flex-col items-end gap-1 self-start sm:self-auto shrink-0">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowGlobalComment((s) => !s)}
+                className={`flex items-center gap-1 text-sm btn-secondary ${showGlobalComment || globalComment ? "text-brand-600 border-brand-300" : ""}`}
+              >
+                <FiMessageSquare className="w-3.5 h-3.5" />
+                {globalComment ? "Edit guidance" : "Regenerate with guidance"}
+              </button>
+              <button
+                onClick={() => { runGenerate(undefined, globalComment || undefined); }}
+                disabled={loading}
+                className="btn-secondary gap-2"
+              >
+                <FiRefreshCw className={loading ? "animate-spin" : ""} /> Regenerate All
+              </button>
+            </div>
+            {/* Distinguishes this from the safer, targeted options below (Auto-fix,
+                per-section Regenerate) — a full rewrite is the biggest change you
+                can make here, so set the expectation up front (user feedback
+                2026-07-20: three unlabelled ways to change the CV, one of which
+                had silently overwritten a better version). */}
+            <p className="text-[11px] text-slate-400 max-w-xs text-right">
+              Full rewrite of the whole resume — bigger changes, review after. If it scores
+              lower, your previous version is saved and restorable below.
+            </p>
           </div>
         </div>
         {showGlobalComment && (

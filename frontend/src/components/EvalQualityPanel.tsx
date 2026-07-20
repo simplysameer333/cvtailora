@@ -130,8 +130,9 @@ function UserActionsCard({ summary, canAutofix, onAutofix, autofixLoading }: { s
             {autofixLoading ? "Fixing from your data…" : "Auto-fix from my profile & CV"}
           </button>
           <p className="text-[11px] text-slate-400 leading-snug">
-            Fills what your saved profile and original CV already prove — never invents facts.
-            Anything not in your data stays on this list.
+            <span className="font-semibold text-green-700">Safest option</span> — fills what your
+            saved profile and original CV already prove, never invents facts, and never lowers
+            your score. Anything not in your data stays on this list.
           </p>
         </div>
       ) : (
