@@ -185,6 +185,8 @@ _SKILLS_ACTIONS = [
         "action": "Replace or label legacy tools with modern equivalents where possible",
         "example": "Replace 'DB2-QMF' with 'SQL Server / PostgreSQL' if applicable",
         "score_impact": 4,
+        "always_needs_user": True,
+        "why_always": "Only you can judge whether a tool is legacy and what a fair modern equivalent is — this isn't a fact to look up.",
     },
     {
         "trigger": ["keyword", "ats", "job description", "missing skill", "requirement"],
@@ -192,6 +194,8 @@ _SKILLS_ACTIONS = [
         "action": "Add any key skills from the job description that you genuinely have but omitted",
         "example": "If the JD asks for Jira and you use it daily, add it to your skills section",
         "score_impact": 6,
+        "always_needs_user": True,
+        "why_always": "Only you can confirm you genuinely have this skill — the AI will never claim one on your behalf.",
     },
 ]
 
@@ -249,13 +253,24 @@ def _match_actions(
             continue  # data present -> not a real gap
         if rule["action"] not in seen_actions:
             seen_actions.add(rule["action"])
-            matched.append({
+            item = {
                 "category":     category_name,
                 "priority":     priority,
                 "action":       rule["action"],
                 "example":      rule.get("example", ""),
                 "score_impact": rule.get("score_impact", 3),
-            })
+            }
+            # Some gaps are confirmation-only by nature (e.g. "do you have
+            # this skill?") — no data lookup can ever resolve them, so the
+            # card says so immediately instead of the user having to click
+            # Auto-fix and wait to learn it can't help (user report
+            # 2026-07-20: "no point showing the button if nothing gets
+            # fixed" — true for THESE items specifically, not auto-fix as a
+            # whole, which does apply real fixes elsewhere on the same run).
+            if rule.get("always_needs_user"):
+                item["needs_user"] = True
+                item["why_ai_cannot"] = rule.get("why_always", "")
+            matched.append(item)
     return matched
 
 

@@ -51,6 +51,12 @@ def build_gaps_text(eval_summary: dict) -> tuple[str, dict[str, str]]:
     tags: dict[str, str] = {}
     ua = eval_summary.get("user_actions_needed") or {}
     for i, a in enumerate(ua.get("actions") or []):
+        # Confirmation-only items (needs_user already set by user_actions_service,
+        # BEFORE any autofix attempt — e.g. "do you genuinely have this skill?")
+        # are structurally unresolvable by data lookup. Don't spend a call
+        # asking the filler to try; the card already explains why it can't.
+        if a.get("needs_user"):
+            continue
         tag = f"A{i + 1}"
         tags[tag] = a.get("action", "")
         line = f"- [{tag}] [{a.get('category', '')}] {a.get('action', '')}"
