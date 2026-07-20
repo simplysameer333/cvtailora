@@ -78,6 +78,12 @@ def apply_gap_outcomes(
       (the data now demonstrably exists in the resume).
     - An action whose tag the filler declared unfillable is kept but marked
       needs_user (+ the filler's reason) so the UI can explain WHY it persists.
+    - An action whose tag the filler didn't mention AT ALL still gets a
+      needs_user label with a generic reason. The prompt instructs the filler
+      to account for every tagged gap, but LLM compliance isn't guaranteed —
+      observed in prod (2026-07-20): one card item got a real reason, the
+      other was silently left untouched with no explanation, reading as "the
+      tool didn't even try". A card item must never look frozen after a run.
     Matching is by tag -> original action text (the rebuilt list preserves
     action texts; index positions may differ).
     """
@@ -89,6 +95,10 @@ def apply_gap_outcomes(
         for t in _GAP_TAG.findall(str(u.get("gap_id", "") or u.get("action", ""))):
             if t in tags:
                 needs_user[tags[t]] = str(u.get("reason", ""))[:200]
+    unaccounted = {
+        text for tag, text in tags.items()
+        if text not in addressed and text not in needs_user
+    }
 
     out: list[dict] = []
     for a in actions:
@@ -97,6 +107,9 @@ def apply_gap_outcomes(
             continue
         if text in needs_user:
             a = {**a, "needs_user": True, "why_ai_cannot": needs_user[text]}
+        elif text in unaccounted:
+            a = {**a, "needs_user": True,
+                 "why_ai_cannot": "Not checked in this pass — try Auto-fix again."}
         out.append(a)
     return out
 

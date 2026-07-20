@@ -48,6 +48,8 @@ NEVER return a change whose new_value equals the current value ("confirming it i
 
 Some gaps carry an ID like [A1], [A2] — echo that ID in the `gap_id` field of the change or unfillable entry that addresses it (empty string when a gap has no ID). This is how the user's to-do list gets updated, so be accurate.
 
+MANDATORY: every gap that carries an ID MUST be accounted for — each ID must appear as the `gap_id` of EXACTLY ONE entry, either in `changes` or in `unfillable`. Do not silently skip a tagged gap even if you already produced other changes; a tagged gap with no matching entry leaves the user's card looking unexamined.
+
 ## EDIT PATHS
 `path` addresses the CURRENT RESUME JSON: dot keys with [n] list indices.
 Examples: "contact.linkedin", "summary", "experience[0].bullets[2]", "sections[1].items".

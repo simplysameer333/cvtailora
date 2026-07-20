@@ -32,16 +32,44 @@ def test_unfillable_action_marked_needs_user():
     _, tags = build_gaps_text(SUMMARY)
     unfillable = [{"action": "JD skills", "reason": "No JD-listed skill absent from the resume exists in the sources", "gap_id": "A3"}]
     out = apply_gap_outcomes(list(ACTIONS), tags, [], unfillable)
-    marked = [a for a in out if a.get("needs_user")]
-    assert len(marked) == 1
-    assert "genuinely have" in marked[0]["action"]
-    assert "sources" in marked[0]["why_ai_cannot"]
+    # A3 gets its real reason; A1/A2 (never mentioned) get the generic backstop.
+    real = next(a for a in out if a["action"].startswith("Add any key skills"))
+    assert "sources" in real["why_ai_cannot"]
+    assert all(a.get("needs_user") for a in out)
 
 
-def test_untagged_outcomes_change_nothing():
+def test_untagged_change_does_not_address_any_gap():
+    """A change with no gap_id (e.g. a pure reword) leaves every tagged gap
+    unaccounted -> each falls to the generic backstop label."""
     _, tags = build_gaps_text(SUMMARY)
     out = apply_gap_outcomes(list(ACTIONS), tags, [{"gap": "misc reword", "gap_id": ""}], [])
-    assert len(out) == 3 and not any(a.get("needs_user") for a in out)
+    assert len(out) == 3
+    assert all(a.get("needs_user") and "again" in a["why_ai_cannot"] for a in out)
+
+
+def test_ignored_gap_gets_generic_backstop_label():
+    """A tagged gap the filler never mentions (neither applied nor unfillable)
+    must not look silently frozen — observed in prod 2026-07-20: one card item
+    got a real reason, the sibling item got none at all."""
+    _, tags = build_gaps_text(SUMMARY)
+    applied = [{"path": "sections[0].items", "gap": "relabelled legacy tools", "gap_id": "A2"}]
+    out = apply_gap_outcomes(list(ACTIONS), tags, applied, [])  # A1, A3 never mentioned
+    assert len(out) == 2  # A2 addressed -> removed
+    assert all(a.get("needs_user") for a in out)
+    assert all("again" in a["why_ai_cannot"] for a in out)
+
+
+def test_mixed_outcomes_get_distinct_labels():
+    """Addressed -> gone; explicit unfillable -> its real reason; ignored ->
+    the generic backstop. All three must be distinguishable."""
+    _, tags = build_gaps_text(SUMMARY)
+    applied = [{"path": "contact.linkedin", "gap": "added linkedin", "gap_id": "A1"}]
+    unfillable = [{"action": "legacy tools", "reason": "no legacy tools present", "gap_id": "A2"}]
+    out = apply_gap_outcomes(list(ACTIONS), tags, applied, unfillable)  # A3 ignored
+    assert len(out) == 2
+    by_text = {a["action"]: a for a in out}
+    assert by_text[tags["A2"]]["why_ai_cannot"] == "no legacy tools present"
+    assert "again" in by_text[tags["A3"]]["why_ai_cannot"]
 
 
 def test_validator_rejects_no_op_change():
