@@ -489,22 +489,27 @@ export default function PreviewPage() {
               Click any field to edit inline, or regenerate sections with guidance.
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-            <button
-              onClick={() => setShowGlobalComment((s) => !s)}
-              className={`flex items-center gap-1 text-sm btn-secondary ${showGlobalComment || globalComment ? "text-brand-600 border-brand-300" : ""}`}
-            >
-              <FiMessageSquare className="w-3.5 h-3.5" />
-              {globalComment ? "Edit guidance" : "Regenerate with guidance"}
-            </button>
-            <button
-              onClick={() => { runGenerate(undefined, globalComment || undefined); }}
-              disabled={loading}
-              className="btn-secondary gap-2"
-            >
-              <FiRefreshCw className={loading ? "animate-spin" : ""} /> Regenerate All
-            </button>
-            <InfoTooltip text="Full rewrite of the whole resume — the biggest change you can make. Bigger risk of drift; if it scores lower, your previous version is saved and restorable below the score card. Prefer Auto-fix or a per-section Regenerate first." />
+          <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowGlobalComment((s) => !s)}
+                className={`flex items-center gap-1 text-sm btn-secondary ${showGlobalComment || globalComment ? "text-brand-600 border-brand-300" : ""}`}
+              >
+                <FiMessageSquare className="w-3.5 h-3.5" />
+                {globalComment ? "Edit guidance" : "Regenerate with guidance"}
+              </button>
+              <InfoTooltip text="Full rewrite of the whole resume, steered by a note you add first (e.g. 'emphasise leadership', 'targeting a different seniority'). Use this for a different ANGLE, not for filling gaps — Auto-fix does that more safely." />
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { runGenerate(undefined, globalComment || undefined); }}
+                disabled={loading}
+                className="btn-secondary gap-2"
+              >
+                <FiRefreshCw className={loading ? "animate-spin" : ""} /> Regenerate All
+              </button>
+              <InfoTooltip text="Full fresh rewrite with no notes — the biggest change you can make. Rarely needed once you've already tailored once. If it scores lower, your previous version is saved and restorable below the score card." />
+            </div>
           </div>
         </div>
         {showGlobalComment && (
