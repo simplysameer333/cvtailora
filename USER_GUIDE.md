@@ -1,6 +1,6 @@
 # CVTailora — User Guide
 
-> **AI-powered resume builder** that tailors your CV to every job posting using multiple AI models and LinkedIn integration.
+> **AI-powered resume builder** that tailors your CV to every job posting using a team of specialist AI agents (section writers, category reviewers, and a faithfulness guardrail) plus LinkedIn integration.
 
 ---
 
@@ -147,12 +147,12 @@ Choose how your resume is presented:
 
 The AI generates your tailored resume. This takes **30–90 seconds**.
 
-**What happens during generation:**
-1. Job Analyser extracts key skills from the JD
-2. Generator writes your tailored resume draft
-3. AI Evaluators score it (1 on Free, 2 on Plus, 3 on Pro)
-4. If it doesn't pass quality thresholds, the generator refines it
-5. The best-scoring version is selected
+**What happens during generation** (Generate → Review → Update → Loop):
+1. The job's key skills are extracted from the JD
+2. **Specialist section-writer agents** draft each part of your resume in parallel — using only facts from your own material
+3. A **Review agent** scores every quality category (contact, summary, experience, skills, education, ATS, design, grammar) in parallel
+4. If it's below your tier's quality bar, the weak parts are **refined and re-reviewed** — looping until it passes, or the tier's cycle/cost limit is reached
+5. A **Verification agent** checks the result against your original so nothing is fabricated; the best-scoring version is kept
 
 **After generation you can:**
 
@@ -162,9 +162,9 @@ The AI generates your tailored resume. This takes **30–90 seconds**.
 - **Regenerate a single section** *(Pro only)* — each section has its own Regenerate button with a feedback field
 
 **Quality badge:**
-- 🟢 **Excellent / Strong** — resume passed all evaluators comfortably
-- 🟡 **Good** — passed minimum threshold
-- ⚪ **Reviewed** — generation completed but evaluators flagged areas for improvement
+- 🟢 **Excellent / Strong** — resume cleared every category comfortably
+- 🟡 **Good** — passed the minimum threshold for your tier
+- ⚪ **Reviewed** — generation completed but the review agents flagged areas to improve
 
 **Locked Facts** *(Pro only)* — pin specific facts (e.g. *"Company: Google"*, *"Degree: BSc Computer Science"*) that the AI must never change when regenerating.
 
@@ -386,11 +386,13 @@ Accessible at `/admin`. Tabs are organised into three feature groups, each with 
 
 - **Users** — search by name/email, filter by tier or status, inline Tier / Admin / Active toggles (click **Save** to apply), and delete users (revoke superadmin first).
 - **Audit Log** — a paginated record of privileged actions: user / tier / superadmin changes, user deletes, template and prompt edits, resume generate & export, and system-setting changes.
+- **Agent Runs** — a live viewer for the agent-graph engine: pick a recent CV Score or CV Build run and see its orchestration as a flow diagram — which agents ran, which workers each orchestrator spawned, the fan-out/fan-in dependencies, the refine loop, and per-node score / time / cost.
 
 ### Prompts & Templates
 
 - **CV Builder Prompts** — override the resume-generation pipeline prompts (generator, job analyzer, evaluators). **Save** replaces the default; **Reset** reverts. Live immediately, no deploy.
 - **CV Score Prompts** — override the CV-Score prompts (quality check, grammar & spelling, preview extractor, layout validator). Same Save/Reset behaviour.
+- **Agent Graph Prompts** — edit the prompts for every agent in the new agent-graph engine: the shared category-reviewer and section-writer system prompts, each of the 8 category rubrics, the 5 section instructions, and the Refine and Verification agents. The machine-readable output schema stays fixed so an edit can't break an agent. Same Save/Reset, no deploy.
 - **Professions** — manage profession configs that shape AI tailoring strategy.
 - **Resume Templates** — the live preview/export templates. Edit the design (HTML) + metadata + DOCX layout knobs, enable/disable, tick **"Show in CV Score"**, copy/download the standalone `.html`, or **generate a brand-new template with AI** (describe it, preview live, save). All changes go live with **no deploy**.
 

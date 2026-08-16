@@ -20,6 +20,7 @@ import UsersTab from "@/components/admin/UsersTab";
 import AuditTab from "@/components/admin/AuditTab";
 import AgentMemoryTab from "@/components/admin/AgentMemoryTab";
 import PromptsTab from "@/components/admin/PromptsTab";
+import GraphRunsTab from "@/components/admin/GraphRunsTab";
 import ProfessionsTab from "@/components/admin/ProfessionsTab";
 import ManageTemplatesTab from "@/components/admin/ManageTemplatesTab";
 import SystemTab from "@/components/admin/SystemTab";
@@ -27,7 +28,7 @@ import TierConfigTab from "@/components/admin/TierConfigTab";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Tab = "users" | "audit" | "scheduler" | "agent_memory" | "prompts" | "cv_score_prompts" | "tools_prompts" | "professions" | "manage_templates" | "tier_config" | "system";
+type Tab = "users" | "audit" | "scheduler" | "agent_memory" | "agent_runs" | "prompts" | "cv_score_prompts" | "tools_prompts" | "graph_prompts" | "professions" | "manage_templates" | "tier_config" | "system";
 
 interface CacheEntry<T> {
   data: T;
@@ -51,6 +52,8 @@ const TAB_META: Record<Tab, { label: string; icon: React.ReactNode }> = {
   prompts:          { label: "CV Builder Prompts", icon: <FiCpu className="w-4 h-4" /> },
   cv_score_prompts: { label: "CV Score Prompts",   icon: <FiActivity className="w-4 h-4" /> },
   tools_prompts:    { label: "AI Tools Prompts",   icon: <FiCpu className="w-4 h-4" /> },
+  graph_prompts:    { label: "Agent Graph Prompts", icon: <FiCpu className="w-4 h-4" /> },
+  agent_runs:       { label: "Agent Runs", icon: <FiActivity className="w-4 h-4" /> },
   professions:      { label: "Professions",   icon: <FiBriefcase className="w-4 h-4" /> },
   manage_templates: { label: "Resume Templates", icon: <FiGrid className="w-4 h-4" /> },
   tier_config:      { label: "Tiers & Pricing", icon: <FiSliders className="w-4 h-4" /> },
@@ -59,8 +62,8 @@ const TAB_META: Record<Tab, { label: string; icon: React.ReactNode }> = {
 
 // Top-level groups arranged by feature; each renders its tabs as sub-sections.
 const GROUPS: { id: string; label: string; icon: React.ReactNode; tabs: Tab[] }[] = [
-  { id: "people",  label: "User Management",     icon: <FiUsers className="w-4 h-4" />,   tabs: ["users", "audit", "scheduler", "agent_memory"] },
-  { id: "content", label: "Prompts & Templates", icon: <FiCpu className="w-4 h-4" />,     tabs: ["prompts", "cv_score_prompts", "tools_prompts", "professions", "manage_templates"] },
+  { id: "people",  label: "User Management",     icon: <FiUsers className="w-4 h-4" />,   tabs: ["users", "audit", "scheduler", "agent_memory", "agent_runs"] },
+  { id: "content", label: "Prompts & Templates", icon: <FiCpu className="w-4 h-4" />,     tabs: ["prompts", "cv_score_prompts", "tools_prompts", "graph_prompts", "professions", "manage_templates"] },
   { id: "config",  label: "Feature Controls",    icon: <FiSliders className="w-4 h-4" />, tabs: ["tier_config", "system"] },
 ];
 
@@ -79,8 +82,8 @@ export default function AdminPage() {
   const [agentMemory, setAgentMemory] = useState<AgentMemory[]>([]);
   const [prompts, setPrompts] = useState<PromptOverride[]>([]);
   const [professions, setProfessions] = useState<AdminProfession[]>([]);
-  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, scheduler: false, agent_memory: false, prompts: false, cv_score_prompts: false, tools_prompts: false, professions: false, manage_templates: false, tier_config: false, system: false });
-  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, scheduler: null, agent_memory: null, prompts: null, cv_score_prompts: null, tools_prompts: null, professions: null, manage_templates: null, tier_config: null, system: null });
+  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, scheduler: false, agent_memory: false, agent_runs: false, prompts: false, cv_score_prompts: false, tools_prompts: false, graph_prompts: false, professions: false, manage_templates: false, tier_config: false, system: false });
+  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, scheduler: null, agent_memory: null, agent_runs: null, prompts: null, cv_score_prompts: null, tools_prompts: null, graph_prompts: null, professions: null, manage_templates: null, tier_config: null, system: null });
 
   function setLoad(t: Tab, v: boolean) { setLoading(prev => ({ ...prev, [t]: v })); }
   function setFetched(t: Tab, d: Date) { setFetchedAt(prev => ({ ...prev, [t]: d })); }
@@ -182,7 +185,7 @@ export default function AdminPage() {
     if (t === "users")       { cache.current.users       = undefined; fetchUsers(true); }
     if (t === "audit")       { cache.current.audit       = undefined; fetchAudit(true); }
     if (t === "agent_memory") { cache.current.agent_memory = undefined; fetchAgentMemory(true); }
-    if (t === "prompts" || t === "cv_score_prompts" || t === "tools_prompts") { cache.current.prompts = undefined; fetchPrompts(true); }
+    if (t === "prompts" || t === "cv_score_prompts" || t === "tools_prompts" || t === "graph_prompts") { cache.current.prompts = undefined; fetchPrompts(true); }
     if (t === "professions") { cache.current.professions = undefined; fetchProfessions(true); }
   }
 
@@ -191,7 +194,7 @@ export default function AdminPage() {
     if (t === "users")       fetchUsers();
     if (t === "audit")       fetchAudit();
     if (t === "agent_memory") fetchAgentMemory();
-    if (t === "prompts" || t === "cv_score_prompts" || t === "tools_prompts") fetchPrompts();
+    if (t === "prompts" || t === "cv_score_prompts" || t === "tools_prompts" || t === "graph_prompts") fetchPrompts();
     if (t === "professions") fetchProfessions();
   }
 
@@ -301,7 +304,7 @@ export default function AdminPage() {
           )}
           {tab === "prompts" && (
             <PromptsTab
-              prompts={prompts.filter(p => p.category !== "cv_score")}
+              prompts={prompts.filter(p => p.category === "builder")}
               loading={loading.prompts}
               fetchedAt={fetchedAt.prompts}
               onRefresh={() => refreshTab("prompts")}
@@ -326,6 +329,16 @@ export default function AdminPage() {
               headerLabel="Edit Cover Letter & Interview Prep prompts below (incl. the candidate & job profilers)"
             />
           )}
+          {tab === "graph_prompts" && (
+            <PromptsTab
+              prompts={prompts.filter(p => p.category === "graph")}
+              loading={loading.prompts}
+              fetchedAt={fetchedAt.prompts}
+              onRefresh={() => refreshTab("prompts")}
+              headerLabel="Edit the agent-graph prompts: category reviewers, section writers, refine & verification agents"
+            />
+          )}
+          {tab === "agent_runs" && <GraphRunsTab />}
           {tab === "professions" && (
             <ProfessionsTab
               professions={professions}

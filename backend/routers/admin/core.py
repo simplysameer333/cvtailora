@@ -64,6 +64,14 @@ DEFAULTS: dict[str, str] = {
     "cover_letter_system": _COVER_LETTER_SYSTEM,
 }
 
+# Graph+loop engine prompt defaults (single source of truth = services/graph).
+# Merged in so the admin dashboard shows the right default body + "reset" works.
+try:
+    from services.graph.prompts import GRAPH_PROMPT_DEFAULTS
+    DEFAULTS.update(GRAPH_PROMPT_DEFAULTS)
+except Exception:  # pragma: no cover - defensive
+    pass
+
 router = APIRouter()
 
 

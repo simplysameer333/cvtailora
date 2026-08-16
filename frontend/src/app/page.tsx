@@ -33,7 +33,7 @@ const steps = [
 
 const features = [
   { icon: FiCheckSquare, title: "Free CV Score",          desc: "54 AI checks across 8 categories — ATS, content, design, grammar. No sign-in needed.",        color: "text-teal-600 bg-teal-50" },
-  { icon: FiZap,         title: "AI Tailoring",           desc: "Three AI models score and refine every resume until it beats your original.",                color: "text-amber-600 bg-amber-50" },
+  { icon: FiZap,         title: "AI Tailoring",           desc: "Specialist AI agents write each section, then review every quality category and refine the weak spots — until it beats your original.",                color: "text-amber-600 bg-amber-50" },
   { icon: FiBriefcase,   title: "Job Search Built In",    desc: "Search live roles from Indeed, LinkedIn and Glassdoor — tailor your CV in one click.",        color: "text-brand-600 bg-brand-50" },
   { icon: FiBell,        title: "Daily Job Alerts",       desc: "Save any search and get matching roles in your inbox every morning.",                        color: "text-rose-600 bg-rose-50" },
   { icon: FiMail,        title: "Cover Letters",          desc: "A tailored, three-paragraph cover letter for any role — in seconds.",                        color: "text-sky-600 bg-sky-50" },
@@ -44,7 +44,7 @@ const features = [
 
 const heroStats = [
   { value: "54", label: "quality checks per CV" },
-  { value: "3", label: "AI models reviewing" },
+  { value: "8", label: "specialist AI agents" },
   { value: "20+", label: "professional templates" },
   { value: "~60s", label: "to a tailored resume" },
 ];
@@ -163,7 +163,7 @@ export default function LandingPage() {
               ))}
               <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2.5 py-1">
-                  <FiZap className="w-3 h-3" /> 3 AI models agreed
+                  <FiZap className="w-3 h-3" /> Multi-agent reviewed
                 </span>
                 <span className="text-xs text-slate-400">+31 vs original</span>
               </div>

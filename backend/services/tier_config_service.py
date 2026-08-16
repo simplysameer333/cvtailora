@@ -83,6 +83,12 @@ DEFAULT_LIMITS: dict[str, dict[str, int | None]] = {
     # max_eval_cycles: generator-evaluator loop budget per tier.
     "pass_threshold":  {"free": 70, "plus": 80, "pro": 90},
     "max_eval_cycles": {"free": 3,  "plus": 4,  "pro": 5},
+    # Graph+loop engine COST CAP: max estimated spend per single build run, in US
+    # cents. The generator↔evaluator loop stops once a run reaches this, even if
+    # the quality bar isn't met — the third tier-based, admin-managed loop exit
+    # rule (alongside pass_threshold = exit quality and max_eval_cycles = cycle
+    # cap). 0 = no per-run cost cap.
+    "max_run_cost_cents": {"free": 15, "plus": 40, "pro": 80},
     # Aspirational score target shown in improvement guidance. The loop only
     # has to clear pass_threshold; anyone below stretch_score still sees "what
     # to add to reach N" (user decision 2026-07-19: Pro passes at 85 but keeps
@@ -117,6 +123,7 @@ LIMIT_LABELS: dict[str, str] = {
     "monthly_cost_cents": "Monthly AI Cost Budget (US¢)",
     "pass_threshold":  "Generation Pass Threshold (CV-Score)",
     "max_eval_cycles": "Generation Max Eval Cycles",
+    "max_run_cost_cents": "Generation Per-Run Cost Cap (US¢)",
     "stretch_score":   "Improvement Guidance Target (CV-Score)",
 }
 

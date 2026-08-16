@@ -72,6 +72,11 @@ async def _ensure_indexes():
     # progress polling); TTL matches the 24h session lifetime
     await db.generation_jobs.create_index("session_id", unique=True)
     await db.generation_jobs.create_index("updated_at", expireAfterSeconds=86400)
+    # Graph runs — the graph+loop engine's persisted GraphRun state (one doc per
+    # run; drives polling + the step-by-step graph visualization). Local import
+    # keeps database.py free of a services.graph import cycle.
+    from services.graph import store as graph_store
+    await graph_store.ensure_indexes(db)
 
 
 def get_db():

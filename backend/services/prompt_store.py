@@ -34,6 +34,15 @@ PROMPT_KEYS: dict[str, str] = {
     "cover_letter_system": "Cover Letter — System Prompt",
 }
 
+# Graph+loop engine prompts (services/graph/prompts.py) — registered here so the
+# admin dashboard lists + edits them under the "graph" category. Default bodies
+# live in services/graph/prompts.GRAPH_PROMPT_DEFAULTS (single source of truth).
+try:
+    from services.graph.prompts import GRAPH_PROMPT_KEYS as _GRAPH_PROMPT_KEYS
+    PROMPT_KEYS.update(_GRAPH_PROMPT_KEYS)
+except Exception:  # pragma: no cover - graph package optional at import time
+    _GRAPH_PROMPT_KEYS = {}
+
 # Which feature each prompt belongs to — drives the admin sub-tabs.
 PROMPT_CATEGORIES: dict[str, str] = {
     "generator_system": "builder",
@@ -54,6 +63,8 @@ PROMPT_CATEGORIES: dict[str, str] = {
     "job_profile_system": "tools",
     "interview_prep_system": "tools",
     "cover_letter_system": "tools",
+    # graph+loop engine prompts → their own admin sub-tab
+    **{k: "graph" for k in _GRAPH_PROMPT_KEYS},
 }
 
 

@@ -12,7 +12,41 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     google_api_key: str = ""
 
+    # ── LLM gateway (OpenRouter) — the graph+loop engine routes EVERY call here ──
+    # Single provider, single model, fully config-driven. No model string is
+    # hardcoded anywhere in services/graph or services/llm — swap the model by
+    # editing primary_model here (or PRIMARY_MODEL in .env), nothing else.
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # OpenRouter model slug. NOTE: OpenRouter slugs differ from the native
+    # Anthropic IDs (dotted minor version, provider prefix). Confirm the exact
+    # slug for the model you want on openrouter.ai/models — this is the one
+    # place it lives. Sonnet chosen per project decision (quality-bearing calls).
+    # This is the TEST/PRODUCTION model (paid).
+    primary_model: str = "anthropic/claude-sonnet-4.5"
+    # DEV model — a FREE OpenRouter model (":free" slug) used while developing so
+    # we don't burn paid tokens on every run. Picked 2026-08-16 by smoke-testing
+    # the current free models: nemotron-3-super-120b returned clean JSON reliably
+    # (the 550B model preambles/reasons instead; gpt-oss-20b returned empty). Free
+    # models change + are rate-limited — re-check openrouter.ai/models if it fails.
+    # Selected only when graph_dev_mode is true (see gateway.active_model()).
+    dev_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
+    # true  → dev: every graph call uses the FREE dev_model (no paid cost).
+    # false → test/prod: uses the paid primary_model.
+    graph_dev_mode: bool = False
+    # Optional attribution headers OpenRouter surfaces on its dashboard.
+    openrouter_referer: str = "https://cvtailora.com"
+    openrouter_title: str = "CVTailora"
+    # Max LLM sub-agents running concurrently in one graph run. The fan-out
+    # (per-section generators, per-category checkers) issues many BLOCKING LLM
+    # calls; this bounds how many are in flight at once so we don't hammer the
+    # provider's rate limit while still running independent nodes in parallel.
+    graph_concurrency: int = 5
+
     # ── Model names — swap in .env without touching code ──────────────────────
+    # LEGACY (pipeline/*): the old multi-provider evaluator-optimizer graph. Being
+    # superseded by the single-model graph+loop engine (services/graph). Kept until
+    # the migration flag flips both features over — see Phase 4 cleanup.
     # claude-sonnet-4-20250514 retires 2026-06-15 — claude-sonnet-4-6 is the
     # drop-in replacement at the same price ($3/$15 per MTok).
     generator_model: str = "claude-sonnet-4-6"
@@ -23,18 +57,18 @@ class Settings(BaseSettings):
     openai_evaluator_model: str = "gpt-4o-mini"
     google_evaluator_model: str = "gemini-2.5-flash"
 
-    # ── Evaluator feature flags ─────────────────────────────────────────────
-    # Set to true/false in .env to enable/disable each evaluator independently.
-    # Disabled evaluators are skipped entirely — no API call is made.
+    # ── Evaluator feature flags — LEGACY (pipeline/*) ────────────────────────
+    # The old cross-provider guardrail. The single-model graph engine replaces it
+    # with the Verification Agent + decomposition + pure validators. Retires at
+    # the Phase 4 cutover. Set to true/false in .env to enable each evaluator.
     anthropic_evaluator_enabled: bool = True
     openai_evaluator_enabled: bool = False    # off by default to reduce cost
     google_evaluator_enabled: bool = False    # off by default to reduce cost
 
-    # ── Pipeline quality thresholds ───────────────────────────────────────────
-    # Minimum score (0–100) all evaluators must reach before the resume is accepted.
-    # Lower values = fewer refinement loops = lower cost. Start at 50 for launch.
+    # ── Pipeline quality thresholds — LEGACY (pipeline/*) ────────────────────
+    # Superseded by the tier-managed graph loop rules (tier_config: pass_threshold
+    # / max_eval_cycles / max_run_cost_cents, resolved by services/graph/tier_rules).
     pass_threshold: int = 50
-    # Maximum generator-evaluator cycles per session before returning best result.
     max_eval_cycles: int = 3
 
     # ── Per-session cost controls ───────────────────────────────────────────
@@ -53,14 +87,11 @@ class Settings(BaseSettings):
     #   Free  = 3  |  Plus = 5  |  Pro = 10
     skill_extraction_count: int = 3
 
-    # ── CV Score lazy evaluation + refinement loop ──────────────────────────
-    # If check_resume() returns overall_score >= this threshold, skip grammar and
-    # return immediately (extraction still runs for template display). Set to 0 to
-    # always run all three calls (legacy behaviour — useful for debugging).
+    # ── CV Score lazy evaluation + refinement loop — LEGACY (cv_check_flow) ──
+    # Superseded by the CV Score graph (Generate→Review→Update→Loop/Exit) whose
+    # loop is governed by the tier rules. Retires at the Phase 4 cutover.
     cv_score_lazy_threshold: int = 75
-    # Maximum refinement cycles in the CV Score Ralph Loop.
     cv_score_max_refine_cycles: int = 3
-    # Minimum score gain per refinement cycle to justify another pass.
     cv_score_plateau_margin: int = 3
 
     # ── Feature flags ──────────────────────────────────────────────────────

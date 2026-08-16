@@ -37,7 +37,7 @@ const PROCESS_STEPS = [
     step: 4,
     icon: FiCpu,
     title: "AI tailors your CV",
-    desc: "Multiple AI models each score and refine your CV across up to 3 cycles — until it scores best for this specific role.",
+    desc: "Specialist AI agents write each section, a review agent scores every quality category, and the weak spots are refined — until it scores best for this specific role.",
     time: "30–90 sec",
     highlight: true,
   },
@@ -306,7 +306,7 @@ function UploadPageInner() {
           <FiCheckCircle className="w-5 h-5 text-green-500 shrink-0" />
           <p className="text-sm text-slate-600">
             <span className="font-semibold text-slate-800">Result:</span>{" "}
-            A tailored CV matched to the job, scored by three AI models, in a professional template — ready to apply.
+            A tailored CV matched to the job, reviewed by specialist AI agents, in a professional template — ready to apply.
           </p>
         </div>
       </aside>

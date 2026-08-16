@@ -1,8 +1,22 @@
 # CVTailora
 
-AI-powered resume builder that tailors your resume to any job description using a multi-agent pipeline. A Job Analyzer extracts the skills that matter most for the role, a Generator writes the resume, and one or more Evaluator agents score it using profession-specific criteria — the generator refines until quality thresholds are met.
+AI-powered resume builder and CV scorer. Both features run on a single-model
+**agent graph + loop** engine: specialist **section-writer** agents draft each
+part of the resume in parallel, an **Evaluation Agent** spawns one **category
+reviewer** per quality category to score it, weak parts are refined in a
+tier-bounded loop, and a **Verification Agent** guardrails the result against the
+original (no fabrication). One config-driven model via OpenRouter; a large shared
+context is prompt-cached so the many parallel agents read it cheaply.
 
-**Stack:** Next.js 14 · FastAPI · MongoDB Atlas · LangGraph 1.2.1 · Anthropic Claude · OpenAI · Google Gemini · Brevo (email)
+→ **Architecture, data-flow diagrams, agent/sub-agent counts, and caching:
+[`docs/GRAPH_ENGINE.md`](docs/GRAPH_ENGINE.md).**
+
+**Stack:** Next.js 14 · FastAPI · MongoDB Atlas · OpenRouter (single config-driven
+model) · async agent-graph engine (`asyncio`) · Brevo (email)
+
+> Note: the legacy multi-provider LangGraph pipeline (Anthropic + OpenAI + Google
+> evaluators) is being superseded by the agent-graph engine; it still serves the
+> live routes until the cutover. See `docs/SESSION_HANDOFF.md`.
 
 ---
 

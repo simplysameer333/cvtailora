@@ -22,6 +22,7 @@ from routers.interview_prep import router as interview_prep_router
 from routers.resume_share import router as resume_share_router
 from routers.applications import router as applications_router
 from routers.salary import router as salary_router
+from routers.graph_runs import router as graph_runs_router
 from services.alert_scheduler import start_scheduler, stop_scheduler
 from services import tier_config_service
 
@@ -170,6 +171,7 @@ app.include_router(interview_prep_router, prefix="/api")
 app.include_router(salary_router, prefix="/api")
 app.include_router(resume_share_router, prefix="/api")
 app.include_router(applications_router, prefix="/api")
+app.include_router(graph_runs_router, prefix="/api")
 # All superadmin endpoints (users, prompts, professions, system config,
 # CV templates, scheduler audit, tier config) — grouped in routers/admin/.
 app.include_router(admin_router, prefix="/api")
