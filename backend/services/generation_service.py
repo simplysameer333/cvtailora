@@ -57,23 +57,13 @@ _job_analyzer = JobAnalyzerAgent()
 # Both are cheap and run in parallel with cv_score (asyncio.gather), so they
 # add pennies, not latency. The Sonnet anthropic evaluator stays off (the
 # generator is already Sonnet — same-model self-grading adds cost, not signal).
-# HOW MANY evaluators a tier gets is MongoDB tier config (`evaluators` limit,
-# admin-editable); only the fixed roll-out ORDER lives in code.
-_EVALUATOR_PRIORITY: list[str] = ["cv_score", "openai", "google"]
-
-
+# Single-model: the pipeline now scores with the CV-Score evaluator only (the
+# same user-facing engine). The former cross-provider OpenAI/Google evaluators
+# were removed in the single-model move — bias reduction is handled by the graph
+# engine's Verification Agent + decomposition instead.
 def _enabled_evaluators_for_tier(user_tier: str) -> dict[str, bool]:
-    """Return per-tier evaluator flags, respecting global env flags + API key presence."""
-    from services.tier_config_service import get_limit
-    # Fall back to 1 (cv_score only) if the limit is missing/unlimited-None.
-    n = get_limit(user_tier, "evaluators") or 1
-    allowed = set(_EVALUATOR_PRIORITY[:n])
-    return {
-        "cv_score":  "cv_score"  in allowed and bool(settings.anthropic_api_key),
-        "anthropic": "anthropic" in allowed and settings.anthropic_evaluator_enabled,
-        "openai":    "openai"    in allowed and settings.openai_evaluator_enabled and bool(settings.openai_api_key),
-        "google":    "google"    in allowed and settings.google_evaluator_enabled and bool(settings.google_api_key),
-    }
+    """Per-tier evaluator flags. Single-model: cv_score only."""
+    return {"cv_score": bool(settings.anthropic_api_key)}
 
 
 async def _resolve_template_pages(db, template_key: str) -> int:

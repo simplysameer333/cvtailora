@@ -39,7 +39,7 @@ export function buildFeatures(tierId: Tier): string[] {
         "6-step AI resume builder",
         "DOCX export",
         "3 resume templates",
-        `${lim("evaluators", "free")} AI quality evaluator`,
+        "AI review across every quality category",
         `${lim("key_skills", "free")} key skills extracted from JD`,
         `${estTailors("free")} AI resume tailors / month`,
         "Job search (browse only)",
@@ -48,7 +48,7 @@ export function buildFeatures(tierId: Tier): string[] {
       return [
         "Everything in Free",
         "PDF export",
-        `${lim("evaluators", "plus")} AI quality evaluators`,
+        `Deeper refinement (up to ${lim("max_eval_cycles", "plus")} improvement cycles)`,
         `${lim("key_skills", "plus")} key skills extracted`,
         // Advertised Plus allowance is a fixed 10/month (decoupled from the
         // internal cost-cap estimate, which is only used for the free/pro floor).
@@ -61,7 +61,7 @@ export function buildFeatures(tierId: Tier): string[] {
     case "pro":
       return [
         "Everything in Plus",
-        `${lim("evaluators", "pro")} AI quality evaluators`,
+        `Maximum refinement (up to ${lim("max_eval_cycles", "pro")} cycles) + highest quality bar`,
         `${lim("key_skills", "pro")} key skills extracted`,
         // Advertised Pro allowance is a fixed 25/month (see Plus note above).
         `25 AI resume tailors / month`,

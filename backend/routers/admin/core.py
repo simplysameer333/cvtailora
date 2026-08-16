@@ -31,8 +31,6 @@ from services.pipeline.prompts.anthropic import (
     _PAGE_RULES_2PAGE,
 )
 from services.pipeline.agents.gap_filler import _SYSTEM as _GAP_FILLER_SYSTEM
-from services.pipeline.prompts.openai import _OPENAI_EVALUATOR_BASE
-from services.pipeline.prompts.google import _GOOGLE_EVALUATOR_BASE
 from services.resume_checker_service import (
     _SYSTEM as _CV_QUALITY_SYSTEM, _PROMPT as _CV_QUALITY_PROMPT,
     _EXTRACT_SYSTEM as _CV_EXTRACT_SYSTEM, _EXTRACT_PROMPT as _CV_EXTRACT_PROMPT,
@@ -49,8 +47,6 @@ DEFAULTS: dict[str, str] = {
     "generator_page_rules_2page": _PAGE_RULES_2PAGE,
     "job_analyzer_system": _JOB_ANALYZER_SYSTEM,
     "anthropic_evaluator_base": _ANTHROPIC_EVALUATOR_BASE,
-    "openai_evaluator_base": _OPENAI_EVALUATOR_BASE,
-    "google_evaluator_base": _GOOGLE_EVALUATOR_BASE,
     "gap_filler_system": _GAP_FILLER_SYSTEM,
     "cv_score_quality_system": _CV_QUALITY_SYSTEM,
     "cv_score_quality_prompt": _CV_QUALITY_PROMPT,

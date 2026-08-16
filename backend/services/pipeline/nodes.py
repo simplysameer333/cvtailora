@@ -32,9 +32,8 @@ _PLATEAU_MARGIN = 4
 # Global fallback evaluator flags — used only when no per-request tier is set.
 # In practice every authenticated request now passes enabled_evaluators via state.
 _EVALUATOR_ENABLED_FALLBACK: dict[str, bool] = {
+    "cv_score": True,
     "anthropic": settings.anthropic_evaluator_enabled,
-    "openai": settings.openai_evaluator_enabled,
-    "google": settings.google_evaluator_enabled,
 }
 
 # Maps keywords found in evaluator feedback to the resume JSON keys they affect.

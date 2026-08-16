@@ -9,8 +9,6 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # ── API keys ────────────────────────────────────────────────────────────────────
     anthropic_api_key: str
-    openai_api_key: str = ""
-    google_api_key: str = ""
 
     # ── LLM gateway (OpenRouter) — the graph+loop engine routes EVERY call here ──
     # Single provider, single model, fully config-driven. No model string is
@@ -54,16 +52,11 @@ class Settings(BaseSettings):
     # Sonnet by user decision (2026-06-11): skill selection quality drives every
     # downstream generator cycle, so don't downgrade this call to Haiku.
     job_analyzer_model: str = "claude-sonnet-4-6"
-    openai_evaluator_model: str = "gpt-4o-mini"
-    google_evaluator_model: str = "gemini-2.5-flash"
 
     # ── Evaluator feature flags — LEGACY (pipeline/*) ────────────────────────
-    # The old cross-provider guardrail. The single-model graph engine replaces it
-    # with the Verification Agent + decomposition + pure validators. Retires at
-    # the Phase 4 cutover. Set to true/false in .env to enable each evaluator.
-    anthropic_evaluator_enabled: bool = True
-    openai_evaluator_enabled: bool = False    # off by default to reduce cost
-    google_evaluator_enabled: bool = False    # off by default to reduce cost
+    # Single-model: only the Anthropic JD-alignment evaluator flag remains (off by
+    # default). The OpenAI/Google evaluators were removed in the single-model move.
+    anthropic_evaluator_enabled: bool = False
 
     # ── Pipeline quality thresholds — LEGACY (pipeline/*) ────────────────────
     # Superseded by the tier-managed graph loop rules (tier_config: pass_threshold

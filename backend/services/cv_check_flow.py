@@ -24,14 +24,11 @@ from config import settings
 from database import get_db
 from services import generation_jobs as jobs
 from services.audit import log_audit
-from services.cv_refinement_service import refine_cv_text
 from services.email_service import send_error_alert
+from services.graph.cv_score_graph import run_cv_score_graph
 from services.resume_checker_service import (
-    check_grammar,
-    check_resume,
     extract_contact_regex,
     extract_resume_for_preview,
-    extract_weak_categories,
 )
 
 logger = logging.getLogger("cvtailora")
@@ -74,86 +71,32 @@ async def run_cv_check_job(text_hash: str, raw_text: str, file_ext: str, user: d
 
 async def _cv_check_body(db, key: str, text_hash: str, raw_text: str,
                          file_ext: str, user: dict | None) -> None:
-    lazy_threshold = settings.cv_score_lazy_threshold
-    ran_grammar = False
-    refine_cycles = 0
+    ran_grammar = True   # grammar is one of the graph's categories now
 
-    # ── Step 1: Quality check — the gate that decides how much more work is needed ──
-    # Checkpointed: a retried attempt reuses the saved result instead of re-scoring.
-    job_doc = await jobs.get(db, key)
-    cp = (job_doc or {}).get("checkpoint") or {}
-    if cp.get("quality_result"):
-        result = cp["quality_result"]
-        logger.info("[cv-check-job] %s reusing checkpointed quality result", key)
-    else:
-        await jobs.checkpoint(db, key, "scoring your CV")
-        result = await check_resume(raw_text, settings.anthropic_api_key)
-        await jobs.checkpoint(db, key, "scored", {"quality_result": result})
+    # ── Score the CV with the graph engine (Review → refine loop → keep best) ──
+    # The Evaluation Agent spawns one worker per quality category in parallel; the
+    # tier-bounded loop refines weak areas and keeps the best. Grammar is a
+    # category, so there is no separate grammar call. Replaces the old
+    # check_resume + Ralph loop. persist=True so the run shows in admin Agent Runs.
+    tier = (user or {}).get("tier", "free")
+    await jobs.checkpoint(db, key, "reviewing your CV across every category")
+    graph_run = await run_cv_score_graph(
+        raw_text, tier=tier, persist=True,
+        user_id=str(user["_id"]) if user else None,
+    )
+    result = {
+        "overall_score": int((graph_run.result or {}).get("overall_score", 0) or 0),
+        "categories": (graph_run.result or {}).get("categories", []),
+    }
+    refine_cycles = graph_run.totals.total_loops
 
-    initial_score = int(result.get("overall_score", 0) or 0)
-
-    # ── Step 2: Ralph Loop — refine if score is below the lazy threshold ──────
-    # Each cycle applies targeted fixes from weak categories and re-scores. Exits
-    # when score >= threshold, plateau is detected, or max cycles is reached.
-    # We always return best_result (highest-scoring cycle), never just the last.
-    if lazy_threshold > 0 and initial_score < lazy_threshold:
-        best_result = result
-        best_score = initial_score
-        prev_score = initial_score
-
-        for _cycle in range(settings.cv_score_max_refine_cycles):
-            issues = extract_weak_categories(best_result)
-            if not issues:
-                break
-            await jobs.checkpoint(db, key, f"refining weak areas (pass {_cycle + 1})")
-            try:
-                refined_text = await refine_cv_text(
-                    raw_text, issues, lazy_threshold, settings.anthropic_api_key
-                )
-                new_result = await check_resume(refined_text, settings.anthropic_api_key)
-                refine_cycles += 1
-            except Exception as exc:
-                logger.warning("[cv_score] Refinement cycle %d failed: %s", _cycle + 1, exc)
-                break
-
-            new_score = int(new_result.get("overall_score", 0) or 0)
-            if new_score > best_score:
-                best_result = new_result
-                best_score = new_score
-
-            gain = new_score - prev_score
-            logger.info(
-                "[cv_score] Refinement cycle %d: score %d → %d (gain=%d, best=%d)",
-                _cycle + 1, prev_score, new_score, gain, best_score,
-            )
-            if gain < settings.cv_score_plateau_margin:
-                break
-            if best_score >= lazy_threshold:
-                break
-            prev_score = new_score
-
-        result = best_result
-
-    # ── Step 3: Extraction + grammar — run concurrently; grammar only when needed ──
-    # Extraction always runs (needed for template preview display).
-    # Grammar only runs when score is below threshold — high-scoring CVs skip it.
+    # ── Extraction — always runs (needed for the template preview) ────────────
     await jobs.checkpoint(db, key, "extracting your profile")
-    current_score = int(result.get("overall_score", 0) or 0)
-    run_grammar = lazy_threshold == 0 or current_score < lazy_threshold
-
-    if run_grammar:
-        extracted_llm_raw, grammar_raw = await asyncio.gather(
-            extract_resume_for_preview(raw_text, settings.anthropic_api_key),
-            check_grammar(raw_text, settings.anthropic_api_key),
-            return_exceptions=True,
-        )
-        ran_grammar = True
-    else:
-        extracted_llm_raw = (await asyncio.gather(
-            extract_resume_for_preview(raw_text, settings.anthropic_api_key),
-            return_exceptions=True,
-        ))[0]
-        grammar_raw = None
+    extracted_llm_raw = (await asyncio.gather(
+        extract_resume_for_preview(raw_text, settings.anthropic_api_key),
+        return_exceptions=True,
+    ))[0]
+    grammar_raw = None   # grammar already scored inside the graph
 
     extracted_llm = None if isinstance(extracted_llm_raw, Exception) else extracted_llm_raw
     if isinstance(extracted_llm_raw, Exception):
@@ -225,8 +168,8 @@ async def _cv_check_body(db, key: str, text_hash: str, raw_text: str,
         logger.warning("[cv_score] Failed to persist result: %s", exc)
         result_id = None
 
-    # Audit: 1 quality check + refine_cycles×2 (refine+re-score) + 1 extraction + grammar
-    llm_calls = 1 + refine_cycles * 2 + 1 + (1 if ran_grammar else 0)
+    # Audit: the graph's parallel category workers + refine cycles + 1 extraction.
+    llm_calls = graph_run.totals.llm_calls + 1
     if user:
         log_audit(user, "resume.cv_score", {
             "result_id": result_id,
@@ -234,6 +177,8 @@ async def _cv_check_body(db, key: str, text_hash: str, raw_text: str,
             "file_ext": file_ext,
             "llm_calls": llm_calls,
             "refine_cycles": refine_cycles,
+            "est_cost_usd": round(graph_run.totals.usd, 4),
+            "graph_run_id": graph_run.run_id,
         })
 
     await jobs.complete(db, key, {**result, "result_id": result_id, "extracted_profile": extracted_profile})

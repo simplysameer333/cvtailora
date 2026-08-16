@@ -51,7 +51,6 @@ export const TIER_LIMITS = {
   resume_library:  { free: 0,  plus: 5,   pro: null } as const,
   saved_jobs:      { free: 0,  plus: 25,  pro: null } as const,
   job_alerts:      { free: 0,  plus: 5,   pro: null } as const,
-  evaluators:      { free: 1,  plus: 2,   pro: 3    } as const,
   key_skills:      { free: 3,  plus: 5,   pro: 10   } as const,
   // Account-level cost budgets in US cents. null = unlimited.
   daily_cost_cents:   { free: 25, plus: 100,  pro: 200  } as const,

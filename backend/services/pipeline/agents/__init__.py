@@ -3,8 +3,7 @@ from .aggregator import AggregatorAgent
 from .evaluators import (
     EVALUATOR_REGISTRY,
     AnthropicEvaluatorAgent,
-    OpenAIEvaluatorAgent,
-    GoogleEvaluatorAgent,
+    CvScoreEvaluatorAgent,
 )
 
 __all__ = [
@@ -12,6 +11,5 @@ __all__ = [
     "AggregatorAgent",
     "EVALUATOR_REGISTRY",
     "AnthropicEvaluatorAgent",
-    "OpenAIEvaluatorAgent",
-    "GoogleEvaluatorAgent",
+    "CvScoreEvaluatorAgent",
 ]

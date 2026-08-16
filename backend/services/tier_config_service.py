@@ -69,7 +69,6 @@ DEFAULT_LIMITS: dict[str, dict[str, int | None]] = {
     "resume_library":  {"free": 0,  "plus": 5,   "pro": None},
     "saved_jobs":      {"free": 0,  "plus": 25,  "pro": None},
     "job_alerts":      {"free": 0,  "plus": 5,   "pro": None},
-    "evaluators":      {"free": 1,  "plus": 2,   "pro": 3},
     "key_skills":      {"free": 3,  "plus": 5,   "pro": 10},
     # Account-level cost guardrails — estimated AI spend in US cents, per UTC day
     # and per UTC calendar month. A request is refused (429) once either is hit.
@@ -117,7 +116,6 @@ LIMIT_LABELS: dict[str, str] = {
     "resume_library":  "Resume Library size",
     "saved_jobs":      "Saved Jobs",
     "job_alerts":      "Job Alerts",
-    "evaluators":      "AI Evaluators",
     "key_skills":      "Key Skills extracted from JD",
     "daily_cost_cents":   "Daily AI Cost Budget (US¢)",
     "monthly_cost_cents": "Monthly AI Cost Budget (US¢)",
