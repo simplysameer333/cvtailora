@@ -41,51 +41,29 @@ class Settings(BaseSettings):
     # provider's rate limit while still running independent nodes in parallel.
     graph_concurrency: int = 5
 
-    # ── Model names — swap in .env without touching code ──────────────────────
-    # LEGACY (pipeline/*): the old multi-provider evaluator-optimizer graph. Being
-    # superseded by the single-model graph+loop engine (services/graph). Kept until
-    # the migration flag flips both features over — see Phase 4 cleanup.
-    # claude-sonnet-4-20250514 retires 2026-06-15 — claude-sonnet-4-6 is the
-    # drop-in replacement at the same price ($3/$15 per MTok).
+    # ── Model names for the remaining pipeline agents (Anthropic SDK) ─────────
+    # Still used by: GeneratorAgent (section-regen), JobAnalyzerAgent, and
+    # anthropic_evaluator_model as the Sonnet reference for cv_template_service /
+    # profile_prefill_service. The graph engine's model is settings.primary_model.
     generator_model: str = "claude-sonnet-4-6"
     anthropic_evaluator_model: str = "claude-sonnet-4-6"
     # Sonnet by user decision (2026-06-11): skill selection quality drives every
     # downstream generator cycle, so don't downgrade this call to Haiku.
     job_analyzer_model: str = "claude-sonnet-4-6"
 
-    # ── Evaluator feature flags — LEGACY (pipeline/*) ────────────────────────
-    # Single-model: only the Anthropic JD-alignment evaluator flag remains (off by
-    # default). The OpenAI/Google evaluators were removed in the single-model move.
-    anthropic_evaluator_enabled: bool = False
-
-    # ── Pipeline quality thresholds — LEGACY (pipeline/*) ────────────────────
-    # Superseded by the tier-managed graph loop rules (tier_config: pass_threshold
-    # / max_eval_cycles / max_run_cost_cents, resolved by services/graph/tier_rules).
+    # ── Tier-loop fallbacks (graph loop rules live in tier_config) ───────────
+    # Fallback values when a tier has no configured pass_threshold / max_eval_cycles.
     pass_threshold: int = 50
     max_eval_cycles: int = 3
 
-    # ── Per-session cost controls ───────────────────────────────────────────
-    # Hard cap on total AI API calls per session across all generate invocations.
-    # Minimum per full run: 1 job-analyzer + (1 gen + N evaluators) × max_eval_cycles
-    #   Free  (1 eval, 3 cycles): 1 + 2×3  =  7
-    #   Plus  (2 eval, 3 cycles): 1 + 3×3  = 10
-    #   Pro   (3 eval, 3 cycles): 1 + 4×3  = 13  ← was hitting 10 limit
-    # Set to 30 to allow 1 full run + multiple section regens per session.
-    # Set to 0 to disable the cap entirely.
+    # ── Per-session cost control ─────────────────────────────────────────────
+    # Hard cap on total AI API calls per session (section-regen / auto-fix guard).
+    # 0 disables the cap.
     max_ai_calls_per_session: int = 30
 
-    # ── Skill extraction (JobAnalyzerAgent) ──────────────────────────────
-    # Number of key skills the job analyzer picks and passes to the generator.
-    # Maps to subscription tiers — override per-user when billing is wired:
-    #   Free  = 3  |  Plus = 5  |  Pro = 10
+    # ── Skill extraction (JobAnalyzerAgent) ──────────────────────────────────
+    # Fallback key-skill count when a tier has no configured value.
     skill_extraction_count: int = 3
-
-    # ── CV Score lazy evaluation + refinement loop — LEGACY (cv_check_flow) ──
-    # Superseded by the CV Score graph (Generate→Review→Update→Loop/Exit) whose
-    # loop is governed by the tier rules. Retires at the Phase 4 cutover.
-    cv_score_lazy_threshold: int = 75
-    cv_score_max_refine_cycles: int = 3
-    cv_score_plateau_margin: int = 3
 
     # ── Feature flags ──────────────────────────────────────────────────────
     # PDF export runs LibreOffice headless — disable on environments without it.

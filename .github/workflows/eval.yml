@@ -1,24 +1,25 @@
-name: Eval Harness — Regression Gate
+name: Graph Engine — Regression Gate
 
-# Runs the CV pipeline against a fixed fixture CV and fails if the generated
-# resume scores below the original (regression). Only triggers when pipeline
-# logic or evaluator code changes — not on frontend or docs changes.
-#
-# Cost: ~1 Anthropic Sonnet call × 3 cycles × free tier = ~$0.05–0.10 per run.
-# Requires: ANTHROPIC_API_KEY secret set in GitHub repository settings.
+# Runs the graph+loop engine's unit + end-to-end tests (async DAG runner, shared
+# category checkers, section generators, both graph flows via a fake gateway, the
+# loop controller, tier rules, validators). No API key needed — the fake gateway
+# means the gate always runs and is deterministic. Triggers on graph/pipeline or
+# test changes; not on frontend or docs.
 
 on:
   push:
     branches: [main]
     paths:
+      - 'backend/services/graph/**'
+      - 'backend/services/llm/**'
       - 'backend/services/pipeline/**'
-      - 'backend/services/resume_checker_service.py'
-      - 'backend/services/user_actions_service.py'
+      - 'backend/services/generation_service.py'
+      - 'backend/services/cv_check_flow.py'
       - 'backend/tests/**'
   workflow_dispatch:   # allow manual trigger from GitHub Actions UI
 
 jobs:
-  eval:
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -32,49 +33,13 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r backend/requirements.txt
+        run: pip install -r backend/requirements.txt pytest
 
-      # The regression gate calls the Anthropic API, so it needs a key. By
-      # design the key is NOT required to be stored in GitHub: when the
-      # ANTHROPIC_API_KEY secret is absent, this step SKIPS and the job stays
-      # green — run the harness locally before merging instead (the key lives
-      # only in your gitignored backend/.env). Add the secret later to turn the
-      # automatic gate back on with zero other changes.
-      - name: Check for API key
-        id: key
+      - name: Run the test suite (graph engine + pipeline)
+        working-directory: backend
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          if [ -n "$ANTHROPIC_API_KEY" ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::ANTHROPIC_API_KEY secret not set — skipping the eval regression gate. Run backend/tests/pipeline_harness.py locally before merging."
-          fi
-
-      - name: Run eval harness (free tier — regression gate)
-        if: steps.key.outputs.present == 'true'
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # MongoDB not needed for CI — harness records to memory silently
-          MONGODB_URI: mongodb://localhost/ci_harness
-          # Force UTF-8 so the harness's box-drawing output can't crash on a
-          # non-UTF-8 runner locale.
+          # A dummy key satisfies config (no real calls — tests inject a fake gateway).
+          ANTHROPIC_API_KEY: ci-dummy-key
+          MONGODB_URI: mongodb://localhost/ci
           PYTHONIOENCODING: utf-8
-        run: |
-          python backend/tests/pipeline_harness.py \
-            backend/tests/fixtures/sample_cv.txt \
-            --tiers free \
-            --attempts 1 \
-            --output-dir /tmp/harness_results
-        # Exit code 1 = generated score < original score (regression) → job fails
-
-      - name: Upload harness report
-        # Only when the gate actually ran — a skipped run writes no report, and
-        # upload-artifact would otherwise warn/fail on "no files found".
-        if: always() && steps.key.outputs.present == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: harness-report-${{ github.sha }}
-          path: /tmp/harness_results/*.json
-          retention-days: 30
+        run: python -m pytest tests/ -q

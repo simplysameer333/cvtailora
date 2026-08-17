@@ -21,11 +21,6 @@ def test_dropping_resume_text_is_flagged():
     assert missing_placeholders("cv_score_quality_prompt", "Score this CV. Return JSON.") == ["{resume_text}"]
 
 
-def test_evaluator_needs_both_placeholders():
-    body = "You are an evaluator.\n{scoring_criteria}\nReturn JSON."
-    assert missing_placeholders("anthropic_evaluator_base", body) == ["{evaluator_context}"]
-
-
 def test_generator_needs_tone_and_page_rules():
     assert set(missing_placeholders("generator_system", "You are a writer.")) == {"{tone}", "{page_rules}"}
 

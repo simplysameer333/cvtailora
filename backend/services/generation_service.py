@@ -37,7 +37,8 @@ from bson import ObjectId
 
 from database import get_db
 from config import settings
-from services.pipeline import pipeline, telemetry
+from services.pipeline import telemetry
+from services.graph.cv_build_graph import run_cv_build_graph
 from services import generation_jobs as gen_jobs
 from services.usage_service import increment_usage
 from services.agent_memory import record_generation_outcome
@@ -64,6 +65,23 @@ _job_analyzer = JobAnalyzerAgent()
 def _enabled_evaluators_for_tier(user_tier: str) -> dict[str, bool]:
     """Per-tier evaluator flags. Single-model: cv_score only."""
     return {"cv_score": bool(settings.anthropic_api_key)}
+
+
+def _profile_to_text(user_profile: dict) -> str:
+    """Flatten the structured profile into text for the graph's cached corpus.
+    Only fields that add real content are included; empty ones are skipped."""
+    if not isinstance(user_profile, dict):
+        return ""
+    lines: list[str] = []
+    for key in ("target_role", "seniority", "additional_notes", "github_projects"):
+        val = user_profile.get(key)
+        if val:
+            lines.append(f"{key.replace('_', ' ').title()}: {val}")
+    for key in ("skills", "certifications"):
+        val = user_profile.get(key)
+        if isinstance(val, list) and val:
+            lines.append(f"{key.title()}: " + ", ".join(str(v) for v in val))
+    return "\n".join(lines)
 
 
 async def _resolve_template_pages(db, template_key: str) -> int:
@@ -415,133 +433,109 @@ async def _generation_body(db, session_id: str, extra_instr: str, user: dict | N
         })
         return
 
-    enabled_evaluators = _enabled_evaluators_for_tier(user_tier)
-    active_evaluator_count = sum(enabled_evaluators.values())
     await check_cost_limit(db, session_id)
-
     template_pages = await _resolve_template_pages(db, template_id)
-
-    # Checkpoint seeding: a resumed attempt starts the loop where the last one
-    # stopped — prior best resume/score become the floor (never lost), the last
-    # feedback steers the next draft, and the seeded cycle count preserves the
-    # ORIGINAL tier budget across attempts (cycle >= 2 also re-enables patch mode).
-    cp_cycle = int(cp.get("cycle", 0) or 0) if cp.get("best_resume_json") else 0
-    initial_state = {
-        "resume_text": resume_text,
-        "user_profile": user_profile,
-        "job_description": job_description,
-        "tone": tone,
-        "profession_config": profession_config,
-        "locked_facts": locked_facts,
-        "key_skills": key_skills,
-        "sample_cv_text": sample_cv_text,
-        "enabled_evaluators": enabled_evaluators,
-        "pass_threshold": pass_threshold,
-        "max_cycles": max_cycles,
-        "template_pages": template_pages,
-        "conservative_scoring": conservative_scoring,
-        "cycle": cp_cycle,
-        "feedback": cp.get("feedback") if cp_cycle else None,
-        "resume_json": cp.get("best_resume_json") if cp_cycle else None,
-        "eval_results": [],
-        "eval_history": [],
-        "seen_suggestions": [],
-        "best_resume_json": cp.get("best_resume_json") if cp_cycle else None,
-        "best_min_score": int(cp.get("best_min_score", 0) or 0) if cp_cycle else 0,
-        "last_gain": 99,  # never plateau-exit purely from seeded state
-        "all_passed": False,
-        "min_score": 0,
-        "faithfulness_warning": None,
-    }
-    if cp_cycle:
-        logger.info("[generate-job] session %s resuming loop at cycle %d (best %s)",
-                    session_id, cp_cycle, initial_state["best_min_score"])
-
     pipeline_timeout = 300.0
-    _snap: list[dict] = [dict(initial_state)]
     _timed_out = False
-    _last_cp_cycle = [cp_cycle]
 
-    async def _stream() -> None:
-        async for state in pipeline.astream(initial_state, stream_mode="values"):
-            _snap[0] = state
-            # Checkpoint after every completed cycle — a crash/retry resumes
-            # here instead of restarting the whole loop.
-            _cyc = state.get("cycle", 0)
-            if _cyc != _last_cp_cycle[0] and state.get("best_resume_json"):
-                _last_cp_cycle[0] = _cyc
-                await gen_jobs.checkpoint(db, session_id, f"cycle {_cyc} complete", {
-                    "cycle": _cyc,
-                    "best_min_score": state.get("best_min_score", 0),
-                    "best_resume_json": state.get("best_resume_json"),
-                    "feedback": state.get("feedback"),
-                })
+    # ── Generate with the graph engine ────────────────────────────────────────
+    # Section-writer agents draft each part in parallel → merge → the Evaluation
+    # Agent scores every category → tier-bounded refine loop → Verification
+    # guardrail. Replaces the LangGraph evaluator-optimizer pipeline. Progress
+    # checkpoints drive the job-polling UX + crash-resume (best is never lost).
+    profile_text = _profile_to_text(user_profile)
 
+    async def _on_progress(stage: str, snap: dict) -> None:
+        await gen_jobs.checkpoint(db, session_id, stage, {
+            "cycle": int(snap.get("iteration", 0) or 0),
+            "best_min_score": int(snap.get("best_score", 0) or 0),
+            "best_resume_json": snap.get("best_resume"),
+        })
+
+    graph_run = None
     try:
-        await asyncio.wait_for(_stream(), timeout=pipeline_timeout)
+        graph_run = await asyncio.wait_for(
+            run_cv_build_graph(
+                resume_text, job_description, tier=user_tier,
+                profile_text=profile_text, key_skills=key_skills,
+                template_pages=template_pages, pass_threshold=pass_threshold,
+                session_id=session_id, user_id=str(user["_id"]) if user else None,
+                input_hash=input_hash, persist=True, db=db, on_progress=_on_progress,
+            ),
+            timeout=pipeline_timeout,
+        )
     except asyncio.TimeoutError:
         _timed_out = True
-        logger.warning(
-            "[generate] Pipeline timed out after %ds (tier=%s) — "
-            "returning best intermediate result. session=%s cycles_completed=%d best_score=%d",
-            pipeline_timeout, user_tier, session_id,
-            _snap[0].get("cycle", 0), _snap[0].get("best_min_score", 0),
-        )
+        logger.warning("[generate] graph engine timed out after %ds — using checkpoint best. session=%s",
+                       pipeline_timeout, session_id)
     except Exception as exc:
-        logger.exception("[generate] Pipeline failed for session %s: %s", session_id, exc)
+        logger.exception("[generate] graph engine failed for session %s: %s", session_id, exc)
         raise HTTPException(500, f"Resume generation failed: {exc}")
 
-    final_state = _snap[0]
+    # ── Map the graph output into the final_state shape the downstream expects ─
+    if graph_run is not None:
+        gr = graph_run.result or {}
+        best_resume = gr.get("resume")
+        best_score = int(gr.get("overall_score", 0) or 0)
+        cv_categories = gr.get("categories", [])
+        weak = gr.get("weakest", [])
+        cycles_done = int(gr.get("cycles", 1) or 1)
+        faith = gr.get("faithfulness") or {}
+        usage = {
+            "llm_calls": graph_run.totals.llm_calls,
+            "input_tokens": graph_run.totals.input_tokens,
+            "output_tokens": graph_run.totals.output_tokens,
+            "cache_read_tokens": graph_run.totals.cache_read_tokens,
+            "est_cost_usd": round(graph_run.totals.usd, 4),
+        }
+    else:
+        # Timed out — recover the best from the last checkpoint (never lost).
+        cp2 = (await gen_jobs.get(db, session_id) or {}).get("checkpoint") or {}
+        best_resume = cp2.get("best_resume_json")
+        best_score = int(cp2.get("best_min_score", 0) or 0)
+        cv_categories, weak = [], []
+        cycles_done = int(cp2.get("cycle", 0) or 0)
+        faith = {}
+        usage = {"llm_calls": 0, "input_tokens": 0, "output_tokens": 0,
+                 "cache_read_tokens": 0, "est_cost_usd": 0.0}
 
-    if _timed_out and not final_state.get("best_resume_json") and not final_state.get("resume_json"):
+    if _timed_out and not best_resume:
         raise HTTPException(
             504,
             "Resume generation timed out before producing a result. "
             "Please try again — it usually completes in 60–120 seconds.",
         )
 
-    if final_state.get("best_resume_json") is not None:
-        final_state["resume_json"] = final_state["best_resume_json"]
-        final_state["min_score"] = final_state["best_min_score"]
-        final_state["all_passed"] = final_state["best_min_score"] >= pass_threshold
+    faith_warning = None
+    if faith and not faith.get("faithful", True):
+        faith_warning = ("Possible unsupported claims vs your source: "
+                         + "; ".join((faith.get("issues") or [])[:3]))
+    # Weak-category improvements as "[Category] suggestion" — the format
+    # build_user_actions parses to drive the user's to-do list.
+    suggestions = [f"[{c.get('name', c.get('key'))}] {imp}"
+                   for c in weak for imp in (c.get("improvements") or [])[:2]]
 
-    # ── Reviewer sub-agent — post-loop polish pass ────────────────────────────
-    # A second focused Sonnet call reviews the finished draft against the JD with
-    # fresh eyes: framing, emphasis, verb precision, JD keyword alignment.
-    # Runs only when a JD is present (tailored run) AND the loop did NOT reach
-    # the tier bar — on a passing run the draft already cleared the same score
-    # the user sees, and the reviewer's output is never re-scored, so running it
-    # there spends a full Sonnet call on an unmeasured (possibly regressive) edit.
-    # Non-fatal: keeps loop output on any failure. Skipped on timed-out runs.
-    await gen_jobs.checkpoint(db, session_id, "polishing result")
-    if (not _timed_out and final_state.get("resume_json") and job_description.strip()
-            and not final_state.get("all_passed")):
-        try:
-            from services.pipeline.agents.reviewer import ReviewerAgent
-            reviewed = await ReviewerAgent().run(
-                resume_json=final_state["resume_json"],
-                job_description=job_description,
-            )
-            if reviewed:
-                final_state["resume_json"] = reviewed
-                logger.info("[generate] Reviewer pass applied for session %s.", session_id)
-        except Exception as _rev_exc:
-            logger.warning("[generate] Reviewer pass skipped (non-fatal): %s", _rev_exc)
+    final_state = {
+        "resume_json": best_resume,
+        "min_score": best_score,
+        "best_resume_json": best_resume,
+        "best_min_score": best_score,
+        "all_passed": best_score >= pass_threshold,
+        "cycle": cycles_done,
+        "eval_history": [],
+        "eval_results": [{"model": "cv_score", "score": best_score,
+                          "suggestions": suggestions, "categories": cv_categories}],
+        "faithfulness_warning": faith_warning,
+    }
 
-    # Actual calls used THIS attempt: analyzer (0 when resumed from checkpoint)
-    # + (generator + evaluators) × fresh cycles only (seeded cycles were already
-    # charged by the attempt that ran them).
-    fresh_cycles = max(0, final_state["cycle"] - cp_cycle)
-    actual_calls = job_analyzer_calls + (1 + active_evaluator_count) * fresh_cycles
+    actual_calls = usage["llm_calls"]
     await increment_call_count(db, session_id, actual_calls)
-
-    usage = telemetry.summary()
     logger.info(
         "[generate] TELEMETRY session=%s tier=%s cycles=%d min_score=%d passed=%s | "
         "llm_calls=%d in_tok=%d out_tok=%d cache_read=%d est_cost=$%.4f",
-        session_id, user_tier, final_state["cycle"], final_state["min_score"],
-        final_state["all_passed"], usage["llm_calls"], usage["input_tokens"],
-        usage["output_tokens"], usage["cache_read_tokens"], usage["est_cost_usd"],
+        session_id, user_tier, cycles_done, best_score, final_state["all_passed"],
+        usage["llm_calls"], usage["input_tokens"], usage["output_tokens"],
+        usage["cache_read_tokens"], usage["est_cost_usd"],
     )
 
     # ── Regression guard: never silently lose a better previous result ───────
@@ -643,43 +637,9 @@ async def _generation_body(db, session_id: str, extra_instr: str, user: dict | N
                 page_count=template_pages,
                 source_resume_text=resume_text,
             )
-            # ── Enforce the page budget ───────────────────────────────────────
-            # The generator is told the limit every cycle but can still overflow.
-            # On overflow, run ONE deterministic-gated corrective trim pass (cut/
-            # tighten existing content, never invent) and re-validate. Bounded:
-            # at most one extra Sonnet call, only when the résumé actually overflows.
-            if layout_validation.get("truncated") and not _timed_out:
-                try:
-                    from services.pipeline.agents.generator import GeneratorAgent
-                    overflow_note = (
-                        f"Estimated {layout_validation.get('estimated_pages')} pages vs a "
-                        f"{template_pages}-page budget. "
-                        + " ".join(layout_validation.get("suggestions") or [])
-                    )
-                    trimmed = await GeneratorAgent().run_trim(
-                        final_state["resume_json"], template_pages, overflow_note,
-                    )
-                    if trimmed is not final_state["resume_json"]:
-                        revalid = validate_resume_layout(
-                            resume=trimmed, page_count=template_pages, source_resume_text=resume_text,
-                        )
-                        # Keep the trim only if it actually helped the fit.
-                        if revalid.get("estimated_pages", 99) <= layout_validation.get("estimated_pages", 0):
-                            final_state["resume_json"] = trimmed
-                            layout_validation = revalid
-                            # generated_resume was persisted before this point; re-save
-                            # so export/library get the trimmed version, not the overflow.
-                            await db.sessions.update_one(
-                                {"_id": ObjectId(session_id)},
-                                {"$set": {"generated_resume": trimmed}},
-                            )
-                            logger.info(
-                                "[generate] LAYOUT trim applied session %s: now est %s pages (budget %s), truncated=%s.",
-                                session_id, revalid.get("estimated_pages"), template_pages, revalid.get("truncated"),
-                            )
-                except Exception as _trim_exc:
-                    logger.warning("[generate] Layout trim skipped (non-fatal): %s", _trim_exc)
-
+            # Page budget is enforced up front: the graph corpus tells every
+            # section worker the exact page limit, so overflow is rare. Overflow
+            # is logged (below) rather than corrected with an extra trim call.
             if layout_validation.get("truncated") or not layout_validation.get("page_breaks_clean", True):
                 logger.warning(
                     "[generate] LAYOUT — session %s: est %s pages (template %s), truncated=%s, clean_breaks=%s. Fixes: %s",

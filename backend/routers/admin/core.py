@@ -26,7 +26,6 @@ from services.prompt_store import (
 from services.pipeline.prompts.anthropic import (
     _GENERATOR_SYSTEM_BASE,
     _JOB_ANALYZER_SYSTEM,
-    _ANTHROPIC_EVALUATOR_BASE,
     _PAGE_RULES_1PAGE,
     _PAGE_RULES_2PAGE,
 )
@@ -46,7 +45,6 @@ DEFAULTS: dict[str, str] = {
     "generator_page_rules_1page": _PAGE_RULES_1PAGE,
     "generator_page_rules_2page": _PAGE_RULES_2PAGE,
     "job_analyzer_system": _JOB_ANALYZER_SYSTEM,
-    "anthropic_evaluator_base": _ANTHROPIC_EVALUATOR_BASE,
     "gap_filler_system": _GAP_FILLER_SYSTEM,
     "cv_score_quality_system": _CV_QUALITY_SYSTEM,
     "cv_score_quality_prompt": _CV_QUALITY_PROMPT,

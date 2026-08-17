@@ -16,7 +16,6 @@ PROMPT_KEYS: dict[str, str] = {
     "generator_page_rules_1page": "Generator — 1-Page Length Rules",
     "generator_page_rules_2page": "Generator — 2-Page Length Rules",
     "job_analyzer_system": "Job Analyzer — System Prompt",
-    "anthropic_evaluator_base": "Anthropic Evaluator — Base Prompt",
     "gap_filler_system": "Auto-Fix Gap Filler — System Prompt",
     # ── CV Score (services/resume_checker_service.py) ─────────────────────────
     "cv_score_quality_system": "Quality Check — System Prompt",
@@ -47,7 +46,6 @@ PROMPT_CATEGORIES: dict[str, str] = {
     "generator_page_rules_1page": "builder",
     "generator_page_rules_2page": "builder",
     "job_analyzer_system": "builder",
-    "anthropic_evaluator_base": "builder",
     "gap_filler_system": "builder",
     "cv_score_quality_system": "cv_score",
     "cv_score_quality_prompt": "cv_score",
@@ -73,7 +71,6 @@ PROMPT_CATEGORIES: dict[str, str] = {
 REQUIRED_PLACEHOLDERS: dict[str, list[str]] = {
     "generator_system":         ["{tone}", "{page_rules}"],
     "job_analyzer_system":      ["{n}"],
-    "anthropic_evaluator_base": ["{scoring_criteria}", "{evaluator_context}"],
     "cv_score_quality_prompt":  ["{resume_text}"],
     "cv_score_extract_prompt":  ["{resume_text}"],
     "cv_score_grammar_prompt":  ["{resume_text}"],

@@ -19,7 +19,7 @@ Shape (dependency edges shown; every independent node runs concurrently):
 from __future__ import annotations
 
 import uuid
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 from config import settings
 from services.llm.gateway import active_model
@@ -141,6 +141,7 @@ async def run_cv_build_graph(
     tier: str = "free",
     profile_text: str = "",
     key_skills: Optional[list[str]] = None,
+    template_pages: int = 2,
     pass_threshold: Optional[int] = None,
     max_iterations: Optional[int] = None,
     run_id: Optional[str] = None,
@@ -150,6 +151,9 @@ async def run_cv_build_graph(
     persist: bool = True,
     db=None,
     llm=None,
+    # Called at stage boundaries with (stage_label, snapshot) so the caller can
+    # drive its own job/checkpoint UX (generation_jobs polling + crash resume).
+    on_progress: Optional[Callable[[str, dict], Awaitable[None]]] = None,
 ) -> GraphRun:
     """Run the CV Build graph+loop and return the completed GraphRun.
 
@@ -164,7 +168,18 @@ async def run_cv_build_graph(
         user_id=user_id, input_hash=input_hash, status="running",
     )
     corpus = build_build_corpus(resume_text, profile_text, job_description, key_skills)
+    # Page budget is a stable per-run constraint — append to the cached corpus so
+    # every section worker sees it without an uncached-prompt change.
+    corpus += (f"\n\n=== OUTPUT CONSTRAINT ===\nThe finished resume must fit "
+               f"{template_pages} A4 page(s). Keep every section tight enough for that budget.")
     loop = tier_rules.loop_controller_for(tier)
+
+    async def _notify(stage: str, snapshot: dict) -> None:
+        if on_progress is not None:
+            try:
+                await on_progress(stage, snapshot)
+            except Exception:   # progress is best-effort — never fail the run
+                pass
     if pass_threshold is not None or max_iterations is not None:
         loop = LoopController(
             pass_threshold=pass_threshold if pass_threshold is not None else loop.pass_threshold,
@@ -225,11 +240,15 @@ async def run_cv_build_graph(
 
     best_resume = merge_out.content
     best_sections = {sid.split(":", 1)[1]: results[sid] for sid in section_ids if sid in results}
+    await _notify("reviewing your resume across every category",
+                  {"best_resume": best_resume, "best_score": 0, "iteration": 0})
 
     # REVIEW: the Evaluation Agent scores the merged resume (shared with CV Score).
     agg = await run_review(run, _resume_text_for_scoring(best_resume), job_description,
                            upstream="merge", llm=llm)
     best_score = agg["overall_score"]
+    await _notify(f"reviewed — score {best_score}",
+                  {"best_resume": best_resume, "best_score": best_score, "iteration": 1})
 
     # ── Refine loop: regenerate only weak sections, keep best ────────────────
     gains: list[float] = []
@@ -248,6 +267,8 @@ async def run_cv_build_graph(
             break
 
         # UPDATE: regenerate only the weak sections, re-merge, RE-REVIEW.
+        await _notify(f"refining weak sections (pass {iteration})",
+                      {"best_resume": best_resume, "best_score": best_score, "iteration": iteration})
         regen = await _regenerate_sections(run, weak, best_sections, corpus, llm)
         merged = merge_sections({k: _section_content(v) for k, v in {**best_sections, **regen}.items()})
         new_agg = await run_review(run, _resume_text_for_scoring(merged), job_description,
@@ -261,6 +282,8 @@ async def run_cv_build_graph(
             best_sections.update(regen)
             agg = new_agg
         iteration += 1
+        await _notify(f"reviewed — score {best_score}",
+                      {"best_resume": best_resume, "best_score": best_score, "iteration": iteration})
         if persist:
             await store.save(run, db)
 
@@ -279,6 +302,9 @@ async def run_cv_build_graph(
                                           upstream="aggregate", llm=llm)
 
     run.result = {"resume": best_resume, "overall_score": best_score,
+                  # cycles = the initial generate+review pass plus each refine pass
+                  "cycles": iteration,
+                  "loop_stop_reason": stop_reason or "passed",
                   "categories": agg.get("categories", []), "weakest": agg.get("weakest", []),
                   "faithfulness": faithfulness}
     run.recompute_totals()   # totals.total_loops depends on the LoopRun added above
